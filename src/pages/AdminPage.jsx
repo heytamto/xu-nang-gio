@@ -3,8 +3,7 @@ import {
   ArrowLeft, Plus, Trash2, RotateCcw, 
   Settings, Tag, QrCode, Check, BookOpen, 
   ShoppingBag, Calendar, User, ToggleLeft, ToggleRight,
-  LayoutDashboard, TrendingUp, PackageCheck, 
-  RefreshCw, Loader2, FileSpreadsheet, ExternalLink
+  LayoutDashboard, TrendingUp, RefreshCw, Loader2, FileSpreadsheet
 } from 'lucide-react';
 
 const GSHEET_URL = 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
@@ -22,7 +21,7 @@ export default function AdminPage({
   onNavigateHome 
 }) {
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'products' | 'config' | 'posts'
-  const [timeRange, setTimeRange] = useState('month'); // 'day' | 'week' | 'month' | 'all'
+  const [timeRange, setTimeRange] = useState('day');
   const [savedNotice, setSavedNotice] = useState(false);
 
   // Sheet API Data States
@@ -30,22 +29,22 @@ export default function AdminPage({
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
-  // Fetch đơn hàng từ Google Sheet Webhook
+  // Fetch từ Google Sheet
   const fetchOrdersFromSheet = useCallback(async () => {
     setIsLoadingSheet(true);
     setLoadError(null);
     try {
-      const res = await fetch(GSHEET_URL);
+      const res = await fetch(GSHEET_URL, { method: 'GET', redirect: 'follow' });
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         setSheetOrders(json.data);
       } else if (Array.isArray(json)) {
         setSheetOrders(json);
       } else {
-        throw new Error('Dữ liệu trả về chưa đúng định dạng mảng');
+        throw new Error('Dữ liệu không đúng định dạng');
       }
     } catch (err) {
-      console.warn('Lỗi fetch Google Sheet, fallback sang LocalStorage:', err);
+      console.warn('Lỗi fetch Google Sheet:', err);
       setLoadError('Chưa tải được từ Sheet (dùng dữ liệu máy tạm).');
       try {
         const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
@@ -62,18 +61,18 @@ export default function AdminPage({
     fetchOrdersFromSheet();
   }, [fetchOrdersFromSheet]);
 
-  // Chuẩn hóa dữ liệu đơn hàng (hỗ trợ cả header Sheet tiếng Việt lẫn LocalStorage)
+  // Chuẩn hóa dữ liệu đơn hàng
   const normalizedOrders = useMemo(() => {
     return sheetOrders.map((ord) => {
       const createdAt = ord.createdAt || ord['Thời Gian'] || ord['Ngày tạo'] || ord.date || '';
-      const total = Number(ord.total || ord['Tổng Tiền'] || ord['Tổng đơn'] || 0);
-      const code = ord.code || ord['Mã Đơn'] || ord['Mã đơn hàng'] || 'XNG';
-      const name = ord.name || ord['Tên Khách'] || ord['Họ và tên'] || ord.customer?.name || 'Khách lẻ';
-      const phone = ord.phone || ord['Số ĐT'] || ord['Số điện thoại'] || ord.customer?.phone || '';
-      const method = ord.paymentMethod || ord['Phương Thức'] || ord['Thanh toán'] || 'deposit';
-      const voucher = ord.voucherCode || ord['Voucher'] || ord['Mã giảm'] || '';
+      const total = Number(String(ord.total || ord['Tổng Tiền'] || ord['Tổng đơn'] || 0).replace(/[^0-9]/g, '')) || 0;
+      const code = ord.code || ord['Mã Đơn'] || 'XNG';
+      const name = ord.name || ord['Tên Khách'] || ord['Khách Hàng'] || 'Khách lẻ';
+      const phone = ord.phone || ord['Số ĐT'] || ord['Số Điện Thoại'] || '';
+      const method = ord.paymentMethod || ord['Phương Thức'] || ord['Hình Thức TT'] || 'COD';
+      const itemsSummary = ord.itemsSummary || ord['Sản Phẩm Đặt'] || '';
+      const voucher = ord.voucherCode || ord['Voucher'] || '';
 
-      // Parse chi tiết giỏ hàng nếu cột dạng chuỗi text
       let cart = ord.cart || [];
       if (typeof cart === 'string' && cart.startsWith('[')) {
         try { cart = JSON.parse(cart); } catch { cart = []; }
@@ -86,6 +85,7 @@ export default function AdminPage({
         phone,
         total,
         paymentMethod: method,
+        itemsSummary,
         voucherCode: voucher,
         createdAt,
         cart
@@ -93,13 +93,23 @@ export default function AdminPage({
     });
   }, [sheetOrders]);
 
-  // Lọc theo Ngày / Tuần / Tháng
+  // Lọc theo ngày/tuần/tháng
   const filteredOrders = useMemo(() => {
     const now = new Date();
     return normalizedOrders.filter((order) => {
-      if (!order.createdAt) return timeRange === 'all';
-      const orderDate = new Date(order.createdAt);
-      if (isNaN(orderDate.getTime())) return timeRange === 'all';
+      if (!order.createdAt || timeRange === 'all') return true;
+
+      let orderDate;
+      if (order.createdAt.includes('/')) {
+        const parts = order.createdAt.split(' ')[0].split('/');
+        if (parts.length === 3) {
+          orderDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+      } else {
+        orderDate = new Date(order.createdAt);
+      }
+
+      if (!orderDate || isNaN(orderDate.getTime())) return true;
 
       if (timeRange === 'day') {
         return (
@@ -122,7 +132,7 @@ export default function AdminPage({
     });
   }, [normalizedOrders, timeRange]);
 
-  // Thống kê Metrics
+  // Metrics
   const metrics = useMemo(() => {
     const totalRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     const totalOrders = filteredOrders.length;
@@ -137,23 +147,49 @@ export default function AdminPage({
     return { totalRevenue, totalOrders, avgOrderValue, totalDeposits };
   }, [filteredOrders, shopConfig.depositAmount]);
 
-  // Thống kê món bán chạy
+  // Bóc tách & xếp hạng đặc sản hút khách nhất
   const topProducts = useMemo(() => {
     const productStats = {};
+
     filteredOrders.forEach((order) => {
-      (order.cart || []).forEach((item) => {
-        const key = item.name || 'Đặc sản';
-        if (!productStats[key]) {
-          productStats[key] = { name: key, quantity: 0, revenue: 0 };
-        }
-        productStats[key].quantity += (Number(item.quantity) || 1);
-        productStats[key].revenue += ((Number(item.price) || 0) * (Number(item.quantity) || 1));
-      });
+      if (Array.isArray(order.cart) && order.cart.length > 0) {
+        order.cart.forEach((item) => {
+          const key = item.name || 'Đặc sản';
+          if (!productStats[key]) productStats[key] = { name: key, quantity: 0, revenue: 0 };
+          const qty = Number(item.quantity) || 1;
+          productStats[key].quantity += qty;
+          productStats[key].revenue += ((Number(item.price) || 0) * qty);
+        });
+        return;
+      }
+
+      if (order.itemsSummary && typeof order.itemsSummary === 'string') {
+        const parts = order.itemsSummary.split(',');
+        parts.forEach((p) => {
+          const trimmed = p.trim();
+          if (!trimmed) return;
+
+          const matchQty = trimmed.match(/x(\d+)\s*$/i);
+          let qty = 1;
+          let prodName = trimmed;
+
+          if (matchQty) {
+            qty = Number(matchQty[1]) || 1;
+            prodName = trimmed.replace(/x\d+\s*$/i, '').trim();
+          }
+
+          if (!productStats[prodName]) {
+            productStats[prodName] = { name: prodName, quantity: 0, revenue: 0 };
+          }
+          productStats[prodName].quantity += qty;
+        });
+      }
     });
+
     return Object.values(productStats).sort((a, b) => b.quantity - a.quantity);
   }, [filteredOrders]);
 
-  // ================= CẤU HÌNH & VOUCHER =================
+  // ================= CẤU HÌNH & VOUCHER STATE =================
   const [cfg, setCfg] = useState(() => ({
     bankBin: shopConfig.bankBin || '970422',
     bankName: shopConfig.bankName || 'MB Bank',
@@ -220,7 +256,7 @@ export default function AdminPage({
     showSavedToast();
   };
 
-  // ================= SẢN PHẨM =================
+  // ================= SẢN PHẨM STATE =================
   const [newProduct, setNewProduct] = useState({
     name: '',
     basePrice: '',
@@ -283,7 +319,7 @@ export default function AdminPage({
     if (onSaveProducts) onSaveProducts(products.filter((p) => p.id !== id));
   };
 
-  // ================= BÀI VIẾT =================
+  // ================= BÀI VIẾT / CẨM NANG STATE =================
   const [newPost, setNewPost] = useState({
     title: '',
     category: 'Chuyện Vườn',
@@ -358,9 +394,7 @@ export default function AdminPage({
             type="button"
             onClick={() => setActiveTab('dashboard')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'dashboard'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+              activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5 text-amber-600" />
@@ -371,9 +405,7 @@ export default function AdminPage({
             type="button"
             onClick={() => setActiveTab('products')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'products'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+              activeTab === 'products' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
@@ -384,9 +416,7 @@ export default function AdminPage({
             type="button"
             onClick={() => setActiveTab('config')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'config'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+              activeTab === 'config' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             <Settings className="w-3.5 h-3.5 text-amber-600" />
@@ -397,9 +427,7 @@ export default function AdminPage({
             type="button"
             onClick={() => setActiveTab('posts')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'posts'
-                ? 'bg-white text-stone-900 shadow-xs'
-                : 'text-stone-600 hover:text-stone-900'
+              activeTab === 'posts' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-amber-600" />
@@ -418,26 +446,16 @@ export default function AdminPage({
       {/* ================= TAB 1: DASHBOARD LIÊN KẾT GOOGLE SHEET ================= */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Header Dashboard & Bộ chọn thời gian */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                <h2 className="text-sm font-black text-stone-900">
-                  Thống Kê Doanh Thu Từ Google Sheet
-                </h2>
-                {isLoadingSheet && (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                )}
+                <h2 className="text-sm font-black text-stone-900">Thống Kê Doanh Thu Từ Google Sheet</h2>
+                {isLoadingSheet && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />}
               </div>
               <p className="text-[11px] text-stone-500">
                 Đồng bộ trực tiếp qua Apps Script • Tổng nhận: <strong>{normalizedOrders.length}</strong> dòng
               </p>
-              {loadError && (
-                <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md inline-block">
-                  {loadError}
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -452,7 +470,6 @@ export default function AdminPage({
                 <span>Làm mới</span>
               </button>
 
-              {/* Bộ lọc: Ngày / Tuần / Tháng / Toàn bộ */}
               <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
                 {[
                   { id: 'day', label: 'Hôm nay' },
@@ -465,9 +482,7 @@ export default function AdminPage({
                     type="button"
                     onClick={() => setTimeRange(t.id)}
                     className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      timeRange === t.id
-                        ? 'bg-white text-amber-800 shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900'
+                      timeRange === t.id ? 'bg-white text-amber-800 shadow-xs' : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
                     {t.label}
@@ -477,7 +492,7 @@ export default function AdminPage({
             </div>
           </div>
 
-          {/* 4 Thẻ Metric */}
+          {/* 4 Thẻ Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
               <span className="text-[11px] font-semibold text-stone-500 block">Tổng Doanh Thu</span>
@@ -512,9 +527,8 @@ export default function AdminPage({
             </div>
           </div>
 
-          {/* Grid: Món bán chạy & Đơn hàng gần nhất */}
+          {/* Top Món Bán Chạy & Danh Sách Đơn Hàng */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Top Món Bán Chạy (5 Cột) */}
             <div className="lg:col-span-5 bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
               <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
                 Đặc Sản Hút Khách Nhất
@@ -522,11 +536,11 @@ export default function AdminPage({
 
               {topProducts.length === 0 ? (
                 <p className="text-xs text-stone-400 italic py-6 text-center">
-                  {isLoadingSheet ? 'Đang đọc số liệu từ Sheet...' : 'Chưa có thông tin món trong khoảng thời gian này.'}
+                  Chưa có thông tin chi tiết món cho giai đoạn này.
                 </p>
               ) : (
                 <div className="divide-y divide-stone-100">
-                  {topProducts.slice(0, 6).map((item, idx) => (
+                  {topProducts.map((item, idx) => (
                     <div key={item.name} className="py-2.5 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2.5 truncate pr-2">
                         <span className="w-5 h-5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold flex items-center justify-center shrink-0">
@@ -534,71 +548,67 @@ export default function AdminPage({
                         </span>
                         <div className="truncate">
                           <span className="font-semibold text-stone-800 truncate block">{item.name}</span>
-                          <span className="text-[10px] text-stone-400">Đã bán: <strong>{item.quantity}</strong> phần</span>
+                          <span className="text-[10px] text-stone-400">
+                            Đã bán: <strong>{item.quantity}</strong> phần
+                          </span>
                         </div>
                       </div>
-                      <span className="font-mono font-bold text-stone-900 shrink-0">
-                        {item.revenue.toLocaleString('vi-VN')}đ
-                      </span>
+                      {item.revenue > 0 && (
+                        <span className="font-mono font-bold text-stone-900 shrink-0">
+                          {item.revenue.toLocaleString('vi-VN')}đ
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Đơn hàng từ Google Sheet (7 Cột) */}
             <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-                  Đơn Hàng Trên Google Sheet ({filteredOrders.length})
-                </h3>
-              </div>
+              <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
+                Đơn Hàng Trên Google Sheet ({filteredOrders.length})
+              </h3>
 
-              {filteredOrders.length === 0 ? (
-                <p className="text-xs text-stone-400 italic py-6 text-center">
-                  {isLoadingSheet ? 'Đang đồng bộ đơn hàng...' : 'Chưa có đơn nào ghi nhận.'}
-                </p>
-              ) : (
-                <div className="divide-y divide-stone-100 max-h-80 overflow-y-auto pr-1">
-                  {filteredOrders.slice(0, 15).map((ord, idx) => (
-                    <div key={ord.code || idx} className="py-3 flex items-center justify-between gap-3 text-xs">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
-                            {ord.code}
-                          </span>
-                          <span className="font-bold text-stone-800">{ord.name}</span>
-                          {ord.voucherCode && (
-                            <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-mono">
-                              {ord.voucherCode}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-stone-400">
-                          {ord.phone} • {ord.paymentMethod === 'deposit' ? 'Cọc 50k' : ord.paymentMethod === 'full_qr' ? 'CK 100%' : 'COD'}
+              <div className="divide-y divide-stone-100 max-h-80 overflow-y-auto pr-1">
+                {filteredOrders.map((ord, idx) => (
+                  <div key={ord.code || idx} className="py-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
+                          {ord.code}
+                        </span>
+                        <span className="font-bold text-stone-800">{ord.name}</span>
+                      </div>
+                      <p className="text-[11px] text-stone-500">
+                        {ord.phone} • {ord.paymentMethod}
+                      </p>
+                      {ord.itemsSummary && (
+                        <p className="text-[10.5px] text-stone-400 line-clamp-1 italic">
+                          {ord.itemsSummary}
                         </p>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="font-mono font-black text-stone-900 block">
-                          {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
-                        </span>
-                        <span className="text-[10px] text-stone-400">
-                          {ord.createdAt ? new Date(ord.createdAt).toLocaleDateString('vi-VN') : 'Mới đây'}
-                        </span>
-                      </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-black text-stone-900 block">
+                        {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
+                      </span>
+                      <span className="text-[10px] text-stone-400">
+                        {ord.createdAt || 'Mới đây'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ================= TAB 2: SẢN PHẨM ================= */}
+      {/* ================= TAB 2: QUẢN LÝ SẢN PHẨM ================= */}
       {activeTab === 'products' && (
         <div className="space-y-6">
+          {/* Form thêm sản phẩm mới */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
             <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
               <Plus className="w-4 h-4 text-amber-600" />
@@ -726,6 +736,7 @@ export default function AdminPage({
             </form>
           </div>
 
+          {/* Danh sách đặc sản hiện có */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
@@ -881,6 +892,7 @@ export default function AdminPage({
             </div>
           </div>
 
+          {/* Quản lý danh sách Voucher */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -927,6 +939,7 @@ export default function AdminPage({
               ))}
             </div>
 
+            {/* Form tạo Voucher */}
             <form onSubmit={handleAddVoucher} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
               <span className="font-bold text-xs text-stone-800 block">Thêm mã voucher mới:</span>
 
@@ -1044,7 +1057,7 @@ export default function AdminPage({
         </div>
       )}
 
-      {/* ================= TAB 4: CHUYỆN VƯỜN ================= */}
+      {/* ================= TAB 4: CHUYỆN VƯỜN & CẨM NANG ================= */}
       {activeTab === 'posts' && (
         <div className="space-y-6">
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
@@ -1118,6 +1131,17 @@ export default function AdminPage({
                 />
               </div>
 
+              <div>
+                <label className="font-semibold text-stone-600 block mb-1">Nội dung chi tiết</label>
+                <textarea
+                  rows="4"
+                  placeholder="Nội dung chi tiết bài viết..."
+                  value={newPost.content}
+                  onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-y"
+                />
+              </div>
+
               <div className="flex justify-end pt-1">
                 <button
                   type="submit"
@@ -1130,6 +1154,7 @@ export default function AdminPage({
             </form>
           </div>
 
+          {/* Danh sách bài đã đăng */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
