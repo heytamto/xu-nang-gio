@@ -85,10 +85,10 @@ export default function App() {
   const [successOrderInfo, setSuccessOrderInfo] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
-  // Xử lý thêm vào giỏ hàng với trình tự chuyển động phân tầng (Staggered Animation)
+// Xử lý thêm vào giỏ: Chỉ hiện Splash to giữa màn hình -> Splash tắt tự nhiên (không bật CartDrawer)
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     // -------------------------------------------------------------------------
-    // PHA 1 (0ms): Bật ngay Splash giữa màn hình + Đồng thời trượt hạ Navbar xuống
+    // PHA 1 (0ms): Bật ngay Splash to giữa màn hình + Kéo Navbar xuống tầm mắt
     // -------------------------------------------------------------------------
     setCenterSplash({
       image: product.image,
@@ -97,8 +97,7 @@ export default function App() {
     setForceNavVisible(true);
 
     // -------------------------------------------------------------------------
-    // PHA 2 (280ms): Khi Navbar đã hạ xuống hoàn tất vào tầm mắt:
-    // Cập nhật giỏ hàng + Kích hoạt hiệu ứng phóng to nảy số của giỏ trên Navbar
+    // PHA 2 (280ms): Cập nhật dữ liệu giỏ hàng + Nảy số icon giỏ trên Navbar
     // -------------------------------------------------------------------------
     setTimeout(() => {
       const multiplier = weightObj?.multiplier || 1;
@@ -109,7 +108,6 @@ export default function App() {
       const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
       const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
 
-      // 1. Ghi nhận dữ liệu giỏ hàng -> Badge số lượng trên Navbar tự động tăng ngay lúc này
       setCart((prevCart) => {
         const existing = prevCart.find((item) => item.id === cartItemId);
         if (existing) {
@@ -132,16 +130,14 @@ export default function App() {
         ];
       });
 
-      // 2. Kích hoạt hiệu ứng phồng to và nảy rung nút giỏ hàng trên Navbar
       setIsCartBouncing(true);
-
       setTimeout(() => {
         setIsCartBouncing(false);
       }, 600);
     }, 280);
 
     // -------------------------------------------------------------------------
-    // PHA 3: Tắt splash giữa màn hình và giữ cố định Navbar một lúc cho khách nhìn rõ
+    // PHA 3 (850ms): Tắt hẳn Splash giữa màn hình, khách tiếp tục thoải mái lướt xem
     // -------------------------------------------------------------------------
     setTimeout(() => {
       setCenterSplash(null);
@@ -347,34 +343,37 @@ export default function App() {
         <Footer onNavigateAdmin={() => navigateTo('admin')} />
       )}
 
-      {/* ================= HIỆU ỨNG TẬP TRUNG GIỮA MÀN HÌNH (CENTER SPLASH) ================= */}
-      {centerSplash && (
-        <div className="fixed top-1/2 left-1/2 z-50 pointer-events-none animate-center-splash">
-          <div className="flex flex-col items-center justify-center p-5 rounded-3xl bg-stone-900/90 text-white shadow-2xl backdrop-blur-md border border-amber-500/40">
-            <div className="relative">
-              {centerSplash.image ? (
-                <img 
-                  src={centerSplash.image} 
-                  alt="Đặc sản" 
-                  className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400 shadow-md"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-2xl bg-amber-600 flex items-center justify-center shadow-md">
-                  <ShoppingBag className="w-8 h-8 text-white" />
-                </div>
-              )}
-              <span className="absolute -top-2 -right-2 bg-emerald-500 text-white font-black text-xs px-2 py-0.5 rounded-full border-2 border-stone-900 shadow">
-                +{centerSplash.quantity}
-              </span>
-            </div>
-            
-            <div className="mt-2.5 flex items-center gap-1.5 text-amber-400 font-black text-xs tracking-wide uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              <span>Đã vào giỏ</span>
-            </div>
+      {/* ================= HIỆU ỨNG TẬP TRUNG GIỮA MÀN HÌNH (CENTER SPLASH - PHÓNG TO RÕ RÀNG) ================= */}
+      {/* ================= HIỆU ỨNG TẬP TRUNG GIỮA MÀN HÌNH (GỌN GÀNG, CÂN XỨNG) ================= */}
+{centerSplash && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4">
+    <div className="animate-center-splash flex flex-col items-center justify-center p-5 rounded-3xl bg-stone-900/95 text-white shadow-2xl backdrop-blur-md border border-amber-500/40 text-center">
+      <div className="relative">
+        {centerSplash.image ? (
+          <img 
+            src={centerSplash.image} 
+            alt="Đặc sản" 
+            className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-amber-400 shadow-lg"
+          />
+        ) : (
+          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl bg-amber-600 flex items-center justify-center shadow-lg">
+            <ShoppingBag className="w-14 h-14 text-white stroke-[2]" />
           </div>
-        </div>
-      )}
+        )}
+        {/* Badge số lượng nảy góc phải */}
+        <span className="absolute -top-2.5 -right-2.5 bg-emerald-500 text-white font-black text-sm px-2.5 py-0.5 rounded-full border-2 border-stone-900 shadow-md">
+          +{centerSplash.quantity}
+        </span>
+      </div>
+      
+      {/* Dòng chữ gọn gàng cân xứng với ảnh */}
+      <div className="mt-3 flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>Đã thêm vào giỏ hàng</span>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
