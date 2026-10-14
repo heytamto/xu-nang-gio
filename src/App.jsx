@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ShoppingBag } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -191,6 +192,7 @@ export default function App() {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  const totalCartAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
@@ -272,6 +274,30 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Nút Giỏ Hàng Nổi (Floating Cart Bar): Khách lướt đến đâu cũng thấy số lượng & giá, bấm là mở giỏ */}
+      {totalCartCount > 0 && currentPage !== 'checkout' && currentPage !== 'admin' && (
+        <aside aria-label="Giỏ hàng nhanh" className="fixed bottom-6 right-5 sm:right-8 z-40 animate-bounce-subtle">
+          <button
+            type="button"
+            onClick={() => setIsCartOpen(true)}
+            className="flex items-center gap-3 bg-amber-700 hover:bg-amber-600 active:scale-95 text-white pl-4 pr-5 py-3 rounded-full shadow-xl hover:shadow-2xl transition-all border border-amber-600/40"
+          >
+            <div className="relative flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-white" />
+              <span className="absolute -top-2.5 -right-2.5 bg-stone-900 text-amber-200 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                {totalCartCount}
+              </span>
+            </div>
+            <div className="text-left font-mono font-bold text-xs sm:text-sm pl-1 border-l border-amber-600/60">
+              {totalCartAmount.toLocaleString('vi-VN')}đ
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full hidden sm:inline-block">
+              Xem giỏ
+            </span>
+          </button>
+        </aside>
+      )}
 
       {isCartOpen && (
         <CartDrawer

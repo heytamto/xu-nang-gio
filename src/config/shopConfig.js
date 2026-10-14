@@ -1,10 +1,10 @@
 export const DEFAULT_SHOP_CONFIG = {
-  bankBin: '970422',
-  bankName: 'MB Bank',
-  accountNo: '0987654321',
-  accountName: 'TO THANH TAM',
+  bankBin: import.meta.env.VITE_BANK_BIN || '970422',
+  bankName: import.meta.env.VITE_BANK_NAME || 'MB',
+  accountNo: import.meta.env.VITE_ACCOUNT_NO || '0848957345',
+  accountName: import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM',
   depositAmount: 50000,
-  hotline: '0987.654.321',
+  hotline: import.meta.env.VITE_HOTLINE || '0987.654.321',
   loyaltyDiscountPercent: 10,
   vouchers: [
     {
@@ -33,7 +33,12 @@ export function getShopConfig() {
     const saved = localStorage.getItem('shop_config');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Đảm bảo voucher hệ thống như LAMQUEN không bị mất nếu bản lưu cũ chưa có
+
+      // Nếu trong localStorage đang lưu số giả lập cũ 0987654321 thì tự động đồng bộ sang số thật từ .env
+      const validAccountNo = (parsed.accountNo && parsed.accountNo !== '0987654321')
+        ? parsed.accountNo 
+        : DEFAULT_SHOP_CONFIG.accountNo;
+
       const currentVouchers = Array.isArray(parsed.vouchers) ? parsed.vouchers : [];
       const mergedVouchers = [...currentVouchers];
 
@@ -43,11 +48,19 @@ export function getShopConfig() {
         }
       });
 
-      return {
+      const updatedConfig = {
         ...DEFAULT_SHOP_CONFIG,
         ...parsed,
+        accountNo: validAccountNo,
+        accountName: parsed.accountName || DEFAULT_SHOP_CONFIG.accountName,
+        bankBin: parsed.bankBin || DEFAULT_SHOP_CONFIG.bankBin,
+        bankName: parsed.bankName || DEFAULT_SHOP_CONFIG.bankName,
         vouchers: mergedVouchers
       };
+
+      // Lưu lại bản đã chuẩn hóa vào localStorage
+      localStorage.setItem('shop_config', JSON.stringify(updatedConfig));
+      return updatedConfig;
     }
   } catch (e) {
     console.error('Lỗi đọc shop_config:', e);

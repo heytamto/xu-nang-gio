@@ -3,10 +3,20 @@ import {
   ArrowLeft, Plus, Trash2, RotateCcw, 
   Settings, Tag, QrCode, Check, BookOpen, 
   ShoppingBag, Calendar, User, ToggleLeft, ToggleRight,
-  LayoutDashboard, TrendingUp, RefreshCw, Loader2, FileSpreadsheet
+  LayoutDashboard, TrendingUp, RefreshCw, Loader2, FileSpreadsheet,
+  PhoneCall, CheckCircle2, Clock, XCircle, Truck, AlertCircle
 } from 'lucide-react';
 
 const GSHEET_URL = 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
+
+const STATUS_CONFIG = {
+  'Chờ xác nhận': { bg: 'bg-amber-50 text-amber-800 border-amber-200', icon: Clock },
+  'Đã nhận cọc': { bg: 'bg-blue-50 text-blue-800 border-blue-200', icon: CheckCircle2 },
+  'Đã thanh toán 100%': { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
+  'Đang giao': { bg: 'bg-indigo-50 text-indigo-800 border-indigo-200', icon: Truck },
+  'Hoàn thành': { bg: 'bg-stone-100 text-stone-800 border-stone-200', icon: Check },
+  'Đã hủy': { bg: 'bg-red-50 text-red-700 border-red-200', icon: XCircle }
+};
 
 export default function AdminPage({ 
   products = [], 
@@ -20,9 +30,10 @@ export default function AdminPage({
   onResetConfig,
   onNavigateHome 
 }) {
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'products' | 'config' | 'posts'
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [timeRange, setTimeRange] = useState('day');
   const [savedNotice, setSavedNotice] = useState(false);
+  const [actionLoadingCode, setActionLoadingCode] = useState(null);
 
   // Sheet API Data States
   const [sheetOrders, setSheetOrders] = useState([]);
@@ -61,6 +72,69 @@ export default function AdminPage({
     fetchOrdersFromSheet();
   }, [fetchOrdersFromSheet]);
 
+  // Cập nhật trạng thái đơn
+  const handleUpdateStatus = async (orderCode, newStatus) => {
+    setActionLoadingCode(orderCode);
+    try {
+      await fetch(GSHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'update_status',
+          code: orderCode,
+          status: newStatus
+        })
+      });
+
+      // Cập nhật ngay trong local state
+      setSheetOrders((prev) =>
+        prev.map((ord) => ord.code === orderCode ? { ...ord, status: newStatus } : ord)
+      );
+
+      // Cập nhật cả localStorage nếu có
+      try {
+        const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
+        const updatedLocal = local.map((ord) => ord.code === orderCode ? { ...ord, status: newStatus } : ord);
+        localStorage.setItem('shop_orders', JSON.stringify(updatedLocal));
+      } catch {}
+
+    } catch (err) {
+      alert('Lỗi cập nhật trạng thái: ' + err.message);
+    } finally {
+      setActionLoadingCode(null);
+    }
+  };
+
+  // Xóa đơn hàng
+  const handleDeleteOrder = async (orderCode) => {
+    if (!window.confirm(`Xác nhận xóa hoàn toàn đơn ${orderCode} khỏi Google Sheet?`)) return;
+
+    setActionLoadingCode(orderCode);
+    try {
+      await fetch(GSHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'delete_order',
+          code: orderCode
+        })
+      });
+
+      setSheetOrders((prev) => prev.filter((ord) => ord.code !== orderCode));
+
+      try {
+        const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
+        const updatedLocal = local.filter((ord) => ord.code !== orderCode);
+        localStorage.setItem('shop_orders', JSON.stringify(updatedLocal));
+      } catch {}
+
+    } catch (err) {
+      alert('Lỗi khi xóa đơn: ' + err.message);
+    } finally {
+      setActionLoadingCode(null);
+    }
+  };
+
   // Chuẩn hóa dữ liệu đơn hàng
   const normalizedOrders = useMemo(() => {
     return sheetOrders.map((ord) => {
@@ -69,9 +143,11 @@ export default function AdminPage({
       const code = ord.code || ord['Mã Đơn'] || 'XNG';
       const name = ord.name || ord['Tên Khách'] || ord['Khách Hàng'] || 'Khách lẻ';
       const phone = ord.phone || ord['Số ĐT'] || ord['Số Điện Thoại'] || '';
+      const address = ord.address || ord['Địa Chỉ'] || '';
       const method = ord.paymentMethod || ord['Phương Thức'] || ord['Hình Thức TT'] || 'COD';
       const itemsSummary = ord.itemsSummary || ord['Sản Phẩm Đặt'] || '';
-      const voucher = ord.voucherCode || ord['Voucher'] || '';
+      const note = ord.note || ord['Ghi Chú'] || '';
+      const status = ord.status || ord['Trạng Thái'] || 'Chờ xác nhận';
 
       let cart = ord.cart || [];
       if (typeof cart === 'string' && cart.startsWith('[')) {
@@ -83,10 +159,12 @@ export default function AdminPage({
         code,
         name,
         phone,
+        address,
         total,
         paymentMethod: method,
         itemsSummary,
-        voucherCode: voucher,
+        note,
+        status,
         createdAt,
         cart
       };
@@ -132,26 +210,34 @@ export default function AdminPage({
     });
   }, [normalizedOrders, timeRange]);
 
-  // Metrics
+  // Metrics: Phân loại Tiền dự kiến & Tiền thực thu sau khi đối soát
   const metrics = useMemo(() => {
-    const totalRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    const totalOrders = filteredOrders.length;
+    const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
+    const totalRevenue = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const totalOrders = validOrders.length;
     const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-    const totalDeposits = filteredOrders.reduce((sum, o) => {
-      const pm = String(o.paymentMethod).toLowerCase();
-      if (pm.includes('100') || pm.includes('full')) return sum + (Number(o.total) || 0);
-      if (pm.includes('cọc') || pm.includes('deposit')) return sum + (Number(shopConfig.depositAmount) || 50000);
+
+    // Chỉ tính tiền thực nhận nếu trạng thái đã nhận tiền
+    const realReceivedMoney = validOrders.reduce((sum, o) => {
+      const st = o.status;
+      if (st === 'Đã thanh toán 100%' || st === 'Hoàn thành') {
+        return sum + (Number(o.total) || 0);
+      }
+      if (st === 'Đã nhận cọc') {
+        return sum + (Number(shopConfig.depositAmount) || 50000);
+      }
       return sum;
     }, 0);
 
-    return { totalRevenue, totalOrders, avgOrderValue, totalDeposits };
+    return { totalRevenue, totalOrders, avgOrderValue, realReceivedMoney };
   }, [filteredOrders, shopConfig.depositAmount]);
 
-  // Bóc tách & xếp hạng đặc sản hút khách nhất
+  // Xếp hạng món bán chạy
   const topProducts = useMemo(() => {
     const productStats = {};
+    const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
 
-    filteredOrders.forEach((order) => {
+    validOrders.forEach((order) => {
       if (Array.isArray(order.cart) && order.cart.length > 0) {
         order.cart.forEach((item) => {
           const key = item.name || 'Đặc sản';
@@ -189,12 +275,12 @@ export default function AdminPage({
     return Object.values(productStats).sort((a, b) => b.quantity - a.quantity);
   }, [filteredOrders]);
 
-  // ================= CẤU HÌNH & VOUCHER STATE =================
+  // Cấu hình state
   const [cfg, setCfg] = useState(() => ({
     bankBin: shopConfig.bankBin || '970422',
-    bankName: shopConfig.bankName || 'MB Bank',
-    accountNo: shopConfig.accountNo || '',
-    accountName: shopConfig.accountName || '',
+    bankName: shopConfig.bankName || 'MB',
+    accountNo: shopConfig.accountNo || '0848957345',
+    accountName: shopConfig.accountName || 'TO THANH TAM',
     depositAmount: shopConfig.depositAmount || 50000,
     hotline: shopConfig.hotline || '',
     loyaltyDiscountPercent: shopConfig.loyaltyDiscountPercent || 10,
@@ -214,13 +300,11 @@ export default function AdminPage({
   const handleAddVoucher = (e) => {
     e.preventDefault();
     if (!newVoucher.code.trim()) return;
-
     const formattedCode = newVoucher.code.trim().toUpperCase();
     if (cfg.vouchers.some(v => v.code === formattedCode)) {
       alert('Mã voucher này đã tồn tại!');
       return;
     }
-
     const updatedVouchers = [
       ...cfg.vouchers,
       {
@@ -231,7 +315,6 @@ export default function AdminPage({
         desc: newVoucher.desc.trim() || `Ưu đãi mã ${formattedCode}`
       }
     ];
-
     setCfg({ ...cfg, vouchers: updatedVouchers });
     setNewVoucher({
       code: '',
@@ -256,7 +339,7 @@ export default function AdminPage({
     showSavedToast();
   };
 
-  // ================= SẢN PHẨM STATE =================
+  // Quản lý sản phẩm
   const [newProduct, setNewProduct] = useState({
     name: '',
     basePrice: '',
@@ -275,7 +358,6 @@ export default function AdminPage({
       alert('Vui lòng nhập tên sản phẩm và giá cơ bản!');
       return;
     }
-
     const productItem = {
       id: 'sp-' + Date.now(),
       name: newProduct.name.trim(),
@@ -292,7 +374,6 @@ export default function AdminPage({
         { id: 'opt2', label: `Combo 2 ${newProduct.unit.trim() || 'kg'}`, multiplier: 1.95 }
       ]
     };
-
     if (onSaveProducts) onSaveProducts([productItem, ...products]);
     setNewProduct({
       name: '',
@@ -319,7 +400,7 @@ export default function AdminPage({
     if (onSaveProducts) onSaveProducts(products.filter((p) => p.id !== id));
   };
 
-  // ================= BÀI VIẾT / CẨM NANG STATE =================
+  // Quản lý bài viết
   const [newPost, setNewPost] = useState({
     title: '',
     category: 'Chuyện Vườn',
@@ -335,7 +416,6 @@ export default function AdminPage({
       alert('Vui lòng nhập tiêu đề và tóm tắt bài viết!');
       return;
     }
-
     const postItem = {
       id: 'post-' + Date.now(),
       title: newPost.title.trim(),
@@ -346,7 +426,6 @@ export default function AdminPage({
       author: newPost.author.trim() || 'Tâm & Vườn nhà',
       date: new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
     };
-
     if (onSavePosts) onSavePosts([postItem, ...posts]);
     setNewPost({
       title: '',
@@ -384,7 +463,7 @@ export default function AdminPage({
           </button>
           <div>
             <h1 className="text-base sm:text-lg font-black text-stone-900">Trang Quản Trị Vườn</h1>
-            <p className="text-xs text-stone-500">Đồng bộ Google Sheet, theo dõi doanh thu và sản phẩm</p>
+            <p className="text-xs text-stone-500">Đồng bộ Google Sheet • Đối soát thanh toán & duyệt đơn</p>
           </div>
         </div>
 
@@ -398,13 +477,13 @@ export default function AdminPage({
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5 text-amber-600" />
-            <span>Dashboard GGSheet</span>
+            <span>Dashboard & Đơn Hàng</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('products')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
               activeTab === 'products' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -415,7 +494,7 @@ export default function AdminPage({
           <button
             type="button"
             onClick={() => setActiveTab('config')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
               activeTab === 'config' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -426,7 +505,7 @@ export default function AdminPage({
           <button
             type="button"
             onClick={() => setActiveTab('posts')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
               activeTab === 'posts' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -443,7 +522,7 @@ export default function AdminPage({
         </div>
       )}
 
-      {/* ================= TAB 1: DASHBOARD LIÊN KẾT GOOGLE SHEET ================= */}
+      {/* ================= TAB 1: DASHBOARD & QUẢN LÝ ĐƠN HÀNG ================= */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
@@ -495,11 +574,19 @@ export default function AdminPage({
           {/* 4 Thẻ Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-              <span className="text-[11px] font-semibold text-stone-500 block">Tổng Doanh Thu</span>
-              <p className="text-lg sm:text-xl font-black text-amber-800 font-mono">
+              <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
+              <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
                 {metrics.totalRevenue.toLocaleString('vi-VN')}đ
               </p>
-              <span className="text-[10px] text-stone-400 block pt-0.5">Tiền đơn thực tế</span>
+              <span className="text-[10px] text-stone-400 block pt-0.5">Tổng giá trị đơn gửi</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
+              <span className="text-[11px] font-semibold text-emerald-700 block">Tiền Thực Nhận (Đã CK)</span>
+              <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono">
+                {metrics.realReceivedMoney.toLocaleString('vi-VN')}đ
+              </p>
+              <span className="text-[10px] text-emerald-600 block pt-0.5">Sau khi đã đối soát khớp tiền</span>
             </div>
 
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
@@ -507,99 +594,156 @@ export default function AdminPage({
               <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
                 {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
               </p>
-              <span className="text-[10px] text-stone-400 block pt-0.5">Trong giai đoạn này</span>
+              <span className="text-[10px] text-stone-400 block pt-0.5">Chưa tính đơn hủy</span>
             </div>
 
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
               <span className="text-[11px] font-semibold text-stone-500 block">Giá Trị TB / Đơn (AOV)</span>
-              <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
+              <p className="text-lg sm:text-xl font-black text-amber-800 font-mono">
                 {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
               </p>
               <span className="text-[10px] text-stone-400 block pt-0.5">Bình quân mỗi đơn</span>
             </div>
-
-            <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-              <span className="text-[11px] font-semibold text-stone-500 block">Tiền Cọc / Đã Nhận</span>
-              <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono">
-                {metrics.totalDeposits.toLocaleString('vi-VN')}đ
-              </p>
-              <span className="text-[10px] text-stone-400 block pt-0.5">Cọc 50k & CK 100%</span>
-            </div>
           </div>
 
-          {/* Top Món Bán Chạy & Danh Sách Đơn Hàng */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-5 bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-                Đặc Sản Hút Khách Nhất
-              </h3>
+          {/* Top Món Bán Chạy */}
+          <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
+            <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
+              Đặc Sản Hút Khách Nhất (Bán Chạy)
+            </h3>
 
-              {topProducts.length === 0 ? (
-                <p className="text-xs text-stone-400 italic py-6 text-center">
-                  Chưa có thông tin chi tiết món cho giai đoạn này.
-                </p>
-              ) : (
-                <div className="divide-y divide-stone-100">
-                  {topProducts.map((item, idx) => (
-                    <div key={item.name} className="py-2.5 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5 truncate pr-2">
-                        <span className="w-5 h-5 rounded-full bg-amber-50 text-amber-800 text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <div className="truncate">
-                          <span className="font-semibold text-stone-800 truncate block">{item.name}</span>
-                          <span className="text-[10px] text-stone-400">
-                            Đã bán: <strong>{item.quantity}</strong> phần
-                          </span>
-                        </div>
-                      </div>
-                      {item.revenue > 0 && (
-                        <span className="font-mono font-bold text-stone-900 shrink-0">
-                          {item.revenue.toLocaleString('vi-VN')}đ
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="lg:col-span-7 bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-                Đơn Hàng Trên Google Sheet ({filteredOrders.length})
-              </h3>
-
-              <div className="divide-y divide-stone-100 max-h-80 overflow-y-auto pr-1">
-                {filteredOrders.map((ord, idx) => (
-                  <div key={ord.code || idx} className="py-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
-                          {ord.code}
-                        </span>
-                        <span className="font-bold text-stone-800">{ord.name}</span>
-                      </div>
-                      <p className="text-[11px] text-stone-500">
-                        {ord.phone} • {ord.paymentMethod}
-                      </p>
-                      {ord.itemsSummary && (
-                        <p className="text-[10.5px] text-stone-400 line-clamp-1 italic">
-                          {ord.itemsSummary}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="font-mono font-black text-stone-900 block">
-                        {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
+            {topProducts.length === 0 ? (
+              <p className="text-xs text-stone-400 italic py-4 text-center">
+                Chưa có dữ liệu sản phẩm trong giai đoạn này.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {topProducts.map((item, idx) => (
+                  <div key={item.name} className="p-3 rounded-2xl bg-stone-50 border border-stone-200/70 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {idx + 1}
                       </span>
-                      <span className="text-[10px] text-stone-400">
-                        {ord.createdAt || 'Mới đây'}
-                      </span>
+                      <div className="truncate">
+                        <span className="font-bold text-stone-800 truncate block">{item.name}</span>
+                        <span className="text-[10px] text-stone-500">Đã bán: <strong>{item.quantity}</strong> phần</span>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* DANH SÁCH ĐƠN HÀNG: CÓ GỌI ĐIỆN, CẬP NHẬT TRẠNG THÁI & NÚT XÓA */}
+          <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide">
+                  Chi Tiết Đơn Hàng ({filteredOrders.length})
+                </h3>
+                <p className="text-[11px] text-stone-500">Đối chiếu với thông báo biến động số dư ngân hàng rồi cập nhật trạng thái</p>
+              </div>
+            </div>
+
+            <div className="divide-y divide-stone-100 space-y-3 pt-1">
+              {filteredOrders.map((ord) => {
+                const isProcessing = actionLoadingCode === ord.code;
+                const statusMeta = STATUS_CONFIG[ord.status] || STATUS_CONFIG['Chờ xác nhận'];
+
+                return (
+                  <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+                    {/* Cột trái: Thông tin khách & Món */}
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
+                          {ord.code}
+                        </span>
+                        <strong className="text-stone-900 text-sm">{ord.name}</strong>
+                        
+                        {/* Nút bấm gọi điện thoại nhanh */}
+                        {ord.phone && (
+                          <a
+                            href={`tel:${ord.phone}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors"
+                            title="Gọi điện xác nhận"
+                          >
+                            <PhoneCall className="w-3 h-3 text-amber-600" />
+                            <span>{ord.phone}</span>
+                          </a>
+                        )}
+
+                        <span className="text-[10.5px] text-stone-400">({ord.createdAt})</span>
+                      </div>
+
+                      {/* Địa chỉ & Món đặt */}
+                      {ord.address && (
+                        <p className="text-stone-600 text-[11px] line-clamp-1">
+                          📍 <strong>Giao đến:</strong> {ord.address}
+                        </p>
+                      )}
+
+                      {ord.itemsSummary && (
+                        <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
+                          🛍️ {ord.itemsSummary}
+                        </p>
+                      )}
+
+                      {ord.note && (
+                        <p className="text-stone-400 text-[10.5px] italic">
+                          Ghi chú: "{ord.note}"
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Cột phải: Tiền, Đổi Trạng Thái & Xóa */}
+                    <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                      <div className="text-left md:text-right">
+                        <span className="font-mono font-black text-stone-900 text-sm block">
+                          {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
+                        </span>
+                        <span className="text-[10px] text-stone-400 font-medium">
+                          {ord.paymentMethod}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Dropdown cập nhật trạng thái */}
+                        <div className="relative">
+                          <select
+                            disabled={isProcessing}
+                            value={ord.status}
+                            onChange={(e) => handleUpdateStatus(ord.code, e.target.value)}
+                            className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border appearance-none pr-6 cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
+                          >
+                            <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
+                            <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
+                            <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
+                            <option value="Đang giao">🚚 Đang giao</option>
+                            <option value="Hoàn thành">🎉 Hoàn thành</option>
+                            <option value="Đã hủy">❌ Đã hủy</option>
+                          </select>
+                        </div>
+
+                        {/* Nút Xóa đơn */}
+                        <button
+                          type="button"
+                          disabled={isProcessing}
+                          onClick={() => handleDeleteOrder(ord.code)}
+                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-40"
+                          title="Xóa đơn khỏi Google Sheet"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -608,7 +752,6 @@ export default function AdminPage({
       {/* ================= TAB 2: QUẢN LÝ SẢN PHẨM ================= */}
       {activeTab === 'products' && (
         <div className="space-y-6">
-          {/* Form thêm sản phẩm mới */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
             <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
               <Plus className="w-4 h-4 text-amber-600" />
@@ -736,7 +879,6 @@ export default function AdminPage({
             </form>
           </div>
 
-          {/* Danh sách đặc sản hiện có */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>
@@ -854,7 +996,7 @@ export default function AdminPage({
                   type="text"
                   value={cfg.accountNo}
                   onChange={(e) => setCfg({ ...cfg, accountNo: e.target.value })}
-                  placeholder="Số tài khoản nhận tiền"
+                  placeholder="0848957345"
                   className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-800"
                 />
               </div>
@@ -892,7 +1034,6 @@ export default function AdminPage({
             </div>
           </div>
 
-          {/* Quản lý danh sách Voucher */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -939,7 +1080,6 @@ export default function AdminPage({
               ))}
             </div>
 
-            {/* Form tạo Voucher */}
             <form onSubmit={handleAddVoucher} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
               <span className="font-bold text-xs text-stone-800 block">Thêm mã voucher mới:</span>
 
@@ -1154,7 +1294,6 @@ export default function AdminPage({
             </form>
           </div>
 
-          {/* Danh sách bài đã đăng */}
           <div className="bg-white rounded-3xl border border-stone-200/90 p-5 space-y-4 shadow-xs">
             <div className="flex items-center justify-between">
               <div>

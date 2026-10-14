@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   User, Phone, FileText, ShieldCheck, 
   QrCode, Truck, ArrowRight, X, Loader2, Tag, Sparkles, Gift, UserCheck, ShoppingBag,
-  Download, Copy, Check, ExternalLink, Smartphone
+  Download, Copy, Check, ExternalLink, HeartHandshake, PackageCheck, Headphones, Sparkle
 } from 'lucide-react';
 import AddressField from './AddressField';
 
@@ -22,6 +22,15 @@ export default function CheckoutSection({
   const [shippingAddress, setShippingAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('deposit');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Ép lấy đúng tài khoản từ env nếu shopConfig bị dính cache cũ
+  const actualAccountNo = (shopConfig.accountNo && shopConfig.accountNo !== '0987654321')
+    ? shopConfig.accountNo
+    : (import.meta.env.VITE_ACCOUNT_NO || '0848957345');
+
+  const actualBankName = shopConfig.bankName || import.meta.env.VITE_BANK_NAME || 'MB';
+  const actualBankBin = shopConfig.bankBin || import.meta.env.VITE_BANK_BIN || '970422';
+  const actualAccountName = shopConfig.accountName || import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM';
 
   // Trạng thái copy nhanh
   const [copiedField, setCopiedField] = useState('');
@@ -145,9 +154,8 @@ export default function CheckoutSection({
   const rawTransferMemo = `XNG ${cleanPhone || 'DATNHO'}`;
   const transferMemo = encodeURIComponent(rawTransferMemo);
 
-  const qrImageUrl = (shopConfig?.bankBin && shopConfig?.accountNo) 
-    ? `https://img.vietqr.io/image/${shopConfig.bankBin}-${shopConfig.accountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(shopConfig.accountName || '')}`
-    : '';
+  // Link VietQR chuẩn nét cao
+  const qrImageUrl = `https://img.vietqr.io/image/${actualBankBin}-${actualAccountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(actualAccountName)}`;
 
   // Copy helper
   const handleCopy = (text, fieldName) => {
@@ -165,7 +173,7 @@ export default function CheckoutSection({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `VietQR-${rawTransferMemo}.png`;
+      a.download = `VietQR-${actualAccountNo}-${rawTransferMemo}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -234,7 +242,7 @@ export default function CheckoutSection({
         {/* ================= CỘT TRÁI (TỶ LỆ 6/10) ================= */}
         <div className="lg:col-span-6 space-y-6">
           
-          {/* HÀNG 1: TÓM TẮT ĐƠN HÀNG (KHÔNG CUỘN) */}
+          {/* HÀNG 1: TÓM TẮT ĐƠN HÀNG */}
           <div className="bg-stone-50/90 rounded-3xl p-4 sm:p-5 border border-stone-200/80 space-y-3.5">
             <div className="flex items-center justify-between border-b border-stone-200/70 pb-3">
               <div className="flex items-center gap-2">
@@ -387,6 +395,61 @@ export default function CheckoutSection({
               />
             </div>
           </div>
+
+          {/* HÀNG 3: CAM KẾT VƯỜN & QUY TRÌNH BAO ĂN (LẤP ĐẦY KHOẢNG TRẮNG TRÊN DESKTOP KHI CÓ MÃ QR) */}
+          {paymentMethod !== 'cod' && (
+            <div className="hidden lg:block bg-gradient-to-br from-amber-50/70 via-stone-50 to-emerald-50/40 rounded-3xl p-5 border border-amber-200/70 shadow-2xs space-y-3.5 animate-fadeIn">
+              <div className="flex items-center justify-between border-b border-amber-200/50 pb-2.5">
+                <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                  <HeartHandshake className="w-4 h-4 text-amber-700" />
+                  <span>Chính Sách Giao Hàng & Bảo Vệ Khách Hàng</span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                  <Sparkle className="w-2.5 h-2.5" />
+                  <span>Bao ăn từng quả</span>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="bg-white/90 p-3 rounded-2xl border border-stone-200/80 space-y-1 shadow-2xs">
+                  <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                    <PackageCheck className="w-4 h-4" />
+                  </div>
+                  <strong className="block text-[11.5px] text-stone-900 font-bold">Đóng thùng xốp dày</strong>
+                  <p className="text-[10px] text-stone-500 leading-relaxed">
+                    Từng chùm nho, túi táo được bọc xốp lưới riêng biệt, chèn xốp vụn hạn chế tối đa va đập trên đường vận chuyển.
+                  </p>
+                </div>
+
+                <div className="bg-white/90 p-3 rounded-2xl border border-stone-200/80 space-y-1 shadow-2xs">
+                  <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <strong className="block text-[11.5px] text-stone-900 font-bold">Bao ăn - Bao dập</strong>
+                  <p className="text-[10px] text-stone-500 leading-relaxed">
+                    Nhận hàng nếu quả bị dập úng do vận chuyển, vườn gửi bù ngay lứa mới hoặc hoàn tiền theo tỷ lệ hư hại trong 24h.
+                  </p>
+                </div>
+
+                <div className="bg-white/90 p-3 rounded-2xl border border-stone-200/80 space-y-1 shadow-2xs">
+                  <div className="w-7 h-7 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
+                    <Headphones className="w-4 h-4" />
+                  </div>
+                  <strong className="block text-[11.5px] text-stone-900 font-bold">Vườn gọi xác nhận</strong>
+                  <p className="text-[10px] text-stone-500 leading-relaxed">
+                    Sau khi bấm đặt hàng, nhà vườn sẽ liên hệ đối soát số tiền và báo thời gian dự kiến nhà xe/shipper giao đến bạn.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-1 flex items-center justify-between text-[10.5px] text-stone-500">
+                <span>Cần hỗ trợ gấp về đơn hàng?</span>
+                <span className="font-bold text-amber-900 font-mono">
+                  Hotline / Zalo: {shopConfig?.hotline || import.meta.env.VITE_HOTLINE || '0987.654.321'}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ================= CỘT PHẢI (TỶ LỆ 4/10): THANH TOÁN ================= */}
@@ -452,7 +515,7 @@ export default function CheckoutSection({
           <div className="space-y-2">
             <label className="text-[11px] font-bold text-stone-700 block">Chọn hình thức thanh toán:</label>
             <div className="grid grid-cols-1 gap-2">
-              <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
+              <label className={`cursor-pointer p-2.5 rounded-2xl border transition-all flex items-center justify-between ${
                 paymentMethod === 'deposit' 
                   ? 'border-amber-600 bg-amber-50 ring-1 ring-amber-600 shadow-xs' 
                   : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -474,7 +537,7 @@ export default function CheckoutSection({
                 />
               </label>
 
-              <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
+              <label className={`cursor-pointer p-2.5 rounded-2xl border transition-all flex items-center justify-between ${
                 paymentMethod === 'full_qr' 
                   ? 'border-amber-600 bg-amber-50 ring-1 ring-amber-600 shadow-xs' 
                   : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -496,7 +559,7 @@ export default function CheckoutSection({
                 />
               </label>
 
-              <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
+              <label className={`cursor-pointer p-2.5 rounded-2xl border transition-all flex items-center justify-between ${
                 paymentMethod === 'cod' 
                   ? 'border-amber-600 bg-amber-50 ring-1 ring-amber-600 shadow-xs' 
                   : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -520,76 +583,63 @@ export default function CheckoutSection({
             </div>
           </div>
 
-          {/* KHỐI VIETQR ĐỘNG & BỘ CÔNG CỤ CHO KHÁCH DÙNG 1 ĐIỆN THOẠI */}
-          {paymentMethod !== 'cod' && shopConfig?.bankBin && shopConfig?.accountNo && (
-            <div className="p-3.5 bg-white rounded-2xl border border-amber-200 shadow-2xs space-y-3 animate-fadeIn">
-              <div className="text-center">
-                <span className="text-[11px] font-bold text-amber-900 block">
-                  {paymentMethod === 'deposit' ? `Quét VietQR Cọc ${depositAmount.toLocaleString('vi-VN')}đ` : 'Quét VietQR Trả Đủ 100%'}
+          {/* CỤM VIETQR */}
+          {paymentMethod !== 'cod' && (
+            <div className="p-4 bg-white rounded-2xl border border-amber-200 shadow-2xs space-y-3 animate-fadeIn text-center">
+              <div>
+                <span className="text-xs font-black text-amber-900 block">
+                  {paymentMethod === 'deposit' ? `Quét VietQR Cọc ${depositAmount.toLocaleString('vi-VN')}đ` : 'Quét VietQR Chuyển Khoản 100%'}
                 </span>
-                <span className="text-[10px] text-stone-400 block">Hỗ trợ mọi app Mobile Banking & MoMo</span>
+                <span className="text-[10px] text-stone-400 block mt-0.5">Tự động nhận diện số tiền & nội dung</span>
               </div>
 
-              {/* Ảnh QR */}
-              <div className="relative w-36 mx-auto">
+              {/* Ảnh QR TO RÕ NÉT */}
+              <div className="relative inline-block mx-auto">
                 <img
                   src={qrImageUrl}
                   alt="VietQR Chuyển khoản"
-                  className="w-36 h-36 mx-auto rounded-xl border border-stone-100 shadow-2xs"
+                  className="w-44 h-44 mx-auto rounded-2xl border border-stone-200 shadow-sm object-contain p-1 bg-white"
                 />
               </div>
 
-              {/* NÚT MỞ APP NGÂN HÀNG HOẶC TẢI ẢNH CHO 1 ĐIỆN THOẠI */}
-              <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/60 space-y-2">
-                <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
-                  <Smartphone className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Dùng 1 điện thoại thanh toán:</span>
-                </div>
+              {/* 2 Nút tiện ích */}
+              <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
+                <a
+                  href={`https://dl.vietqr.io/pay?app=&ba=${actualBankBin}&acc=${actualAccountNo}&am=${qrTransferAmount}&des=${transferMemo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2 px-2 bg-stone-900 hover:bg-amber-600 text-white rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Mở App Ngân Hàng</span>
+                </a>
 
-                <div className="grid grid-cols-2 gap-1.5">
-                  {/* Nút 1: Mở app ngân hàng qua Deep Link */}
-                  <a
-                    href={`https://dl.vietqr.io/pay?app=&ba=${shopConfig.bankBin}&acc=${shopConfig.accountNo}&am=${qrTransferAmount}&des=${transferMemo}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-stone-900 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-colors text-center shadow-2xs"
-                  >
-                    <ExternalLink className="w-3 h-3" />
-                    <span>Mở App Ngân Hàng</span>
-                  </a>
-
-                  {/* Nút 2: Tải ảnh QR về thư viện */}
-                  <button
-                    type="button"
-                    onClick={handleDownloadQR}
-                    className="p-2 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-colors text-center shadow-2xs"
-                  >
-                    <Download className="w-3 h-3 text-amber-600" />
-                    <span>Lưu ảnh QR</span>
-                  </button>
-                </div>
-
-                <p className="text-[9.5px] text-stone-500 leading-tight">
-                  💡 <em>Mẹo:</em> Bấm <strong>Lưu ảnh QR</strong> $\rightarrow$ Mở app Ngân hàng $\rightarrow$ Chọn <strong>Quét QR từ ảnh có sẵn</strong> là xong!
-                </p>
+                <button
+                  type="button"
+                  onClick={handleDownloadQR}
+                  className="py-2 px-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-[10.5px] font-bold flex items-center justify-center gap-1.5 transition-colors border border-stone-200 shadow-2xs"
+                >
+                  <Download className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Lưu ảnh QR</span>
+                </button>
               </div>
 
-              {/* Thông tin chuyển khoản thủ công & Copy 1 chạm */}
-              <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/70 space-y-1.5 text-[10px]">
+              {/* Bảng đối soát thông tin tài khoản */}
+              <div className="bg-stone-50/90 p-2.5 rounded-xl border border-stone-200/80 space-y-1.5 text-[11px] text-left">
                 <div className="flex items-center justify-between">
-                  <span className="text-stone-500 font-medium">Ngân hàng:</span>
-                  <span className="font-bold text-stone-800">{shopConfig.bankName}</span>
+                  <span className="text-stone-500">Ngân hàng:</span>
+                  <strong className="text-stone-800">{actualBankName}</strong>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-stone-500 font-medium">Số tài khoản:</span>
+                  <span className="text-stone-500">Số tài khoản:</span>
                   <button
                     type="button"
-                    onClick={() => handleCopy(shopConfig.accountNo, 'stk')}
-                    className="flex items-center gap-1 font-mono font-bold text-stone-900 hover:text-amber-700 transition-colors bg-white px-1.5 py-0.5 rounded border border-stone-200"
+                    onClick={() => handleCopy(actualAccountNo, 'stk')}
+                    className="flex items-center gap-1.5 font-mono font-bold text-stone-900 hover:text-amber-700 transition-colors bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs"
                     title="Sao chép số tài khoản"
                   >
-                    <span>{shopConfig.accountNo}</span>
+                    <span>{actualAccountNo}</span>
                     {copiedField === 'stk' ? (
                       <Check className="w-3 h-3 text-emerald-600" />
                     ) : (
@@ -598,19 +648,19 @@ export default function CheckoutSection({
                   </button>
                 </div>
 
-                {shopConfig.accountName && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-stone-500 font-medium">Chủ tài khoản:</span>
-                    <span className="font-mono uppercase font-bold text-stone-800">{shopConfig.accountName}</span>
-                  </div>
-                )}
-
                 <div className="flex items-center justify-between">
-                  <span className="text-stone-500 font-medium">Nội dung CK:</span>
+                  <span className="text-stone-500">Chủ tài khoản:</span>
+                  <strong className="font-mono uppercase text-stone-800 text-[10px]">
+                    {actualAccountName}
+                  </strong>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-stone-200/60">
+                  <span className="text-stone-500">Nội dung CK:</span>
                   <button
                     type="button"
                     onClick={() => handleCopy(rawTransferMemo, 'memo')}
-                    className="flex items-center gap-1 font-mono font-bold text-amber-900 hover:text-amber-700 transition-colors bg-amber-100/70 px-1.5 py-0.5 rounded border border-amber-200/80"
+                    className="flex items-center gap-1.5 font-mono font-bold text-amber-900 hover:text-amber-700 transition-colors bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200/80 shadow-2xs"
                     title="Sao chép nội dung"
                   >
                     <span>{rawTransferMemo}</span>
