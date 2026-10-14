@@ -6,3 +6,25 @@ body {
   background-color: #faf8f5;
   color: #292524;
 }
+
+@keyframes cartPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes centerSplash {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  35% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+  70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.7) translateY(-30px); }
+}
+
+.animate-cart-pop {
+  animation: cartPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.animate-center-splash {
+  animation: centerSplash 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

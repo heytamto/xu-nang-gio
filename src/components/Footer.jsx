@@ -14,7 +14,6 @@ import {
 import { useTranslation } from '../locales';
 import { DEFAULT_SHOP_CONFIG } from '../config/shopConfig';
 
-// Icon Facebook SVG chuẩn nét
 function FacebookIcon({ className = "w-3 h-3" }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -23,7 +22,6 @@ function FacebookIcon({ className = "w-3 h-3" }) {
   );
 }
 
-// Icon TikTok SVG chuẩn nét
 function TikTokIcon({ className = "w-3 h-3" }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -66,7 +64,7 @@ export default function Footer({ onNavigateAdmin, config = DEFAULT_SHOP_CONFIG }
             )}
           </div>
 
-          {/* CỘT 2: THÔNG TIN LIÊN HỆ & MẠNG XÃ HỘI */}
+          {/* CỘT 2: LIÊN HỆ & MẠNG XÃ HỘI */}
           <div className="lg:col-span-4 space-y-3 text-xs">
             <h4 className="font-bold text-white text-sm uppercase tracking-wider">{t.contact.title}</h4>
             <div className="space-y-3 text-stone-400">
@@ -77,7 +75,6 @@ export default function Footer({ onNavigateAdmin, config = DEFAULT_SHOP_CONFIG }
                   <span>{t.contact.hotlineLabel} <strong className="font-mono text-white text-sm">{config.hotline}</strong></span>
                 </div>
                 
-                {/* Hàng nút bấm mạng xã hội */}
                 <div className="flex flex-wrap items-center gap-2 pl-6">
                   {config.phoneNumber && (
                     <a
@@ -134,7 +131,6 @@ export default function Footer({ onNavigateAdmin, config = DEFAULT_SHOP_CONFIG }
                 </div>
               </div>
 
-              {/* Email */}
               {config.email && (
                 <div className="flex items-center gap-2 pt-1">
                   <Mail className="w-4 h-4 text-amber-500 shrink-0" />
@@ -149,7 +145,6 @@ export default function Footer({ onNavigateAdmin, config = DEFAULT_SHOP_CONFIG }
                 </div>
               )}
 
-              {/* Chính sách đơn hàng */}
               <div className="pt-2 border-t border-stone-800 space-y-1.5 text-[11px]">
                 <p className="flex items-center gap-1.5 text-stone-400">
                   <Truck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -199,9 +194,6 @@ export default function Footer({ onNavigateAdmin, config = DEFAULT_SHOP_CONFIG }
           </div>
 
         </div>
-
-        {/* THẺ MỐC KÍCH HOẠT: Cuộn tới đây nút giỏ mới ẩn */}
-        <div id="footer-half-marker" className="h-px w-full" />
 
         {/* DÒNG BẢN QUYỀN */}
         <div className="pt-6 border-t border-stone-800 text-center text-xs text-stone-500 flex flex-col sm:flex-row items-center justify-between gap-2">

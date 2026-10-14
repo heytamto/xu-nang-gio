@@ -5,10 +5,10 @@ import {
   ShoppingBag, Calendar, User, ToggleLeft, ToggleRight,
   LayoutDashboard, TrendingUp, RefreshCw, Loader2, FileSpreadsheet,
   PhoneCall, CheckCircle2, Clock, XCircle, Truck, AlertCircle,
-  Search, X, Filter
+  Search, X, Filter, UploadCloud, Image as ImageIcon
 } from 'lucide-react';
 
-const GSHEET_URL = 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
+const GSHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
 
 const STATUS_CONFIG = {
   'Chờ xác nhận': { bg: 'bg-amber-50 text-amber-800 border-amber-200', icon: Clock },
@@ -19,6 +19,148 @@ const STATUS_CONFIG = {
   'Đã hủy': { bg: 'bg-red-50 text-red-700 border-red-200', icon: XCircle }
 };
 
+// ================= COMPONENT CHỌN & TẢI ẢNH LÊN GOOGLE DRIVE =================
+function ImageUploadField({ value, onChange, label = "Ảnh" }) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      // Đọc file và nén nhanh bằng Canvas
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async (event) => {
+        try {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = async () => {
+            let width = img.width;
+            let height = img.height;
+            const maxWidth = 1200;
+
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            const base64 = dataUrl.split(',')[1];
+
+            const payload = {
+              action: 'upload_image',
+              fileName: file.name.replace(/\.[^/.]+$/, "") + '_' + Date.now() + '.jpg',
+              mimeType: 'image/jpeg',
+              base64: base64
+            };
+
+            const response = await fetch(GSHEET_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(payload)
+            });
+
+            const resJson = await response.json();
+            if (resJson.success && resJson.url) {
+              onChange(resJson.url);
+            } else {
+              throw new Error(resJson.error || resJson.message || 'Lỗi lưu Google Drive');
+            }
+            setIsUploading(false);
+          };
+        } catch (innerErr) {
+          setUploadError(innerErr.message);
+          setIsUploading(false);
+        }
+      };
+    } catch (err) {
+      setUploadError('Lỗi xử lý tệp: ' + err.message);
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="font-semibold text-stone-600 block text-xs">{label}</label>
+      <div className="flex items-center gap-2">
+        <label className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all shrink-0 ${
+          isUploading 
+            ? 'bg-amber-50 text-amber-700 border-amber-300 pointer-events-none' 
+            : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-stone-200'
+        }`}>
+          {isUploading ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+              <span>Đang lưu Drive...</span>
+            </>
+          ) : (
+            <>
+              <UploadCloud className="w-3.5 h-3.5 text-amber-600" />
+              <span>Tải từ máy lên Drive</span>
+            </>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            disabled={isUploading}
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+
+        <div className="relative flex-1">
+          <input
+            type="url"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Hoặc dán URL ảnh vào đây..."
+            className="w-full pl-3 pr-8 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-mono text-stone-700 focus:outline-none focus:border-amber-600 transition-all"
+          />
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {uploadError && (
+        <p className="text-[10px] text-rose-600 font-medium">{uploadError}</p>
+      )}
+
+      {value && (
+        <div className="flex items-center gap-2 pt-1">
+          <img
+            src={value}
+            alt="Thumbnail preview"
+            className="w-12 h-12 rounded-xl object-cover border border-stone-200 bg-stone-100"
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200">
+            ✓ Đã liên kết ảnh thành công
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ================= MAIN COMPONENT =================
 export default function AdminPage({ 
   products = [], 
   onSaveProducts, 
@@ -34,6 +176,9 @@ export default function AdminPage({
   const [activeTab, setActiveTab] = useState('dashboard');
   const [savedNotice, setSavedNotice] = useState(false);
   const [actionLoadingCode, setActionLoadingCode] = useState(null);
+
+  // Modal xác nhận dùng chung thay thế window.confirm
+  const [modalConfig, setModalConfig] = useState(null);
 
   // Bộ lọc danh sách đơn hàng
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,40 +249,52 @@ export default function AdminPage({
       } catch {}
 
     } catch (err) {
-      alert('Lỗi cập nhật trạng thái: ' + err.message);
+      setModalConfig({
+        title: 'Lỗi Cập Nhật',
+        message: 'Không thể cập nhật trạng thái đơn: ' + err.message,
+        isAlert: true
+      });
     } finally {
       setActionLoadingCode(null);
     }
   };
 
-  // Xóa đơn hàng
-  const handleDeleteOrder = async (orderCode) => {
-    if (!window.confirm(`Xác nhận xóa hoàn toàn đơn ${orderCode} khỏi Google Sheet?`)) return;
+  // Kích hoạt Modal Xác Nhận Xóa Đơn Hàng (thay thế window.confirm)
+  const handleDeleteOrder = (orderCode) => {
+    setModalConfig({
+      title: 'Xác Nhận Xóa Đơn',
+      message: `Tâm có chắc chắn muốn xóa hoàn toàn đơn ${orderCode} khỏi danh sách và Google Sheet không?`,
+      confirmLabel: 'Đồng ý xóa đơn',
+      onConfirm: async () => {
+        setActionLoadingCode(orderCode);
+        try {
+          await fetch(GSHEET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'delete_order',
+              code: orderCode
+            })
+          });
 
-    setActionLoadingCode(orderCode);
-    try {
-      await fetch(GSHEET_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'delete_order',
-          code: orderCode
-        })
-      });
+          setSheetOrders((prev) => prev.filter((ord) => ord.code !== orderCode));
 
-      setSheetOrders((prev) => prev.filter((ord) => ord.code !== orderCode));
-
-      try {
-        const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-        const updatedLocal = local.filter((ord) => ord.code !== orderCode);
-        localStorage.setItem('shop_orders', JSON.stringify(updatedLocal));
-      } catch {}
-
-    } catch (err) {
-      alert('Lỗi khi xóa đơn: ' + err.message);
-    } finally {
-      setActionLoadingCode(null);
-    }
+          try {
+            const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
+            const updatedLocal = local.filter((ord) => ord.code !== orderCode);
+            localStorage.setItem('shop_orders', JSON.stringify(updatedLocal));
+          } catch {}
+        } catch (err) {
+          setModalConfig({
+            title: 'Lỗi Xóa Đơn',
+            message: 'Đã xảy ra lỗi: ' + err.message,
+            isAlert: true
+          });
+        } finally {
+          setActionLoadingCode(null);
+        }
+      }
+    });
   };
 
   // Chuẩn hóa dữ liệu đơn hàng
@@ -176,7 +333,7 @@ export default function AdminPage({
     });
   }, [sheetOrders]);
 
-  // Hàm parse ngày chuẩn xác hỗ trợ cả DD/MM/YYYY lẫn ISO YYYY-MM-DD
+  // Hàm parse ngày chuẩn xác
   const parseOrderDate = (dateStr) => {
     if (!dateStr) return null;
     if (typeof dateStr !== 'string') return new Date(dateStr);
@@ -192,7 +349,7 @@ export default function AdminPage({
     return isNaN(d.getTime()) ? null : d;
   };
 
-  // Kiểm soát và ràng buộc khoảng ngày tối đa 30 ngày
+  // Giới hạn chọn khoảng ngày tối đa 30 ngày
   const handleStartDateChange = (val) => {
     setStartDate(val);
     if (val && endDate) {
@@ -206,9 +363,12 @@ export default function AdminPage({
       } else if (diffDays > 30) {
         const maxEnd = new Date(start);
         maxEnd.setDate(maxEnd.getDate() + 30);
-        const maxEndStr = maxEnd.toISOString().split('T')[0];
-        setEndDate(maxEndStr);
-        alert('Khoảng thời gian chọn tối đa là 30 ngày. Đã tự động điều chỉnh ngày kết thúc.');
+        setEndDate(maxEnd.toISOString().split('T')[0]);
+        setModalConfig({
+          title: 'Giới Hạn Thời Gian',
+          message: 'Khoảng thời gian chọn tối đa là 30 ngày. Đã tự động điều chỉnh ngày kết thúc.',
+          isAlert: true
+        });
       }
     }
   };
@@ -225,28 +385,36 @@ export default function AdminPage({
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays < 0) {
-        alert('Ngày kết thúc không được nhỏ hơn ngày bắt đầu!');
+        setModalConfig({
+          title: 'Ngày Chưa Hợp Lệ',
+          message: 'Ngày kết thúc không được nhỏ hơn ngày bắt đầu.',
+          isAlert: true
+        });
         return;
       }
       if (diffDays > 30) {
-        alert('Khoảng thời gian lọc tối đa là 30 ngày. Vui lòng chọn trong phạm vi 30 ngày!');
         const maxEnd = new Date(start);
         maxEnd.setDate(maxEnd.getDate() + 30);
         setEndDate(maxEnd.toISOString().split('T')[0]);
+        setModalConfig({
+          title: 'Giới Hạn Thời Gian',
+          message: 'Khoảng thời gian chọn tối đa là 30 ngày. Đã tự động điều chỉnh về 30 ngày.',
+          isAlert: true
+        });
         return;
       }
     }
     setEndDate(val);
   };
 
-  // Lọc đa năng: Theo SĐT, Tên, Mã đơn + Lọc ngày (tối đa 30 ngày) + Lọc Trạng thái
+  // Lọc thông minh: Theo SĐT, Tên, Mã + Khoảng ngày (tối đa 30 ngày) + Trạng thái
   const filteredOrders = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const yesterdayStart = todayStart - 86400000;
 
     return normalizedOrders.filter((order) => {
-      // 1. Lọc theo từ khóa tìm kiếm (SĐT, Tên, Mã)
+      // 1. Tìm theo từ khóa
       const rawPhone = String(order.phone || '').replace(/\D/g, '');
       const rawName = String(order.name || '').toLowerCase();
       const rawCode = String(order.code || '').toLowerCase();
@@ -262,7 +430,7 @@ export default function AdminPage({
 
       if (!matchSearch) return false;
 
-      // 2. Lọc theo trạng thái đơn
+      // 2. Lọc theo trạng thái
       if (statusFilter !== 'all' && order.status !== statusFilter) {
         return false;
       }
@@ -282,21 +450,17 @@ export default function AdminPage({
       if (dateFilterType === 'today') {
         return orderTime === todayStart;
       }
-
       if (dateFilterType === 'yesterday') {
         return orderTime === yesterdayStart;
       }
-
       if (dateFilterType === '7days') {
         const sevenDaysAgo = todayStart - 7 * 86400000;
         return orderTime >= sevenDaysAgo && orderTime <= todayStart;
       }
-
       if (dateFilterType === '30days') {
         const thirtyDaysAgo = todayStart - 30 * 86400000;
         return orderTime >= thirtyDaysAgo && orderTime <= todayStart;
       }
-
       if (dateFilterType === 'custom') {
         const startTimestamp = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
         const endTimestamp = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
@@ -304,19 +468,15 @@ export default function AdminPage({
         if (startTimestamp && endTimestamp) {
           return orderTime >= startTimestamp && orderTime <= endTimestamp;
         }
-        if (startTimestamp) {
-          return orderTime >= startTimestamp;
-        }
-        if (endTimestamp) {
-          return orderTime <= endTimestamp;
-        }
+        if (startTimestamp) return orderTime >= startTimestamp;
+        if (endTimestamp) return orderTime <= endTimestamp;
       }
 
       return true;
     });
   }, [normalizedOrders, searchQuery, statusFilter, dateFilterType, startDate, endDate]);
 
-  // Metrics thống kê theo danh sách đơn đã lọc
+  // Metrics thống kê
   const metrics = useMemo(() => {
     const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
     const totalRevenue = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
@@ -407,7 +567,11 @@ export default function AdminPage({
     if (!newVoucher.code.trim()) return;
     const formattedCode = newVoucher.code.trim().toUpperCase();
     if (cfg.vouchers.some(v => v.code === formattedCode)) {
-      alert('Mã voucher này đã tồn tại!');
+      setModalConfig({
+        title: 'Mã Đã Tồn Tại',
+        message: 'Mã voucher này đã có trong danh sách.',
+        isAlert: true
+      });
       return;
     }
     const updatedVouchers = [
@@ -433,9 +597,13 @@ export default function AdminPage({
   };
 
   const handleRemoveVoucher = (code) => {
-    setCfg({
-      ...cfg,
-      vouchers: cfg.vouchers.filter(v => v.code !== code)
+    setModalConfig({
+      title: 'Xóa Mã Giảm Giá',
+      message: `Tâm có chắc muốn xóa voucher ${code} không?`,
+      confirmLabel: 'Xóa voucher',
+      onConfirm: () => {
+        setCfg({ ...cfg, vouchers: cfg.vouchers.filter(v => v.code !== code) });
+      }
     });
   };
 
@@ -460,7 +628,11 @@ export default function AdminPage({
   const handleAddProduct = (e) => {
     e.preventDefault();
     if (!newProduct.name.trim() || !newProduct.basePrice) {
-      alert('Vui lòng nhập tên sản phẩm và giá cơ bản!');
+      setModalConfig({
+        title: 'Thiếu Thông Tin',
+        message: 'Vui lòng nhập tên đặc sản và giá bán cơ bản.',
+        isAlert: true
+      });
       return;
     }
     const productItem = {
@@ -500,9 +672,17 @@ export default function AdminPage({
     }
   };
 
-  const handleDeleteProduct = (id) => {
-    if (!window.confirm('Tâm có chắc muốn xóa đặc sản này khỏi kệ không?')) return;
-    if (onSaveProducts) onSaveProducts(products.filter((p) => p.id !== id));
+  // Kích hoạt Modal Xóa Sản Phẩm (thay thế window.confirm)
+  const handleDeleteProduct = (id, name = 'đặc sản này') => {
+    setModalConfig({
+      title: 'Gỡ Khỏi Kệ Bán',
+      message: `Tâm có chắc muốn xóa "${name}" khỏi kệ hàng của shop không?`,
+      confirmLabel: 'Đồng ý xóa',
+      onConfirm: () => {
+        if (onSaveProducts) onSaveProducts(products.filter((p) => p.id !== id));
+        showSavedToast();
+      }
+    });
   };
 
   // Quản lý bài viết
@@ -518,7 +698,11 @@ export default function AdminPage({
   const handleAddPost = (e) => {
     e.preventDefault();
     if (!newPost.title.trim() || !newPost.desc.trim()) {
-      alert('Vui lòng nhập tiêu đề và tóm tắt bài viết!');
+      setModalConfig({
+        title: 'Thiếu Thông Tin',
+        message: 'Vui lòng nhập tiêu đề và tóm tắt ngắn cho bài viết.',
+        isAlert: true
+      });
       return;
     }
     const postItem = {
@@ -543,9 +727,36 @@ export default function AdminPage({
     showSavedToast();
   };
 
-  const handleDeletePost = (id) => {
-    if (!window.confirm('Tâm có chắc muốn xóa bài viết này không?')) return;
-    if (onSavePosts) onSavePosts(posts.filter((p) => p.id !== id));
+  // Kích hoạt Modal Xóa Bài Viết (thay thế window.confirm)
+  const handleDeletePost = (id, title = 'bài viết này') => {
+    setModalConfig({
+      title: 'Xóa Bài Viết',
+      message: `Tâm có chắc muốn xóa bài viết "${title}" khỏi Blog Chuyện Vườn không?`,
+      confirmLabel: 'Xóa bài viết',
+      onConfirm: () => {
+        if (onSavePosts) onSavePosts(posts.filter((p) => p.id !== id));
+        showSavedToast();
+      }
+    });
+  };
+
+  // Khôi phục mặc định với Modal
+  const handleConfirmResetProducts = () => {
+    setModalConfig({
+      title: 'Khôi Phục Sản Phẩm',
+      message: 'Tâm có chắc muốn đặt lại toàn bộ danh sách sản phẩm về mẫu mặc định ban đầu không?',
+      confirmLabel: 'Khôi phục',
+      onConfirm: onResetProducts
+    });
+  };
+
+  const handleConfirmResetPosts = () => {
+    setModalConfig({
+      title: 'Khôi Phục Bài Viết',
+      message: 'Tâm có chắc muốn đặt lại danh sách bài viết về mẫu mặc định ban đầu không?',
+      confirmLabel: 'Khôi phục',
+      onConfirm: onResetPosts
+    });
   };
 
   const showSavedToast = () => {
@@ -567,7 +778,6 @@ export default function AdminPage({
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
       {/* ================= TOP HEADER & TAB DÀN ĐỀU 100% ================= */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-        {/* Hàng 1: Nút Back + Tiêu đề */}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -583,7 +793,7 @@ export default function AdminPage({
           </div>
         </div>
 
-        {/* Hàng 2: Tab Selector DÀN ĐỀU 4 CỘT TRÊN PC, 2 CỘT TRÊN MOBILE */}
+        {/* Tab Selector Dàn Đều 4 Cột */}
         <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <button
             type="button"
@@ -649,7 +859,6 @@ export default function AdminPage({
       {/* ================= TAB 1: DASHBOARD & QUẢN LÝ ĐƠN HÀNG ================= */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Header Dashboard & Nút làm mới */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
@@ -674,7 +883,7 @@ export default function AdminPage({
             </button>
           </div>
 
-          {/* 4 Thẻ Metrics (Tính theo dữ liệu đã lọc) */}
+          {/* 4 Thẻ Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
               <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
@@ -740,7 +949,6 @@ export default function AdminPage({
 
           {/* ================= BỘ LỌC TÌM KIẾM ĐA NĂNG & CHI TIẾT ĐƠN HÀNG ================= */}
           <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-5">
-            {/* Header danh sách đơn */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
               <div>
                 <h3 className="text-sm font-black text-stone-900 uppercase tracking-wide flex items-center gap-2">
@@ -766,10 +974,9 @@ export default function AdminPage({
               )}
             </div>
 
-            {/* CỤM THANH CÔNG CỤ TÌM KIẾM & LỌC NGÀY (TỐI ĐA 30 NGÀY) */}
+            {/* Cụm thanh lọc */}
             <div className="space-y-3 bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200/80">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                {/* 1. Ô tìm kiếm theo SĐT, Tên hoặc Mã đơn */}
                 <div className="sm:col-span-5 relative">
                   <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -790,7 +997,6 @@ export default function AdminPage({
                   )}
                 </div>
 
-                {/* 2. Bộ lọc mốc thời gian */}
                 <div className="sm:col-span-4">
                   <select
                     value={dateFilterType}
@@ -806,7 +1012,6 @@ export default function AdminPage({
                   </select>
                 </div>
 
-                {/* 3. Lọc theo trạng thái đơn */}
                 <div className="sm:col-span-3">
                   <select
                     value={statusFilter}
@@ -824,7 +1029,6 @@ export default function AdminPage({
                 </div>
               </div>
 
-              {/* HÀNG NHẬP KHOẢNG NGÀY NẾU CHỌN 'CUSTOM' (GIỚI HẠN TỐI ĐA 30 NGÀY) */}
               {dateFilterType === 'custom' && (
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60 text-xs">
                   <div className="flex items-center gap-1.5">
@@ -848,13 +1052,13 @@ export default function AdminPage({
                   </div>
 
                   <span className="text-[11px] text-amber-700 font-medium italic">
-                    * Khoảng cách tối đa 30 ngày để tối ưu tốc độ tra cứu
+                    * Giới hạn khoảng cách tối đa 30 ngày
                   </span>
                 </div>
               )}
             </div>
 
-            {/* DANH SÁCH ĐƠN HÀNG ĐÃ LỌC */}
+            {/* DANH SÁCH ĐƠN HÀNG */}
             <div className="divide-y divide-stone-100 space-y-3 pt-1">
               {filteredOrders.length === 0 ? (
                 <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
@@ -877,7 +1081,6 @@ export default function AdminPage({
 
                   return (
                     <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-                      {/* Cột trái: Thông tin khách & Món */}
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
@@ -885,7 +1088,6 @@ export default function AdminPage({
                           </span>
                           <strong className="text-stone-900 text-sm">{ord.name}</strong>
                           
-                          {/* Nút bấm gọi điện thoại nhanh */}
                           {ord.phone && (
                             <a
                               href={`tel:${ord.phone}`}
@@ -900,7 +1102,6 @@ export default function AdminPage({
                           <span className="text-[10.5px] text-stone-400">({ord.createdAt})</span>
                         </div>
 
-                        {/* Địa chỉ & Món đặt */}
                         {ord.address && (
                           <p className="text-stone-600 text-[11px] line-clamp-1">
                             📍 <strong>Giao đến:</strong> {ord.address}
@@ -920,7 +1121,6 @@ export default function AdminPage({
                         )}
                       </div>
 
-                      {/* Cột phải: Tiền, Đổi Trạng Thái & Xóa */}
                       <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
                         <div className="text-left md:text-right">
                           <span className="font-mono font-black text-stone-900 text-sm block">
@@ -932,7 +1132,6 @@ export default function AdminPage({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {/* Dropdown cập nhật trạng thái */}
                           <div className="relative">
                             <select
                               disabled={isProcessing}
@@ -949,7 +1148,6 @@ export default function AdminPage({
                             </select>
                           </div>
 
-                          {/* Nút Xóa đơn */}
                           <button
                             type="button"
                             disabled={isProcessing}
@@ -1047,28 +1245,22 @@ export default function AdminPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-stone-600 block mb-1">Ảnh sản phẩm (URL)</label>
-                  <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={newProduct.image}
-                    onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-600 font-mono"
-                  />
-                </div>
+              {/* Upload ảnh đặc sản từ máy tính lên Google Drive hoặc dán link */}
+              <ImageUploadField
+                label="Ảnh đặc sản (Tải trực tiếp lên Google Drive hoặc dán URL)"
+                value={newProduct.image}
+                onChange={(url) => setNewProduct({ ...newProduct, image: url })}
+              />
 
-                <div>
-                  <label className="font-semibold text-stone-600 block mb-1">Nguồn gốc vườn</label>
-                  <input
-                    type="text"
-                    placeholder="Vườn nhà Tâm (Phước Hậu)"
-                    value={newProduct.source}
-                    onChange={(e) => setNewProduct({ ...newProduct, source: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800"
-                  />
-                </div>
+              <div>
+                <label className="font-semibold text-stone-600 block mb-1">Nguồn gốc vườn</label>
+                <input
+                  type="text"
+                  placeholder="Vườn nhà Tâm (Phước Hậu)"
+                  value={newProduct.source}
+                  onChange={(e) => setNewProduct({ ...newProduct, source: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800"
+                />
               </div>
 
               <div>
@@ -1112,7 +1304,7 @@ export default function AdminPage({
               </div>
               <button
                 type="button"
-                onClick={onResetProducts}
+                onClick={handleConfirmResetProducts}
                 className="px-3 py-1.5 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -1169,7 +1361,7 @@ export default function AdminPage({
 
                     <button
                       type="button"
-                      onClick={() => handleDeleteProduct(p.id)}
+                      onClick={() => handleDeleteProduct(p.id, p.name)}
                       className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors"
                       title="Xóa khỏi kệ"
                     >
@@ -1460,18 +1652,14 @@ export default function AdminPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-stone-600 block mb-1">Ảnh bìa (URL)</label>
-                  <input
-                    type="url"
-                    placeholder="https://images.unsplash.com/..."
-                    value={newPost.image}
-                    onChange={(e) => setNewPost({ ...newPost, image: e.target.value })}
-                    className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-600 font-mono"
-                  />
-                </div>
+              {/* Upload ảnh bìa bài viết lên Google Drive hoặc dán URL */}
+              <ImageUploadField
+                label="Ảnh bìa bài viết (Tải trực tiếp lên Google Drive hoặc dán URL)"
+                value={newPost.image}
+                onChange={(url) => setNewPost({ ...newPost, image: url })}
+              />
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-stone-600 block mb-1">Tác giả</label>
                   <input
@@ -1527,7 +1715,7 @@ export default function AdminPage({
               </div>
               <button
                 type="button"
-                onClick={onResetPosts}
+                onClick={handleConfirmResetPosts}
                 className="px-3 py-1.5 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1 transition-colors"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -1556,7 +1744,7 @@ export default function AdminPage({
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleDeletePost(post.id)}
+                      onClick={() => handleDeletePost(post.id, post.title)}
                       className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1564,6 +1752,51 @@ export default function AdminPage({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= CUSTOM CONFIRM / ALERT MODAL ================= */}
+      {modalConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-stone-200 space-y-4 transform transition-all scale-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-stone-900">{modalConfig.title || 'Thông Báo'}</h4>
+                <p className="text-xs text-stone-500">
+                  {modalConfig.isAlert ? 'Hệ thống thông báo' : 'Hành động này không thể hoàn tác'}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-3.5 rounded-2xl border border-stone-100">
+              {modalConfig.message}
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              {!modalConfig.isAlert && (
+                <button
+                  type="button"
+                  onClick={() => setModalConfig(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (modalConfig.onConfirm) modalConfig.onConfirm();
+                  setModalConfig(null);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-sm transition-all active:scale-95"
+              >
+                {modalConfig.confirmLabel || 'Đồng ý'}
+              </button>
             </div>
           </div>
         </div>
