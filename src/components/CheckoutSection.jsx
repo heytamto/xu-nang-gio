@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   User, Phone, FileText, ShieldCheck, 
   QrCode, Truck, ArrowRight, X, Loader2, Tag, Sparkles, Gift, UserCheck, ShoppingBag,
-  Download, Copy, Check, ExternalLink, HeartHandshake, PackageCheck, Headphones, Sparkle
+  Download, Copy, Check, ExternalLink, HeartHandshake, PackageCheck, Headphones, Sparkle,
+  Layers, Lock
 } from 'lucide-react';
 import AddressField from './AddressField';
 
@@ -23,7 +24,6 @@ export default function CheckoutSection({
   const [paymentMethod, setPaymentMethod] = useState('deposit');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Ép lấy đúng tài khoản từ env nếu shopConfig bị dính cache cũ
   const actualAccountNo = (shopConfig.accountNo && shopConfig.accountNo !== '0987654321')
     ? shopConfig.accountNo
     : (import.meta.env.VITE_ACCOUNT_NO || '0848957345');
@@ -32,15 +32,13 @@ export default function CheckoutSection({
   const actualBankBin = shopConfig.bankBin || import.meta.env.VITE_BANK_BIN || '970422';
   const actualAccountName = shopConfig.accountName || import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM';
 
-  // Trạng thái copy nhanh
   const [copiedField, setCopiedField] = useState('');
 
   // Voucher State
   const [voucherInput, setVoucherInput] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [appliedVouchers, setAppliedVouchers] = useState([]); // Mảng voucher đã áp dụng
   const [voucherError, setVoucherError] = useState('');
 
-  // Nhận diện Khách Mới / Khách Quen theo SĐT
   const cleanPhone = useMemo(() => {
     return customer.phone.trim().replace(/[^0-9]/g, '');
   }, [customer.phone]);
@@ -78,12 +76,23 @@ export default function CheckoutSection({
     };
   }, [cleanPhone]);
 
-  // Áp dụng mã
+  // =========================================================================
+  // LOGIC KIỂM TRA & ÁP DỤNG MÃ THEO CỜ canStack TRÊN TỪNG VOUCHER
+  // =========================================================================
   const applySpecificCode = (codeToApply) => {
     setVoucherError('');
     const code = codeToApply.trim().toUpperCase();
+    if (!code) return;
 
-    // Mã đơn cũ XNG...
+    // 1. Kiểm tra xem mã đã có trong đơn chưa
+    if (appliedVouchers.some((v) => v.code === code)) {
+      setVoucherError(`Mã "${code}" đã được áp dụng trong đơn.`);
+      return;
+    }
+
+    let voucherCandidate = null;
+
+    // 2. Tìm voucher: Trường hợp mã đơn cũ XNG... (mặc định canStack = false vì là mã tri ân lớn)
     if (code.startsWith('XNG')) {
       const pastOrders = JSON.parse(localStorage.getItem('shop_orders') || '[]');
       const isUsed = pastOrders.some((ord) => ord.usedPreviousOrderCode === code);
@@ -95,42 +104,68 @@ export default function CheckoutSection({
       const rate = shopConfig?.loyaltyDiscountPercent || 10;
       const discount = Math.round((totalAmount * rate) / 100);
 
-      setAppliedVoucher({
+      voucherCandidate = {
         code: code,
         discount: discount,
+        canStack: false, // Mã đơn cũ tri ân dùng riêng, không gộp
         desc: `Tri ân từ đơn cũ ${code} (Giảm ${rate}%)`,
         usedPreviousOrderCode: code
-      });
+      };
+    } else {
+      // 3. Tìm voucher trong shopConfig
+      const availableVouchers = shopConfig?.vouchers || [];
+      const matched = availableVouchers.find((v) => v.code === code);
+
+      if (!matched) {
+        setVoucherError(`Mã "${code}" không hợp lệ hoặc đã hết hạn.`);
+        return;
+      }
+
+      if (matched.minOrder && totalAmount < matched.minOrder) {
+        setVoucherError(`Đơn hàng phải từ ${matched.minOrder.toLocaleString('vi-VN')}đ để dùng mã này.`);
+        return;
+      }
+
+      let discount = 0;
+      if (matched.type === 'percent') {
+        discount = Math.round((totalAmount * (matched.value || 0)) / 100);
+      } else {
+        discount = Number(matched.value) || 0;
+      }
+
+      voucherCandidate = {
+        code: matched.code,
+        discount: discount,
+        canStack: matched.canStack ?? true, // Lấy cờ canStack từ chính voucher
+        desc: matched.desc || `Mã giảm ${matched.code}`
+      };
+    }
+
+    // =========================================================================
+    // QUY TẮC GỘP DỰA TRÊN CỜ canStack
+    // =========================================================================
+
+    // A. Nếu đơn hiện tại ĐANG CÓ 1 voucher KHÔNG CHO GỘP (canStack === false)
+    const existingNonStackable = appliedVouchers.find(v => !v.canStack);
+    if (existingNonStackable) {
+      setVoucherError(`Đơn đang dùng mã độc quyền "${existingNonStackable.code}". Hãy gỡ mã này ra trước nếu muốn dùng mã khác.`);
+      return;
+    }
+
+    // B. Nếu mã MỚI định áp dụng KHÔNG CHO GỘP (canStack === false)
+    if (!voucherCandidate.canStack) {
+      if (appliedVouchers.length > 0) {
+        setVoucherError(`Mã "${voucherCandidate.code}" là ưu đãi độc quyền (không cho gộp chung với các mã khác). Hãy gỡ các mã cũ để dùng mã này.`);
+        return;
+      }
+      // Nếu giỏ chưa có mã nào thì cho dùng 1 mình nó
+      setAppliedVouchers([voucherCandidate]);
       setVoucherInput('');
       return;
     }
 
-    // Voucher cấu hình
-    const availableVouchers = shopConfig?.vouchers || [];
-    const matched = availableVouchers.find((v) => v.code === code);
-
-    if (!matched) {
-      setVoucherError('Mã không hợp lệ hoặc đã hết hạn.');
-      return;
-    }
-
-    if (matched.minOrder && totalAmount < matched.minOrder) {
-      setVoucherError(`Đơn hàng phải từ ${matched.minOrder.toLocaleString('vi-VN')}đ để dùng mã này.`);
-      return;
-    }
-
-    let discount = 0;
-    if (matched.type === 'percent') {
-      discount = Math.round((totalAmount * (matched.value || 0)) / 100);
-    } else {
-      discount = Number(matched.value) || 0;
-    }
-
-    setAppliedVoucher({
-      code: matched.code,
-      discount: discount,
-      desc: matched.desc || `Mã giảm ${matched.code}`
-    });
+    // C. Cả hai bên đều cho phép gộp (canStack === true): Cộng dồn thành công!
+    setAppliedVouchers((prev) => [...prev, voucherCandidate]);
     setVoucherInput('');
   };
 
@@ -141,30 +176,31 @@ export default function CheckoutSection({
     }
   };
 
-  const handleRemoveVoucher = () => {
-    setAppliedVoucher(null);
+  const handleRemoveVoucher = (codeToRemove) => {
+    setAppliedVouchers((prev) => prev.filter((v) => v.code !== codeToRemove));
     setVoucherError('');
   };
 
-  const discountAmount = appliedVoucher ? appliedVoucher.discount : 0;
-  const finalTotalAmount = Math.max(0, totalAmount - discountAmount);
+  const discountAmount = useMemo(() => {
+    if (appliedVouchers.length === 0) return 0;
+    const totalDisc = appliedVouchers.reduce((sum, v) => sum + (Number(v.discount) || 0), 0);
+    return Math.min(totalAmount, totalDisc);
+  }, [appliedVouchers, totalAmount]);
 
+  const finalTotalAmount = Math.max(0, totalAmount - discountAmount);
   const depositAmount = shopConfig?.depositAmount || 50000;
   const qrTransferAmount = paymentMethod === 'full_qr' ? finalTotalAmount : depositAmount;
   const rawTransferMemo = `XNG ${cleanPhone || 'DATNHO'}`;
   const transferMemo = encodeURIComponent(rawTransferMemo);
 
-  // Link VietQR chuẩn nét cao
   const qrImageUrl = `https://img.vietqr.io/image/${actualBankBin}-${actualAccountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(actualAccountName)}`;
 
-  // Copy helper
   const handleCopy = (text, fieldName) => {
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(''), 2000);
   };
 
-  // Tải ảnh QR về máy
   const handleDownloadQR = async () => {
     if (!qrImageUrl) return;
     try {
@@ -196,6 +232,9 @@ export default function CheckoutSection({
 
     setIsSubmitting(true);
 
+    const appliedCodesString = appliedVouchers.map((v) => v.code).join(', ');
+    const usedOldCodeItem = appliedVouchers.find((v) => v.usedPreviousOrderCode);
+
     const orderPayload = {
       customer,
       name: customer.name.trim(),
@@ -206,8 +245,9 @@ export default function CheckoutSection({
       total: finalTotalAmount,
       rawTotal: totalAmount,
       discount: discountAmount,
-      voucherCode: appliedVoucher ? appliedVoucher.code : '',
-      usedPreviousOrderCode: appliedVoucher?.usedPreviousOrderCode || null,
+      voucherCode: appliedCodesString,
+      appliedVouchers: appliedVouchers,
+      usedPreviousOrderCode: usedOldCodeItem?.usedPreviousOrderCode || null,
       cart
     };
 
@@ -322,7 +362,7 @@ export default function CheckoutSection({
               </div>
             </div>
 
-            {customerHistory && !appliedVoucher && (
+            {customerHistory && (
               <div className="animate-fadeIn">
                 {customerHistory.isOldCustomer ? (
                   <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
@@ -340,7 +380,7 @@ export default function CheckoutSection({
                       </div>
                     </div>
 
-                    {customerHistory.canUseOldCode && (
+                    {customerHistory.canUseOldCode && !appliedVouchers.some(v => v.code === customerHistory.latestOrderCode) && (
                       <button
                         type="button"
                         onClick={() => applySpecificCode(customerHistory.latestOrderCode)}
@@ -364,13 +404,15 @@ export default function CheckoutSection({
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => applySpecificCode('LAMQUEN')}
-                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold whitespace-nowrap shadow-xs transition-all active:scale-95"
-                    >
-                      Dùng mã LAMQUEN
-                    </button>
+                    {!appliedVouchers.some(v => v.code === 'LAMQUEN') && (
+                      <button
+                        type="button"
+                        onClick={() => applySpecificCode('LAMQUEN')}
+                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold whitespace-nowrap shadow-xs transition-all active:scale-95"
+                      >
+                        Dùng mã LAMQUEN
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -396,7 +438,7 @@ export default function CheckoutSection({
             </div>
           </div>
 
-          {/* HÀNG 3: CAM KẾT VƯỜN & QUY TRÌNH BAO ĂN (LẤP ĐẦY KHOẢNG TRẮNG TRÊN DESKTOP KHI CÓ MÃ QR) */}
+          {/* HÀNG 3: CAM KẾT VƯỜN & QUY TRÌNH BAO ĂN */}
           {paymentMethod !== 'cod' && (
             <div className="hidden lg:block bg-gradient-to-br from-amber-50/70 via-stone-50 to-emerald-50/40 rounded-3xl p-5 border border-amber-200/70 shadow-2xs space-y-3.5 animate-fadeIn">
               <div className="flex items-center justify-between border-b border-amber-200/50 pb-2.5">
@@ -462,52 +504,75 @@ export default function CheckoutSection({
             <p className="text-[11px] text-stone-500 mt-0.5">Áp dụng voucher và chọn phương thức</p>
           </div>
 
-          {/* Ô Nhập Voucher */}
-          <div className="bg-white p-3 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
-            <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-amber-600" />
-              <span>Mã Ưu Đãi / Quà Tặng</span>
-            </span>
+          {/* Ô Nhập Voucher & Danh Sách Đa Voucher */}
+          <div className="bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-amber-600" />
+                <span>Mã Ưu Đãi / Quà Tặng</span>
+              </span>
+            </div>
 
-            {appliedVoucher ? (
-              <div className="flex items-center justify-between bg-amber-50/80 border border-amber-300 px-3 py-2 rounded-xl text-xs">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <div>
-                    <span className="font-mono font-bold text-amber-900 block">{appliedVoucher.code}</span>
-                    <span className="text-[10px] text-amber-700">{appliedVoucher.desc}</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRemoveVoucher}
-                  className="text-stone-400 hover:text-red-500 p-1"
-                  title="Bỏ mã"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Nhập mã ưu đãi..."
-                  value={voucherInput}
-                  onChange={(e) => setVoucherInput(e.target.value)}
-                  className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:border-amber-600 font-mono uppercase text-stone-800"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyVoucher}
-                  className="px-3 py-2 bg-stone-900 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shrink-0"
-                >
-                  Áp dụng
-                </button>
-              </div>
+            {/* Form nhập mã */}
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Nhập mã ưu đãi..."
+                value={voucherInput}
+                onChange={(e) => setVoucherInput(e.target.value)}
+                className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:border-amber-600 font-mono uppercase text-stone-800"
+              />
+              <button
+                type="button"
+                onClick={handleApplyVoucher}
+                className="px-3.5 py-2 bg-stone-900 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors shrink-0"
+              >
+                Áp dụng
+              </button>
+            </div>
+
+            {/* Báo lỗi nếu vi phạm điều kiện hoặc vi phạm cờ gộp */}
+            {voucherError && (
+              <p className="text-[10.5px] text-red-600 font-medium leading-tight">{voucherError}</p>
             )}
 
-            {voucherError && (
-              <p className="text-[10px] text-red-500 font-medium">{voucherError}</p>
+            {/* Danh sách các voucher đã áp dụng */}
+            {appliedVouchers.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Voucher đang áp dụng ({appliedVouchers.length}):
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  {appliedVouchers.map((v) => (
+                    <div 
+                      key={v.code}
+                      className="flex items-center justify-between bg-amber-50/90 border border-amber-300 px-2.5 py-1.5 rounded-xl text-xs shadow-2xs"
+                    >
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <div className="truncate">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-amber-900">{v.code}</span>
+                            <span className="text-[10.5px] text-amber-800 font-medium">(-{v.discount.toLocaleString('vi-VN')}đ)</span>
+                            {!v.canStack && (
+                              <span className="text-[9px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.2 rounded">Độc quyền</span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-stone-500 block truncate leading-tight">{v.desc}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVoucher(v.code)}
+                        className="text-stone-400 hover:text-red-500 p-1 shrink-0 ml-1 rounded-lg hover:bg-amber-100 transition-colors"
+                        title="Gỡ mã này"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 
@@ -593,7 +658,6 @@ export default function CheckoutSection({
                 <span className="text-[10px] text-stone-400 block mt-0.5">Tự động nhận diện số tiền & nội dung</span>
               </div>
 
-              {/* Ảnh QR TO RÕ NÉT */}
               <div className="relative inline-block mx-auto">
                 <img
                   src={qrImageUrl}
@@ -602,7 +666,6 @@ export default function CheckoutSection({
                 />
               </div>
 
-              {/* 2 Nút tiện ích */}
               <div className="grid grid-cols-2 gap-2 max-w-xs mx-auto">
                 <a
                   href={`https://dl.vietqr.io/pay?app=&ba=${actualBankBin}&acc=${actualAccountNo}&am=${qrTransferAmount}&des=${transferMemo}`}
@@ -624,7 +687,6 @@ export default function CheckoutSection({
                 </button>
               </div>
 
-              {/* Bảng đối soát thông tin tài khoản */}
               <div className="bg-stone-50/90 p-2.5 rounded-xl border border-stone-200/80 space-y-1.5 text-[11px] text-left">
                 <div className="flex items-center justify-between">
                   <span className="text-stone-500">Ngân hàng:</span>
@@ -682,9 +744,9 @@ export default function CheckoutSection({
               <span className="font-mono font-bold">{totalAmount.toLocaleString('vi-VN')}đ</span>
             </div>
 
-            {appliedVoucher && (
+            {appliedVouchers.length > 0 && (
               <div className="flex justify-between text-emerald-700 font-semibold">
-                <span>Mã ưu đãi:</span>
+                <span>Tổng giảm ưu đãi ({appliedVouchers.length}):</span>
                 <span className="font-mono font-bold">-{discountAmount.toLocaleString('vi-VN')}đ</span>
               </div>
             )}
