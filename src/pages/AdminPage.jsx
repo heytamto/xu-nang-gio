@@ -4,7 +4,8 @@ import {
   Settings, Tag, QrCode, Check, BookOpen, 
   ShoppingBag, Calendar, User, ToggleLeft, ToggleRight,
   LayoutDashboard, TrendingUp, RefreshCw, Loader2, FileSpreadsheet,
-  PhoneCall, CheckCircle2, Clock, XCircle, Truck, AlertCircle
+  PhoneCall, CheckCircle2, Clock, XCircle, Truck, AlertCircle,
+  Search, X, Filter
 } from 'lucide-react';
 
 const GSHEET_URL = 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
@@ -31,9 +32,15 @@ export default function AdminPage({
   onNavigateHome 
 }) {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [timeRange, setTimeRange] = useState('day');
   const [savedNotice, setSavedNotice] = useState(false);
   const [actionLoadingCode, setActionLoadingCode] = useState(null);
+
+  // Bộ lọc danh sách đơn hàng
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilterType, setDateFilterType] = useState('all'); // 'all', 'today', 'yesterday', '7days', '30days', 'custom'
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   // Sheet API Data States
   const [sheetOrders, setSheetOrders] = useState([]);
@@ -86,12 +93,10 @@ export default function AdminPage({
         })
       });
 
-      // Cập nhật ngay trong local state
       setSheetOrders((prev) =>
         prev.map((ord) => ord.code === orderCode ? { ...ord, status: newStatus } : ord)
       );
 
-      // Cập nhật cả localStorage nếu có
       try {
         const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
         const updatedLocal = local.map((ord) => ord.code === orderCode ? { ...ord, status: newStatus } : ord);
@@ -171,53 +176,153 @@ export default function AdminPage({
     });
   }, [sheetOrders]);
 
-  // Lọc theo ngày/tuần/tháng
+  // Hàm parse ngày chuẩn xác hỗ trợ cả DD/MM/YYYY lẫn ISO YYYY-MM-DD
+  const parseOrderDate = (dateStr) => {
+    if (!dateStr) return null;
+    if (typeof dateStr !== 'string') return new Date(dateStr);
+
+    if (dateStr.includes('/')) {
+      const datePart = dateStr.split(' ')[0];
+      const parts = datePart.split('/');
+      if (parts.length === 3) {
+        return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T00:00:00`);
+      }
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Kiểm soát và ràng buộc khoảng ngày tối đa 30 ngày
+  const handleStartDateChange = (val) => {
+    setStartDate(val);
+    if (val && endDate) {
+      const start = new Date(val);
+      const end = new Date(endDate);
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        setEndDate(val);
+      } else if (diffDays > 30) {
+        const maxEnd = new Date(start);
+        maxEnd.setDate(maxEnd.getDate() + 30);
+        const maxEndStr = maxEnd.toISOString().split('T')[0];
+        setEndDate(maxEndStr);
+        alert('Khoảng thời gian chọn tối đa là 30 ngày. Đã tự động điều chỉnh ngày kết thúc.');
+      }
+    }
+  };
+
+  const handleEndDateChange = (val) => {
+    if (!startDate && val) {
+      setEndDate(val);
+      return;
+    }
+    if (startDate && val) {
+      const start = new Date(startDate);
+      const end = new Date(val);
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        alert('Ngày kết thúc không được nhỏ hơn ngày bắt đầu!');
+        return;
+      }
+      if (diffDays > 30) {
+        alert('Khoảng thời gian lọc tối đa là 30 ngày. Vui lòng chọn trong phạm vi 30 ngày!');
+        const maxEnd = new Date(start);
+        maxEnd.setDate(maxEnd.getDate() + 30);
+        setEndDate(maxEnd.toISOString().split('T')[0]);
+        return;
+      }
+    }
+    setEndDate(val);
+  };
+
+  // Lọc đa năng: Theo SĐT, Tên, Mã đơn + Lọc ngày (tối đa 30 ngày) + Lọc Trạng thái
   const filteredOrders = useMemo(() => {
     const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const yesterdayStart = todayStart - 86400000;
+
     return normalizedOrders.filter((order) => {
-      if (!order.createdAt || timeRange === 'all') return true;
+      // 1. Lọc theo từ khóa tìm kiếm (SĐT, Tên, Mã)
+      const rawPhone = String(order.phone || '').replace(/\D/g, '');
+      const rawName = String(order.name || '').toLowerCase();
+      const rawCode = String(order.code || '').toLowerCase();
 
-      let orderDate;
-      if (order.createdAt.includes('/')) {
-        const parts = order.createdAt.split(' ')[0].split('/');
-        if (parts.length === 3) {
-          orderDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+      const search = searchQuery.trim().toLowerCase();
+      const searchPhone = search.replace(/\D/g, '');
+
+      const matchSearch =
+        !search ||
+        rawCode.includes(search) ||
+        rawName.includes(search) ||
+        (searchPhone && rawPhone.includes(searchPhone));
+
+      if (!matchSearch) return false;
+
+      // 2. Lọc theo trạng thái đơn
+      if (statusFilter !== 'all' && order.status !== statusFilter) {
+        return false;
+      }
+
+      // 3. Lọc theo ngày
+      if (dateFilterType === 'all') return true;
+
+      const orderDate = parseOrderDate(order.createdAt);
+      if (!orderDate) return true;
+
+      const orderTime = new Date(
+        orderDate.getFullYear(),
+        orderDate.getMonth(),
+        orderDate.getDate()
+      ).getTime();
+
+      if (dateFilterType === 'today') {
+        return orderTime === todayStart;
+      }
+
+      if (dateFilterType === 'yesterday') {
+        return orderTime === yesterdayStart;
+      }
+
+      if (dateFilterType === '7days') {
+        const sevenDaysAgo = todayStart - 7 * 86400000;
+        return orderTime >= sevenDaysAgo && orderTime <= todayStart;
+      }
+
+      if (dateFilterType === '30days') {
+        const thirtyDaysAgo = todayStart - 30 * 86400000;
+        return orderTime >= thirtyDaysAgo && orderTime <= todayStart;
+      }
+
+      if (dateFilterType === 'custom') {
+        const startTimestamp = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
+        const endTimestamp = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
+
+        if (startTimestamp && endTimestamp) {
+          return orderTime >= startTimestamp && orderTime <= endTimestamp;
         }
-      } else {
-        orderDate = new Date(order.createdAt);
+        if (startTimestamp) {
+          return orderTime >= startTimestamp;
+        }
+        if (endTimestamp) {
+          return orderTime <= endTimestamp;
+        }
       }
 
-      if (!orderDate || isNaN(orderDate.getTime())) return true;
-
-      if (timeRange === 'day') {
-        return (
-          orderDate.getDate() === now.getDate() &&
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear()
-        );
-      }
-      if (timeRange === 'week') {
-        const diffDays = (now.getTime() - orderDate.getTime()) / (1000 * 3600 * 24);
-        return diffDays >= 0 && diffDays <= 7;
-      }
-      if (timeRange === 'month') {
-        return (
-          orderDate.getMonth() === now.getMonth() &&
-          orderDate.getFullYear() === now.getFullYear()
-        );
-      }
       return true;
     });
-  }, [normalizedOrders, timeRange]);
+  }, [normalizedOrders, searchQuery, statusFilter, dateFilterType, startDate, endDate]);
 
-  // Metrics: Phân loại Tiền dự kiến & Tiền thực thu sau khi đối soát
+  // Metrics thống kê theo danh sách đơn đã lọc
   const metrics = useMemo(() => {
     const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
     const totalRevenue = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     const totalOrders = validOrders.length;
     const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
-    // Chỉ tính tiền thực nhận nếu trạng thái đã nhận tiền
     const realReceivedMoney = validOrders.reduce((sum, o) => {
       const st = o.status;
       if (st === 'Đã thanh toán 100%' || st === 'Hoàn thành') {
@@ -448,10 +553,21 @@ export default function AdminPage({
     setTimeout(() => setSavedNotice(false), 2000);
   };
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setDateFilterType('all');
+    setStartDate('');
+    setEndDate('');
+    setStatusFilter('all');
+  };
+
+  const isFiltering = searchQuery || dateFilterType !== 'all' || statusFilter !== 'all' || startDate || endDate;
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
+      {/* ================= TOP HEADER & TAB DÀN ĐỀU 100% ================= */}
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
+        {/* Hàng 1: Nút Back + Tiêu đề */}
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -467,50 +583,58 @@ export default function AdminPage({
           </div>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex items-center gap-1.5 bg-stone-100 p-1 rounded-2xl overflow-x-auto max-w-full">
+        {/* Hàng 2: Tab Selector DÀN ĐỀU 4 CỘT TRÊN PC, 2 CỘT TRÊN MOBILE */}
+        <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-1.5">
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              activeTab === 'dashboard'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/50'
             }`}
           >
-            <LayoutDashboard className="w-3.5 h-3.5 text-amber-600" />
-            <span>Dashboard & Đơn Hàng</span>
+            <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">Dashboard & Đơn Hàng</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('products')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'products' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              activeTab === 'products'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/50'
             }`}
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-amber-600" />
-            <span>Sản Phẩm ({products.length})</span>
+            <ShoppingBag className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">Sản Phẩm ({products.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('config')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'config' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              activeTab === 'config'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/50'
             }`}
           >
-            <Settings className="w-3.5 h-3.5 text-amber-600" />
-            <span>Cấu Hình & Voucher</span>
+            <Settings className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">Cấu Hình & Voucher</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('posts')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-              activeTab === 'posts' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+              activeTab === 'posts'
+                ? 'bg-white text-stone-900 shadow-sm'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/50'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5 text-amber-600" />
-            <span>Chuyện Vườn ({posts.length})</span>
+            <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="truncate">Chuyện Vườn ({posts.length})</span>
           </button>
         </div>
       </div>
@@ -525,6 +649,7 @@ export default function AdminPage({
       {/* ================= TAB 1: DASHBOARD & QUẢN LÝ ĐƠN HÀNG ================= */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
+          {/* Header Dashboard & Nút làm mới */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
@@ -537,41 +662,19 @@ export default function AdminPage({
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={fetchOrdersFromSheet}
-                disabled={isLoadingSheet}
-                className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
-                title="Tải lại từ Google Sheet"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSheet ? 'animate-spin' : ''}`} />
-                <span>Làm mới</span>
-              </button>
-
-              <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl">
-                {[
-                  { id: 'day', label: 'Hôm nay' },
-                  { id: 'week', label: '7 ngày' },
-                  { id: 'month', label: 'Tháng này' },
-                  { id: 'all', label: 'Toàn bộ' }
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTimeRange(t.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      timeRange === t.id ? 'bg-white text-amber-800 shadow-xs' : 'text-stone-600 hover:text-stone-900'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={fetchOrdersFromSheet}
+              disabled={isLoadingSheet}
+              className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+              title="Tải lại từ Google Sheet"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSheet ? 'animate-spin' : ''}`} />
+              <span>Làm mới dữ liệu</span>
+            </button>
           </div>
 
-          {/* 4 Thẻ Metrics */}
+          {/* 4 Thẻ Metrics (Tính theo dữ liệu đã lọc) */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
               <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
@@ -614,11 +717,11 @@ export default function AdminPage({
 
             {topProducts.length === 0 ? (
               <p className="text-xs text-stone-400 italic py-4 text-center">
-                Chưa có dữ liệu sản phẩm trong giai đoạn này.
+                Chưa có dữ liệu sản phẩm trong giai đoạn lọc này.
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {topProducts.map((item, idx) => (
+                {topProducts.slice(0, 6).map((item, idx) => (
                   <div key={item.name} className="p-3 rounded-2xl bg-stone-50 border border-stone-200/70 flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 truncate pr-2">
                       <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center justify-center shrink-0">
@@ -635,115 +738,237 @@ export default function AdminPage({
             )}
           </div>
 
-          {/* DANH SÁCH ĐƠN HÀNG: CÓ GỌI ĐIỆN, CẬP NHẬT TRẠNG THÁI & NÚT XÓA */}
-          <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          {/* ================= BỘ LỌC TÌM KIẾM ĐA NĂNG & CHI TIẾT ĐƠN HÀNG ================= */}
+          <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-5">
+            {/* Header danh sách đơn */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
               <div>
-                <h3 className="text-sm font-bold text-stone-900 uppercase tracking-wide">
-                  Chi Tiết Đơn Hàng ({filteredOrders.length})
+                <h3 className="text-sm font-black text-stone-900 uppercase tracking-wide flex items-center gap-2">
+                  <span>Chi Tiết Đơn Hàng</span>
+                  <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                    {filteredOrders.length} / {normalizedOrders.length} đơn
+                  </span>
                 </h3>
-                <p className="text-[11px] text-stone-500">Đối chiếu với thông báo biến động số dư ngân hàng rồi cập nhật trạng thái</p>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  Đối chiếu với thông báo biến động số dư ngân hàng rồi cập nhật trạng thái
+                </p>
               </div>
+
+              {isFiltering && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-bold bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl transition-all self-start sm:self-auto"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Xóa bộ lọc</span>
+                </button>
+              )}
             </div>
 
+            {/* CỤM THANH CÔNG CỤ TÌM KIẾM & LỌC NGÀY (TỐI ĐA 30 NGÀY) */}
+            <div className="space-y-3 bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200/80">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                {/* 1. Ô tìm kiếm theo SĐT, Tên hoặc Mã đơn */}
+                <div className="sm:col-span-5 relative">
+                  <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Tìm theo số điện thoại, tên khách, mã XNG..."
+                    className="w-full pl-9 pr-8 py-2 rounded-xl bg-white border border-stone-200 text-xs font-medium focus:border-amber-600 focus:outline-none placeholder:text-stone-400 transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* 2. Bộ lọc mốc thời gian */}
+                <div className="sm:col-span-4">
+                  <select
+                    value={dateFilterType}
+                    onChange={(e) => setDateFilterType(e.target.value)}
+                    className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none transition-all"
+                  >
+                    <option value="all">📅 Tất cả thời gian</option>
+                    <option value="today">Hôm nay</option>
+                    <option value="yesterday">Hôm qua</option>
+                    <option value="7days">7 ngày gần nhất</option>
+                    <option value="30days">30 ngày gần nhất</option>
+                    <option value="custom">Tùy chọn khoảng ngày (tối đa 30 ngày)...</option>
+                  </select>
+                </div>
+
+                {/* 3. Lọc theo trạng thái đơn */}
+                <div className="sm:col-span-3">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none transition-all"
+                  >
+                    <option value="all">⚡ Tất cả trạng thái</option>
+                    <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
+                    <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
+                    <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
+                    <option value="Đang giao">🚚 Đang giao</option>
+                    <option value="Hoàn thành">🎉 Hoàn thành</option>
+                    <option value="Đã hủy">❌ Đã hủy</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* HÀNG NHẬP KHOẢNG NGÀY NẾU CHỌN 'CUSTOM' (GIỚI HẠN TỐI ĐA 30 NGÀY) */}
+              {dateFilterType === 'custom' && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-stone-500 font-semibold">Từ ngày:</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
+                      className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold text-stone-800 focus:border-amber-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-stone-500 font-semibold">Đến ngày:</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
+                      className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold text-stone-800 focus:border-amber-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <span className="text-[11px] text-amber-700 font-medium italic">
+                    * Khoảng cách tối đa 30 ngày để tối ưu tốc độ tra cứu
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* DANH SÁCH ĐƠN HÀNG ĐÃ LỌC */}
             <div className="divide-y divide-stone-100 space-y-3 pt-1">
-              {filteredOrders.map((ord) => {
-                const isProcessing = actionLoadingCode === ord.code;
-                const statusMeta = STATUS_CONFIG[ord.status] || STATUS_CONFIG['Chờ xác nhận'];
+              {filteredOrders.length === 0 ? (
+                <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                  <p className="text-xs font-bold text-stone-600">Không tìm thấy đơn hàng nào khớp với điều kiện lọc</p>
+                  <p className="text-[11px] text-stone-400 mt-1">Tâm hãy thử đổi số điện thoại hoặc nới rộng khoảng ngày nhé</p>
+                  {isFiltering && (
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="mt-3 px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-colors"
+                    >
+                      Bỏ toàn bộ lọc
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredOrders.map((ord) => {
+                  const isProcessing = actionLoadingCode === ord.code;
+                  const statusMeta = STATUS_CONFIG[ord.status] || STATUS_CONFIG['Chờ xác nhận'];
 
-                return (
-                  <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-                    {/* Cột trái: Thông tin khách & Món */}
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
-                          {ord.code}
-                        </span>
-                        <strong className="text-stone-900 text-sm">{ord.name}</strong>
-                        
-                        {/* Nút bấm gọi điện thoại nhanh */}
-                        {ord.phone && (
-                          <a
-                            href={`tel:${ord.phone}`}
-                            className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors"
-                            title="Gọi điện xác nhận"
-                          >
-                            <PhoneCall className="w-3 h-3 text-amber-600" />
-                            <span>{ord.phone}</span>
-                          </a>
-                        )}
+                  return (
+                    <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+                      {/* Cột trái: Thông tin khách & Món */}
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
+                            {ord.code}
+                          </span>
+                          <strong className="text-stone-900 text-sm">{ord.name}</strong>
+                          
+                          {/* Nút bấm gọi điện thoại nhanh */}
+                          {ord.phone && (
+                            <a
+                              href={`tel:${ord.phone}`}
+                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors"
+                              title="Gọi điện xác nhận"
+                            >
+                              <PhoneCall className="w-3 h-3 text-amber-600" />
+                              <span>{ord.phone}</span>
+                            </a>
+                          )}
 
-                        <span className="text-[10.5px] text-stone-400">({ord.createdAt})</span>
-                      </div>
-
-                      {/* Địa chỉ & Món đặt */}
-                      {ord.address && (
-                        <p className="text-stone-600 text-[11px] line-clamp-1">
-                          📍 <strong>Giao đến:</strong> {ord.address}
-                        </p>
-                      )}
-
-                      {ord.itemsSummary && (
-                        <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
-                          🛍️ {ord.itemsSummary}
-                        </p>
-                      )}
-
-                      {ord.note && (
-                        <p className="text-stone-400 text-[10.5px] italic">
-                          Ghi chú: "{ord.note}"
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Cột phải: Tiền, Đổi Trạng Thái & Xóa */}
-                    <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-                      <div className="text-left md:text-right">
-                        <span className="font-mono font-black text-stone-900 text-sm block">
-                          {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
-                        </span>
-                        <span className="text-[10px] text-stone-400 font-medium">
-                          {ord.paymentMethod}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {/* Dropdown cập nhật trạng thái */}
-                        <div className="relative">
-                          <select
-                            disabled={isProcessing}
-                            value={ord.status}
-                            onChange={(e) => handleUpdateStatus(ord.code, e.target.value)}
-                            className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border appearance-none pr-6 cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
-                          >
-                            <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
-                            <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
-                            <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
-                            <option value="Đang giao">🚚 Đang giao</option>
-                            <option value="Hoàn thành">🎉 Hoàn thành</option>
-                            <option value="Đã hủy">❌ Đã hủy</option>
-                          </select>
+                          <span className="text-[10.5px] text-stone-400">({ord.createdAt})</span>
                         </div>
 
-                        {/* Nút Xóa đơn */}
-                        <button
-                          type="button"
-                          disabled={isProcessing}
-                          onClick={() => handleDeleteOrder(ord.code)}
-                          className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-40"
-                          title="Xóa đơn khỏi Google Sheet"
-                        >
-                          {isProcessing ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
-                          )}
-                        </button>
+                        {/* Địa chỉ & Món đặt */}
+                        {ord.address && (
+                          <p className="text-stone-600 text-[11px] line-clamp-1">
+                            📍 <strong>Giao đến:</strong> {ord.address}
+                          </p>
+                        )}
+
+                        {ord.itemsSummary && (
+                          <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
+                            🛍️ {ord.itemsSummary}
+                          </p>
+                        )}
+
+                        {ord.note && (
+                          <p className="text-stone-400 text-[10.5px] italic">
+                            Ghi chú: "{ord.note}"
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Cột phải: Tiền, Đổi Trạng Thái & Xóa */}
+                      <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                        <div className="text-left md:text-right">
+                          <span className="font-mono font-black text-stone-900 text-sm block">
+                            {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
+                          </span>
+                          <span className="text-[10px] text-stone-400 font-medium">
+                            {ord.paymentMethod}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* Dropdown cập nhật trạng thái */}
+                          <div className="relative">
+                            <select
+                              disabled={isProcessing}
+                              value={ord.status}
+                              onChange={(e) => handleUpdateStatus(ord.code, e.target.value)}
+                              className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border appearance-none pr-6 cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
+                            >
+                              <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
+                              <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
+                              <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
+                              <option value="Đang giao">🚚 Đang giao</option>
+                              <option value="Hoàn thành">🎉 Hoàn thành</option>
+                              <option value="Đã hủy">❌ Đã hủy</option>
+                            </select>
+                          </div>
+
+                          {/* Nút Xóa đơn */}
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => handleDeleteOrder(ord.code)}
+                            className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors disabled:opacity-40"
+                            title="Xóa đơn khỏi Google Sheet"
+                          >
+                            {isProcessing ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

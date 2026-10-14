@@ -68,6 +68,24 @@ export default function App() {
     }
   });
 
+  // Trạng thái theo dõi vị trí: Chỉ ẩn khi lướt tới nửa dưới của Footer
+  const [isFooterHalfVisible, setIsFooterHalfVisible] = useState(false);
+
+  useEffect(() => {
+    const markerElement = document.getElementById('footer-half-marker');
+    if (!markerElement) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsFooterHalfVisible(entry.isIntersecting);
+      },
+      { root: null, threshold: 0 }
+    );
+
+    observer.observe(markerElement);
+    return () => observer.disconnect();
+  }, [currentPage]);
+
   useEffect(() => {
     try {
       localStorage.setItem('shop_cart', JSON.stringify(cart));
@@ -80,7 +98,6 @@ export default function App() {
   const [successOrderInfo, setSuccessOrderInfo] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
-  // Thêm vào giỏ hàng
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     const multiplier = weightObj?.multiplier || 1;
     const bonus = weightObj?.priceBonus || 0;
@@ -148,6 +165,7 @@ export default function App() {
       note: orderData.customer?.note || orderData.note || '',
       address: orderData.address || '',
       paymentMethod: orderData.paymentMethod || 'deposit',
+      deliveryBatch: orderData.deliveryBatch || 'Chuyến gần nhất',
       total: totalAmount,
       rawTotal: orderData.rawTotal || totalAmount,
       discount: orderData.discount || 0,
@@ -275,13 +293,20 @@ export default function App() {
         )}
       </main>
 
-      {/* Nút Giỏ Hàng Nổi (Floating Cart Bar): Khách lướt đến đâu cũng thấy số lượng & giá, bấm là mở giỏ */}
+      {/* ================= NÚT GIỎ HÀNG: CHỈ ẨN KHI LƯỚT TỚI NỬA DƯỚI FOOTER ================= */}
       {totalCartCount > 0 && currentPage !== 'checkout' && currentPage !== 'admin' && (
-        <aside aria-label="Giỏ hàng nhanh" className="fixed bottom-6 right-5 sm:right-8 z-40 animate-bounce-subtle">
+        <aside 
+          aria-label="Giỏ hàng nhanh" 
+          className={`fixed bottom-6 right-5 sm:right-8 z-40 transition-all duration-300 ${
+            isFooterHalfVisible 
+              ? 'opacity-0 translate-y-8 pointer-events-none' 
+              : 'opacity-100 translate-y-0 pointer-events-auto'
+          }`}
+        >
           <button
             type="button"
             onClick={() => setIsCartOpen(true)}
-            className="flex items-center gap-3 bg-amber-700 hover:bg-amber-600 active:scale-95 text-white pl-4 pr-5 py-3 rounded-full shadow-xl hover:shadow-2xl transition-all border border-amber-600/40"
+            className="flex items-center gap-2.5 bg-amber-700 hover:bg-amber-600 active:scale-95 text-white pl-4 pr-5 py-3 rounded-full shadow-2xl transition-all border border-amber-500/50 hover:scale-105"
           >
             <div className="relative flex items-center justify-center">
               <ShoppingBag className="w-5 h-5 text-white" />
@@ -289,10 +314,10 @@ export default function App() {
                 {totalCartCount}
               </span>
             </div>
-            <div className="text-left font-mono font-bold text-xs sm:text-sm pl-1 border-l border-amber-600/60">
+            <span className="font-mono font-bold text-xs sm:text-sm pl-1 border-l border-amber-600/70">
               {totalCartAmount.toLocaleString('vi-VN')}đ
-            </div>
-            <span className="text-[11px] font-bold uppercase tracking-wider bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded-full hidden sm:inline-block">
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full hidden sm:inline-block">
               Xem giỏ
             </span>
           </button>
