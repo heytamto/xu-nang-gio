@@ -2,7 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   PackageCheck, RefreshCw, Printer, 
   CheckCircle2, Lock, ArrowLeft, Banknote, 
-  ShieldCheck, AlertCircle, Gift, Check, RotateCcw
+  ShieldCheck, AlertCircle, Gift, Check, RotateCcw,
+  Layers
 } from 'lucide-react';
 
 const POLLING_INTERVAL_SECONDS = 20;
@@ -41,7 +42,6 @@ export default function PackingPage({
     }
   }, [orders]);
 
-  // Lưu trạng thái các món đã chuẩn bị (giữ nguyên vị trí, không ẩn)
   const [pickedItems, setPickedItems] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem('warehouse_picked_items') || '{}');
@@ -82,14 +82,12 @@ export default function PackingPage({
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  // Tự động kéo dữ liệu mới nhất khi vừa mở trang
   useEffect(() => {
     if (isAuthenticated && onRefresh) {
       onRefresh();
     }
   }, [isAuthenticated, onRefresh]);
 
-  // Bộ đếm ngược 20 giây và tự động quét đơn ngầm
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -129,7 +127,6 @@ export default function PackingPage({
     }
   };
 
-  // Làm mới thủ công
   const handleManualRefresh = async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
@@ -205,7 +202,6 @@ export default function PackingPage({
     };
   };
 
-  // Bộ lọc linh hoạt: Tự động gom mọi đơn hợp lệ chờ đóng thùng
   const packableOrders = useMemo(() => {
     return effectiveOrders.filter((o) => {
       const s = String(o.status || '').trim().toLowerCase();
@@ -222,7 +218,6 @@ export default function PackingPage({
     });
   }, [effectiveOrders]);
 
-  // Parse món hàng an toàn hỗ trợ cả mảng cart lẫn chuỗi itemsSummary từ Google Sheet
   const parseOrderItems = (order) => {
     let items = [];
 
@@ -239,17 +234,12 @@ export default function PackingPage({
         const trimmed = str.trim();
         if (!trimmed) return;
 
-        // Bóc tách số lượng x5, x 4 ở cuối chuỗi
         const matchQty = trimmed.match(/x\s*(\d+)\s*$/i);
         const qty = matchQty ? Number(matchQty[1]) : 1;
 
-        // Cắt bỏ phần "x5"
         let rawName = matchQty ? trimmed.replace(/x\s*\d+\s*$/i, '').trim() : trimmed;
-
-        // Cắt bỏ phần giá tiền nếu có (VD: ": 260.000đ")
         rawName = rawName.replace(/:\s*[\d.]+\s*(đ|vnd)?\s*$/i, '').trim();
 
-        // Bóc quy cách nếu có trong ngoặc đơn
         let spec = 'Theo đơn';
         const specMatch = rawName.match(/\(([^)]+)\)$/);
         if (specMatch) {
@@ -267,7 +257,6 @@ export default function PackingPage({
       });
     }
 
-    // Bóc tách quà chuyển khoản
     const giftTitle = order.giftTitle || order.paymentGift;
     if (giftTitle && giftTitle !== 'Không áp dụng (COD)' && giftTitle.trim() !== '') {
       items.push({
@@ -278,7 +267,6 @@ export default function PackingPage({
       });
     }
 
-    // Bóc tách quà tặng kèm combo
     if (order.campaignGifts && typeof order.campaignGifts === 'string') {
       const campGifts = order.campaignGifts.split('|');
       campGifts.forEach((gStr) => {
@@ -322,7 +310,8 @@ export default function PackingPage({
     return pickingSummary.filter((it) => pickedItems[it.key]).length;
   }, [pickingSummary, pickedItems]);
 
-  const handlePrintLabel = (order) => {
+  // HÀM TẠO NỘI DUNG HTML CỦA 1 TEM DÁN THÙNG
+  const renderSingleShippingLabelHtml = (order) => {
     const collectInfo = getCollectInfo(order);
     const allItems = parseOrderItems(order);
 
@@ -343,23 +332,109 @@ export default function PackingPage({
       </tr>
     `).join('');
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
+    return `
+      <div class="shipping-card-page">
+        <div class="shipping-card">
+          <div class="header-grid">
+            <div class="shop-box">
+              <h1 class="shop-title">☀ XỨ NẮNG GIÓ</h1>
+              <div class="shop-sub">Đặc sản Phan Rang gửi xe</div>
+            </div>
+            <div class="code-box">
+              <div class="order-code">${order.code}</div>
+              <div class="barcode-line">|||||||||||||||</div>
+            </div>
+          </div>
 
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
+          <div class="info-grid">
+            <div class="sender-box">
+              <strong>Người gửi:</strong> Xứ Nắng Gió • Hotline: <strong>${shopConfig.hotline || '0848.957.345'}</strong><br/>
+              <strong>Địa chỉ gửi:</strong> ${shopConfig.address || 'Trường Sanh, Phước Hậu, Ninh Thuận'}
+            </div>
+
+            <div class="recipient-box">
+              <div style="font-size: 9.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
+              <div class="recipient-name-phone">
+                <span class="recipient-name">${order.name}</span>
+                <span class="recipient-phone">${order.phone}</span>
+              </div>
+              <div class="recipient-address">
+                <strong>Điểm giao / Bến xe:</strong> ${order.address}
+              </div>
+            </div>
+          </div>
+
+          <div class="items-wrapper">
+            <div class="items-title">
+              <span>NỘI DUNG ĐÓNG THÙNG XỐP</span>
+              <span>TỔNG: ${allItems.length} MÓN</span>
+            </div>
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width: 28px; border-right: 1px solid #000;">STT</th>
+                  <th style="text-align: left; padding-left: 6px; border-right: 1px solid #000;">Tên Sản Phẩm / Quy Cách</th>
+                  <th style="width: 45px;">SL</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRowsHtml}
+              </tbody>
+            </table>
+
+            ${hasMoreItems ? `
+              <div class="alert-hidden">
+                * Một số sản phẩm bị ẩn do danh sách quá dài (Xem chi tiết trên hệ thống)
+              </div>
+            ` : ''}
+
+            ${order.note ? `
+              <div class="note-box">
+                <strong>* Ghi chú khách:</strong> ${order.note}
+              </div>
+            ` : ''}
+          </div>
+
+          ${collectInfo.type === 'PAID_FULL' ? `
+            <div class="payment-block paid-block">
+              <div style="font-size: 14px; font-weight: 900;">${collectInfo.printTitle}</div>
+              <div style="font-size: 11px; color: #444; margin-top: 2px;">${collectInfo.printSub}</div>
+            </div>
+          ` : `
+            <div class="payment-block cod-block">
+              <div class="cod-label">${collectInfo.printTitle}</div>
+              <div class="cod-price">${collectInfo.collectAmount.toLocaleString('vi-VN')} đ</div>
+              <div class="cod-sub">${collectInfo.printSub}</div>
+            </div>
+          `}
+
+          <div class="footer-box">
+            ⚡ HÀNG NÔNG SẢN TƯƠI - XIN TRÁNH NẮNG NÓNG ⚡
+          </div>
+        </div>
+      </div>
+    `;
+  };
+
+  // CORE IN SIÊU TỐC: HỖ TRỢ IN 1 ĐƠN HOẶC IN TOÀN BỘ DANH SÁCH
+  const executeFastPrint = (ordersToPrint, title = 'In Tem') => {
+    if (!ordersToPrint || ordersToPrint.length === 0) return;
+
+    const cardsHtml = ordersToPrint.map(ord => renderSingleShippingLabelHtml(ord)).join('');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Trình duyệt đang chặn Popup. Vui lòng cho phép popup để in tem!');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>Tem Gửi Hàng - ${order.code}</title>
+          <title>${title}</title>
           <style>
             @page {
               size: 100mm 150mm;
@@ -373,14 +448,24 @@ export default function PackingPage({
             html, body {
               margin: 0;
               padding: 0;
-              width: 100mm;
-              height: 150mm;
               background: #fff;
               color: #000;
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             }
-            body {
-              padding: 4mm 4mm;
+            /* Mỗi kiện hàng là 1 trang in riêng biệt (100x150mm) */
+            .shipping-card-page {
+              width: 100mm;
+              height: 150mm;
+              padding: 4mm;
+              page-break-after: always;
+              break-after: page;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .shipping-card-page:last-child {
+              page-break-after: auto;
+              break-after: auto;
             }
             .shipping-card {
               border: 2px solid #000;
@@ -388,8 +473,6 @@ export default function PackingPage({
               height: 142mm;
               display: flex;
               flex-direction: column;
-              page-break-inside: avoid;
-              break-inside: avoid;
             }
             .header-grid {
               display: grid;
@@ -565,96 +648,21 @@ export default function PackingPage({
           </style>
         </head>
         <body>
-          <div class="shipping-card">
-            <div class="header-grid">
-              <div class="shop-box">
-                <h1 class="shop-title">☀ XỨ NẮNG GIÓ</h1>
-                <div class="shop-sub">Đặc sản Phan Rang gửi xe</div>
-              </div>
-              <div class="code-box">
-                <div class="order-code">${order.code}</div>
-                <div class="barcode-line">|||||||||||||||</div>
-              </div>
-            </div>
-
-            <div class="info-grid">
-              <div class="sender-box">
-                <strong>Người gửi:</strong> Xứ Nắng Gió • Hotline: <strong>${shopConfig.hotline || '0848.957.345'}</strong><br/>
-                <strong>Địa chỉ gửi:</strong> ${shopConfig.address || 'Trường Sanh, Phước Hậu, Ninh Thuận'}
-              </div>
-
-              <div class="recipient-box">
-                <div style="font-size: 9.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
-                <div class="recipient-name-phone">
-                  <span class="recipient-name">${order.name}</span>
-                  <span class="recipient-phone">${order.phone}</span>
-                </div>
-                <div class="recipient-address">
-                  <strong>Điểm giao / Bến xe:</strong> ${order.address}
-                </div>
-              </div>
-            </div>
-
-            <div class="items-wrapper">
-              <div class="items-title">
-                <span>NỘI DUNG ĐÓNG THÙNG XỐP</span>
-                <span>TỔNG: ${allItems.length} MÓN</span>
-              </div>
-              <table class="items-table">
-                <thead>
-                  <tr>
-                    <th style="width: 28px; border-right: 1px solid #000;">STT</th>
-                    <th style="text-align: left; padding-left: 6px; border-right: 1px solid #000;">Tên Sản Phẩm / Quy Cách</th>
-                    <th style="width: 45px;">SL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${itemsRowsHtml}
-                </tbody>
-              </table>
-
-              ${hasMoreItems ? `
-                <div class="alert-hidden">
-                  * Một số sản phẩm bị ẩn do danh sách quá dài (Xem chi tiết trên hệ thống)
-                </div>
-              ` : ''}
-
-              ${order.note ? `
-                <div class="note-box">
-                  <strong>* Ghi chú khách:</strong> ${order.note}
-                </div>
-              ` : ''}
-            </div>
-
-            ${collectInfo.type === 'PAID_FULL' ? `
-              <div class="payment-block paid-block">
-                <div style="font-size: 14px; font-weight: 900;">${collectInfo.printTitle}</div>
-                <div style="font-size: 11px; color: #444; margin-top: 2px;">${collectInfo.printSub}</div>
-              </div>
-            ` : `
-              <div class="payment-block cod-block">
-                <div class="cod-label">${collectInfo.printTitle}</div>
-                <div class="cod-price">${collectInfo.collectAmount.toLocaleString('vi-VN')} đ</div>
-                <div class="cod-sub">${collectInfo.printSub}</div>
-              </div>
-            `}
-
-            <div class="footer-box">
-              ⚡ HÀNG NÔNG SẢN TƯƠI - XIN TRÁNH NẮNG NÓNG ⚡
-            </div>
-          </div>
+          ${cardsHtml}
+          <script>
+            // Bật lệnh in ngay lập tức khi load xong
+            window.onload = function() {
+              window.focus();
+              window.print();
+              setTimeout(function() {
+                window.close();
+              }, 300);
+            };
+          </script>
         </body>
       </html>
     `);
-    doc.close();
-
-    iframe.contentWindow.focus();
-    setTimeout(() => {
-      iframe.contentWindow.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1500);
-    }, 100);
+    printWindow.document.close();
   };
 
   if (!isAuthenticated) {
@@ -714,22 +722,37 @@ export default function PackingPage({
             </div>
           </div>
 
-          {/* Nút Làm Mới */}
-          <button
-            type="button"
-            disabled={isRefreshing}
-            onClick={handleManualRefresh}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all select-none cursor-pointer ${
-              isScanning
-                ? 'bg-amber-50 text-amber-900 border-amber-300 opacity-90'
-                : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-transparent hover:border-stone-300 active:scale-95'
-            }`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-amber-600' : 'text-stone-600'}`} />
-            <span>
-              {isScanning ? 'Đang cập nhật...' : `Làm mới (${countdown}s)`}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* NÚT IN TOÀN BỘ TEM DANH SÁCH */}
+            {packableOrders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
+                title="In hàng loạt tất cả tem chờ đóng"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>In Hết ({packableOrders.length} Tem)</span>
+              </button>
+            )}
+
+            {/* Nút Làm Mới */}
+            <button
+              type="button"
+              disabled={isRefreshing}
+              onClick={handleManualRefresh}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all select-none cursor-pointer ${
+                isScanning
+                  ? 'bg-amber-50 text-amber-900 border-amber-300 opacity-90'
+                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-transparent hover:border-stone-300 active:scale-95'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-amber-600' : 'text-stone-600'}`} />
+              <span>
+                {isScanning ? 'Đang cập nhật...' : `Làm mới (${countdown}s)`}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Soạn hàng */}
@@ -877,7 +900,6 @@ export default function PackingPage({
                   key={ord.code} 
                   className="bg-white rounded-3xl border border-stone-200/90 shadow-xs p-5 sm:p-6 space-y-4"
                 >
-                  {/* Thông tin khách hàng & Trạng thái thanh toán */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
                     <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -909,11 +931,11 @@ export default function PackingPage({
                       )}
                     </div>
 
-                    {/* Nút In Tem & Nút Đóng Xong */}
                     <div className="flex items-center gap-2 shrink-0">
+                      {/* IN 1 ĐƠN SIÊU TỐC */}
                       <button
                         type="button"
-                        onClick={() => handlePrintLabel(ord)}
+                        onClick={() => executeFastPrint([ord], `Tem_${ord.code}`)}
                         className="px-3.5 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Printer className="w-3.5 h-3.5 text-stone-500" />
