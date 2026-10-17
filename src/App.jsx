@@ -19,7 +19,7 @@ import { getShopConfig, DEFAULT_SHOP_CONFIG } from './config/shopConfig';
 import { enqueueOrder, processOrderQueue, initQueueWorker } from './utils/orderQueue';
 
 export default function App() {
-  // 1. GIỮ NGUYÊN TRANG HIỆN TẠI KHI F5 BẰNG SESSIONSTORAGE
+  // 1. Giữ nguyên trang hiện tại khi F5 bằng sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     try {
       return sessionStorage.getItem('shop_current_page') || 'home';
@@ -39,7 +39,7 @@ export default function App() {
     }
   });
 
-  // KHỞI TẠO STATE BAN ĐẦU TỪ LOCALSTORAGE
+  // Khởi tạo state ban đầu từ localStorage
   const [categories, setCategories] = useState(() => {
     try {
       const saved = localStorage.getItem('shop_categories');
@@ -163,7 +163,7 @@ export default function App() {
           localStorage.setItem('shop_stories', JSON.stringify(data.stories));
         }
 
-        // 5. CẬP NHẬT ĐƠN HÀNG: GHI ĐÈ 100% THEO SHEET (NẾU SHEET RỖNG -> APP RỖNG)
+        // 5. CẬP NHẬT ĐƠN HÀNG: GHI ĐÈ THEO SHEET
         const incomingOrders = Array.isArray(data.orders) 
           ? data.orders 
           : (Array.isArray(data.data) ? data.data : null);
@@ -240,19 +240,12 @@ export default function App() {
     }
   };
 
+  // XỬ LÝ THÊM MÓN & TÍNH TỔNG SỐ LƯỢNG MÓN ĐANG CÓ TRONG GIỎ
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
     if (bounceTimerRef.current) clearTimeout(bounceTimerRef.current);
     if (cartUpdateTimerRef.current) clearTimeout(cartUpdateTimerRef.current);
-
-    setCenterSplash({
-      id: Date.now() + Math.random(),
-      image: product.image,
-      quantity
-    });
-    setForceNavVisible(true);
-    setIsCartBouncing(false);
 
     const multiplier = weightObj?.multiplier || 1;
     const bonus = weightObj?.priceBonus || 0;
@@ -260,6 +253,22 @@ export default function App() {
     const unitPrice = Math.round((base + bonus) * multiplier);
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
     const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
+
+    // Tính tổng số lượng món này sẽ có trong giỏ
+    const existingItem = cart.find((item) => item.id === cartItemId);
+    const currentQtyInCart = existingItem ? existingItem.quantity : 0;
+    const newTotalQuantity = currentQtyInCart + quantity;
+
+    setCenterSplash({
+      id: Date.now() + Math.random(),
+      image: product.image,
+      addedQuantity: quantity,
+      totalQuantity: newTotalQuantity,
+      productName: product.name
+    });
+
+    setForceNavVisible(true);
+    setIsCartBouncing(false);
 
     setCart((prevCart) => {
       const existing = prevCart.find((item) => item.id === cartItemId);
@@ -565,7 +574,7 @@ export default function App() {
         shopConfig={shopConfig}
       />
 
-      {/* CHỈ HIỂN THỊ FOOTER KHI Ở TRANG KHÁCH (ẨN Ở ADMIN VÀ PACKING) */}
+      {/* Chỉ hiển thị Footer khi ở trang khách */}
       {currentPage !== 'packing' && currentPage !== 'admin' && (
         <Footer 
           config={shopConfig}
@@ -575,7 +584,7 @@ export default function App() {
         />
       )}
 
-      {/* MODAL ANIMATION THÊM GIỎ HÀNG */}
+      {/* POPUP ANIMATION THÊM GIỎ HÀNG: HIỂN THỊ TỔNG SỐ LƯỢNG MÓN ĐANG CÓ */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 
@@ -594,13 +603,21 @@ export default function App() {
                   <ShoppingBag className="w-14 h-14 text-white stroke-[2]" />
                 </div>
               )}
-              <span className="absolute -top-2.5 -right-2.5 bg-emerald-500 text-white font-black text-sm px-2.5 py-0.5 rounded-full border-2 border-stone-900 shadow-md">
-                +{centerSplash.quantity}
+
+              {/* Huy hiệu hiển thị tổng số lượng món đó đang có trong giỏ */}
+              <span className="absolute -top-2.5 -right-2.5 bg-amber-500 text-stone-950 font-black text-sm px-2.5 py-0.5 rounded-full border-2 border-stone-900 shadow-md font-mono">
+                x{centerSplash.totalQuantity}
               </span>
             </div>
-            <div className="mt-3 flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Đã thêm vào giỏ hàng</span>
+
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Đã thêm (+{centerSplash.addedQuantity})</span>
+              </div>
+              <span className="text-[11px] text-stone-300 font-medium">
+                Trong giỏ đang có: <strong className="text-white font-mono font-bold">{centerSplash.totalQuantity}</strong>
+              </span>
             </div>
           </div>
         </div>
