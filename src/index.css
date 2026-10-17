@@ -43,3 +43,40 @@ body {
 .animate-center-splash {
   animation: centerSplash 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+@keyframes receiptSlideDown {
+  0% {
+    transform: translateY(-40px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-receiptSlideDown {
+  animation: receiptSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes receiptFeed {
+  0% {
+    transform: translateY(-80px) scale(0.9);
+    opacity: 0.2;
+    max-height: 80px;
+  }
+  40% {
+    transform: translateY(-30px) scale(0.95);
+    opacity: 0.8;
+    max-height: 200px;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    max-height: 520px;
+  }
+}
+
+.animate-receiptFeed {
+  animation: receiptFeed 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}

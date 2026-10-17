@@ -1,17 +1,49 @@
 import React, { useState, useMemo } from 'react';
 import { 
   FileSpreadsheet, Loader2, RefreshCw, Search, X, 
-  PhoneCall, Trash2, Clock, CheckCircle2, Truck, XCircle, Check
+  PhoneCall, Trash2, Clock, CheckCircle2, Truck, XCircle, Check, Calendar
 } from 'lucide-react';
+import { formatDateTime } from '../../utils/dateUtils';
 
+// Chuẩn hóa bộ trạng thái tinh gọn theo đúng luồng vận hành
 const STATUS_CONFIG = {
   'Chờ xác nhận': { bg: 'bg-amber-50 text-amber-800 border-amber-200', icon: Clock },
-  'Đã nhận cọc': { bg: 'bg-blue-50 text-blue-800 border-blue-200', icon: CheckCircle2 },
-  'Đã thanh toán 100%': { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
+  'Đã xác nhận': { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
   'Đang giao': { bg: 'bg-indigo-50 text-indigo-800 border-indigo-200', icon: Truck },
   'Hoàn thành': { bg: 'bg-stone-100 text-stone-800 border-stone-200', icon: Check },
-  'Đã hủy': { bg: 'bg-red-50 text-red-700 border-red-200', icon: XCircle }
+  'Đã hủy': { bg: 'bg-rose-50 text-rose-700 border-rose-200', icon: XCircle }
 };
+
+const PAYMENT_LABELS = {
+  deposit: 'Cọc 50.000đ',
+  full_qr: 'Chuyển khoản 100%',
+  cod: 'COD (Trả sau)'
+};
+
+// Hàm bóc tách số tiền an toàn, chống lỗi lặp chuỗi (e.g. 82.800.008.200.000đ)
+function parseCleanMoney(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+
+  const str = String(val).trim();
+  // Nếu chuỗi chứa dấu phân cách hàng ngàn dạng VN (8.200.000)
+  // Loại bỏ chữ 'đ', khoảng trắng và dấu chấm/phẩy ngăn cách
+  const cleanDigits = str.replace(/[^0-9]/g, '');
+  if (!cleanDigits) return 0;
+
+  // Nếu chuỗi bị lặp đôi đối xứng do lỗi ghép chuỗi (ví dụ: "82000008200000")
+  const len = cleanDigits.length;
+  if (len >= 12 && len % 2 === 0) {
+    const half1 = cleanDigits.slice(0, len / 2);
+    const half2 = cleanDigits.slice(len / 2);
+    if (half1 === half2) {
+      return Number(half1) || 0;
+    }
+  }
+
+  const num = Number(cleanDigits);
+  return isNaN(num) ? 0 : num;
+}
 
 export default function DashboardTab({
   orders = [],
@@ -29,16 +61,23 @@ export default function DashboardTab({
   const [endDate, setEndDate] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Chuẩn hóa parse ngày đa định dạng
   const parseOrderDate = (dateStr) => {
     if (!dateStr) return null;
-    if (typeof dateStr !== 'string') return new Date(dateStr);
-    if (dateStr.includes('/')) {
-      const parts = dateStr.split(' ')[0].split('/');
-      if (parts.length === 3) {
-        return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T00:00:00`);
+    if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+    
+    let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
+
+    if (str.includes('/')) {
+      const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (match) {
+        const [, d, m, y] = match;
+        const parsed = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`);
+        return isNaN(parsed.getTime()) ? null : parsed;
       }
     }
-    const d = new Date(dateStr);
+
+    const d = new Date(str);
     return isNaN(d.getTime()) ? null : d;
   };
 
@@ -88,6 +127,7 @@ export default function DashboardTab({
       const rawPhone = String(order.phone || '').replace(/\D/g, '');
       const rawName = String(order.name || '').toLowerCase();
       const rawCode = String(order.code || '').toLowerCase();
+      const currentStatus = order.status || 'Chờ xác nhận';
 
       const search = searchQuery.trim().toLowerCase();
       const searchPhone = search.replace(/\D/g, '');
@@ -99,7 +139,7 @@ export default function DashboardTab({
         (searchPhone && rawPhone.includes(searchPhone));
 
       if (!matchSearch) return false;
-      if (statusFilter !== 'all' && order.status !== statusFilter) return false;
+      if (statusFilter !== 'all' && currentStatus !== statusFilter) return false;
       if (dateFilterType === 'all') return true;
 
       const orderDate = parseOrderDate(order.createdAt);
@@ -124,13 +164,25 @@ export default function DashboardTab({
 
   const metrics = useMemo(() => {
     const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
-    const totalRevenue = validOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const totalRevenue = validOrders.reduce((sum, o) => sum + parseCleanMoney(o.total), 0);
     const totalOrders = validOrders.length;
     const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
+    // Tiền thực nhận chuẩn hóa
     const realReceivedMoney = validOrders.reduce((sum, o) => {
-      if (o.status === 'Đã thanh toán 100%' || o.status === 'Hoàn thành') return sum + (Number(o.total) || 0);
-      if (o.status === 'Đã nhận cọc') return sum + (Number(depositAmount) || 50000);
+      const st = String(o.status || '').toLowerCase();
+      const isConfirmed = st.includes('xác nhận') || st.includes('giao') || st.includes('hoàn thành');
+      if (!isConfirmed) return sum;
+
+      const method = String(o.paymentMethod || '').toLowerCase();
+      const numTotal = parseCleanMoney(o.total);
+
+      if (method.includes('100%') || method.includes('full') || st.includes('hoàn thành')) {
+        return sum + numTotal;
+      }
+      if (method.includes('cọc') || method.includes('deposit')) {
+        return sum + (Number(depositAmount) || 50000);
+      }
       return sum;
     }, 0);
 
@@ -165,7 +217,7 @@ export default function DashboardTab({
   }, [filteredOrders]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fadeIn font-sans">
       {/* Top Banner Thống Kê */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
         <div className="space-y-0.5">
@@ -183,7 +235,7 @@ export default function DashboardTab({
           type="button"
           onClick={onRefresh}
           disabled={isLoading}
-          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
+          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Làm mới dữ liệu</span>
@@ -205,7 +257,7 @@ export default function DashboardTab({
           <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono">
             {metrics.realReceivedMoney.toLocaleString('vi-VN')}đ
           </p>
-          <span className="text-[10px] text-emerald-600 block pt-0.5">Khớp tiền cọc & CK 100%</span>
+          <span className="text-[10px] text-emerald-600 block pt-0.5">Tiền cọc & full của đơn đã duyệt</span>
         </div>
 
         <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
@@ -265,7 +317,7 @@ export default function DashboardTab({
               </span>
             </h3>
             <p className="text-[11px] text-stone-500 mt-0.5">
-              Đối chiếu với thông báo biến động số dư ngân hàng rồi cập nhật trạng thái
+              Kiểm tra tài khoản ngân hàng hoặc xác nhận với khách rồi bấm <strong>Đã xác nhận</strong> để chuyển sang Kho
             </p>
           </div>
         </div>
@@ -285,7 +337,7 @@ export default function DashboardTab({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -296,7 +348,7 @@ export default function DashboardTab({
               <select
                 value={dateFilterType}
                 onChange={(e) => setDateFilterType(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer"
               >
                 <option value="all">📅 Tất cả thời gian</option>
                 <option value="today">Hôm nay</option>
@@ -311,12 +363,11 @@ export default function DashboardTab({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none"
+                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer"
               >
                 <option value="all">⚡ Tất cả trạng thái</option>
                 <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
-                <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
-                <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
+                <option value="Đã xác nhận">✅ Đã xác nhận (Chờ đóng)</option>
                 <option value="Đang giao">🚚 Đang giao</option>
                 <option value="Hoàn thành">🎉 Hoàn thành</option>
                 <option value="Đã hủy">❌ Đã hủy</option>
@@ -353,12 +404,17 @@ export default function DashboardTab({
         <div className="divide-y divide-stone-100 space-y-3 pt-1">
           {filteredOrders.length === 0 ? (
             <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-              <p className="text-xs font-bold text-stone-600">Không tìm thấy đơn hàng nào</p>
+              <p className="text-xs font-bold text-stone-600">Không tìm thấy đơn hàng nào khớp bộ lọc</p>
             </div>
           ) : (
             filteredOrders.map((ord) => {
               const isProcessing = actionLoadingCode === ord.code;
-              const statusMeta = STATUS_CONFIG[ord.status] || STATUS_CONFIG['Chờ xác nhận'];
+              const currentStatus = ord.status || 'Chờ xác nhận';
+              const statusMeta = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['Chờ xác nhận'];
+              const displayPayment = PAYMENT_LABELS[ord.paymentMethod] || ord.paymentMethod || 'Chưa chọn';
+
+              const cleanTotalNum = parseCleanMoney(ord.total);
+              const formattedCreatedAt = formatDateTime(ord.createdAt, 'Vừa xong');
 
               return (
                 <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
@@ -379,7 +435,10 @@ export default function DashboardTab({
                         </a>
                       )}
 
-                      <span className="text-[10.5px] text-stone-400">({ord.createdAt})</span>
+                      <span className="text-[10.5px] text-stone-400 font-mono inline-flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-stone-400" />
+                        <span>({formattedCreatedAt})</span>
+                      </span>
                     </div>
 
                     {ord.address && (
@@ -398,23 +457,22 @@ export default function DashboardTab({
                   <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0">
                     <div className="text-left md:text-right">
                       <span className="font-mono font-black text-stone-900 text-sm block">
-                        {(Number(ord.total) || 0).toLocaleString('vi-VN')}đ
+                        {cleanTotalNum.toLocaleString('vi-VN')}đ
                       </span>
-                      <span className="text-[10px] text-stone-400 font-medium">
-                        {ord.paymentMethod}
+                      <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                        {displayPayment}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <select
                         disabled={isProcessing}
-                        value={ord.status}
+                        value={currentStatus}
                         onChange={(e) => onUpdateStatus(ord.code, e.target.value)}
                         className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
                       >
                         <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
-                        <option value="Đã nhận cọc">✅ Đã nhận cọc</option>
-                        <option value="Đã thanh toán 100%">💰 Đã thanh toán 100%</option>
+                        <option value="Đã xác nhận">✅ Đã xác nhận</option>
                         <option value="Đang giao">🚚 Đang giao</option>
                         <option value="Hoàn thành">🎉 Hoàn thành</option>
                         <option value="Đã hủy">❌ Đã hủy</option>
@@ -424,7 +482,8 @@ export default function DashboardTab({
                         type="button"
                         disabled={isProcessing}
                         onClick={() => onDeleteOrder(ord.code)}
-                        className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors"
+                        className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                        title="Xóa đơn hàng"
                       >
                         {isProcessing ? <Loader2 className="w-4 h-4 animate-spin text-amber-600" /> : <Trash2 className="w-4 h-4" />}
                       </button>

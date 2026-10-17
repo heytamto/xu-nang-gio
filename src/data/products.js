@@ -1,14 +1,24 @@
-// Danh mục phân loại sản phẩm
+// =========================================================================
+// 1. DANH MỤC PHÂN LOẠI
+// =========================================================================
 export const CATEGORIES = [
-  { id: 'all', label: 'Tất Cả Đặc Sản', icon: 'Sparkles' },
   { id: 'fresh', label: 'Trái Cây Tươi Hái Giàn', icon: 'Apple' },
-  { id: 'dried', label: 'Ăn Vặt & Đặc Sản Sấy', icon: 'Flame' },
+  { id: 'nem-cha', label: 'Nem Chua & Chả Truyền Thống', icon: 'Sparkles' },
+  { id: 'seafood', label: 'Hải Sản & Đồ Khô Cà Ná', icon: 'Fish' },
   { id: 'condiments', label: 'Mật Nho, Rượu & Gia Vị', icon: 'Wine' },
-  { id: 'seafood', label: 'Hải sản & Đồ Khô', icon: 'Fish' }
+  { id: 'dried', label: 'Đặc Sản Phơi Nắng & Sấy Dẻo', icon: 'Sun' }
 ];
 
+export const FILTER_CATEGORIES = [
+  { id: 'all', label: 'Tất Cả Đặc Sản', icon: 'Sparkles' },
+  ...CATEGORIES
+];
+
+// =========================================================================
+// 2. DANH SÁCH CHI TIẾT CÁC ĐẶC SẢN
+// =========================================================================
 export const PRODUCTS = [
-  // ================= 1. TRÁI CÂY TƯƠI HÁI GIÀN (FRESH) =================
+  // ---------------- 1. TRÁI CÂY TƯƠI HÁI GIÀN (FRESH) ----------------
   {
     id: 'sp-tao-gio',
     name: 'Táo Xanh Phan Rang (Táo Gió Giòn Ngọt)',
@@ -58,73 +68,123 @@ export const PRODUCTS = [
     ]
   },
 
-  // ================= 2. ĂN VẶT & ĐẶC SẢN SẤY (DRIED) =================
+  // ---------------- 2. NEM CHUA & CHẢ TRUYỀN THỐNG (NEM-CHA) ----------------
   {
-    id: 'sp-nho-say-deo',
-    name: 'Nho Đỏ Sấy Dẻo Thủ Công',
-    category: 'dried',
-    basePrice: 85000,
-    unit: 'hũ',
-    badge: 'Không đường hóa học',
-    source: 'Xưởng sấy gia đình',
-    desc: 'Sấy dẻo từ nho tươi tuyển chọn, giữ trọn độ ẩm và vị ngọt mật tự nhiên, không tẩm ướp chất bảo quản. Hạn bảo quản 6-12 tháng.',
-    image: 'https://images.unsplash.com/photo-1595231712325-9fdec6ddff7f?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-cha-ca-chien',
+    name: 'Chả Cá Chiên Phan Rang (Cá Đỏ Củ & Mối)',
+    category: 'nem-cha',
+    basePrice: 110000,
+    unit: 'miếng',
+    badge: 'Chiên vàng thơm nức',
+    source: 'Lò chả cá Cà Ná - Đông Hải',
+    desc: 'Quết thủ công từ thịt cá đỏ củ và cá mối tươi rói vừa cập bến. Chiên vàng ruộm, dai giòn sần sật tự nhiên không pha bột, tiêu đen cay nhẹ thơm lừng.',
+    image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-250g', label: 'Hũ Pet 250g', multiplier: 1 },
-      { id: 'opt-500g', label: 'Túi Zip 500g', multiplier: 1.9 }
+      { id: 'opt-500g', label: 'Bịch 500g (1 miếng lớn)', multiplier: 1 },
+      { id: 'opt-1kg', label: 'Combo 1kg (2 miếng)', multiplier: 1.95 }
     ]
   },
   {
-    id: 'sp-tao-say-deo',
-    name: 'Táo Xanh Sấy Dẻo Chua Ngọt',
-    category: 'dried',
-    basePrice: 65000,
-    unit: 'hũ',
-    badge: 'Ăn vặt Healthy',
-    source: 'Phan Rang, Ninh Thuận',
-    desc: 'Vị chua thanh giòn nhẹ của táo gió hòa quyện vị ngọt dịu. Món ăn vặt lý tưởng cho dân văn phòng và trẻ nhỏ.',
-    image: 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-cha-ca-hap',
+    name: 'Chả Cá Hấp Phan Rang (Ngọt Đậm Vị Biển)',
+    category: 'nem-cha',
+    basePrice: 110000,
+    unit: 'miếng',
+    badge: 'Thanh ngọt ít dầu',
+    source: 'Lò chả cá Cà Ná - Đông Hải',
+    desc: 'Giữ trọn vị ngọt tươi nguyên bản của cá biển, bên trên phết lớp lòng đỏ trứng gà vàng ươm đẹp mắt. Thích hợp nấu bánh canh, bún chả cá hoặc cuốn bánh tráng.',
+    image: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-250g', label: 'Hũ 250g', multiplier: 1 },
-      { id: 'opt-500g', label: 'Hũ 500g', multiplier: 1.9 }
+      { id: 'opt-500g', label: 'Bịch 500g (1 miếng lớn)', multiplier: 1 },
+      { id: 'opt-1kg', label: 'Combo 1kg (2 miếng)', multiplier: 1.95 }
     ]
   },
   {
-    id: 'sp-banh-trang-mam-ruoc',
-    name: 'Bánh Tráng Mắm Ruốc Nướng Giòn',
-    category: 'dried',
-    basePrice: 35000,
-    unit: 'xấp',
-    badge: 'Đặc sản ăn vặt',
-    source: 'Lò bánh truyền thống Phan Rang',
-    desc: 'Bánh tráng mè dày nướng giòn rụm phết mắm ruốc xào đậm đà, mỡ hành thơm nức. Đóng gói túi zip kín giữ độ giòn lâu.',
-    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-nem-chua',
+    name: 'Nem Chua Phan Rang (Gói Lá Chuối)',
+    category: 'nem-cha',
+    basePrice: 60000,
+    unit: 'xâu',
+    badge: 'Lên men tự nhiên',
+    source: 'Lò nem gia truyền Phan Rang',
+    desc: 'Thịt heo nạc quết dẻo kết hợp tỏi lát, ớt xiêm và tiêu hạt, gói nhiều lớp lá chuối ủ men truyền thống. Vị chua thanh, dai giòn sần sật đặc trưng xứ nắng.',
+    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-1xap', label: 'Túi 5 bánh nướng sẵn', multiplier: 1 },
-      { id: 'opt-3xap', label: 'Combo 3 túi (15 bánh)', multiplier: 2.8 }
+      { id: 'opt-1xau', label: 'Xâu 10 cây nhỏ', multiplier: 1 },
+      { id: 'opt-2xau', label: 'Combo 2 xâu (20 cây)', multiplier: 1.9 }
     ]
   },
   {
-    id: 'sp-banh-trang-me',
-    name: 'Bánh Tráng Mè Đen Phan Rang (Chưa nướng)',
-    category: 'dried',
-    basePrice: 40000,
-    unit: 'xấp',
-    badge: 'Rất dễ gửi xa',
-    source: 'Làng nghề bánh tráng',
-    desc: 'Bánh tráng gạo xay phủ mè đen dày đặc, nướng lên thơm lừng ăn kèm các món gỏi hoặc chấm nước mắm.',
-    image: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-cha-lua',
+    name: 'Chả Lụa Heo Phan Rang (Không Hàn The)',
+    category: 'nem-cha',
+    basePrice: 120000,
+    unit: 'đòn',
+    badge: 'Thơm ngậy vị nước mắm',
+    source: 'Lò giò chả truyền thống',
+    desc: 'Làm từ thịt heo tươi nóng quết dẻo quyện cùng nước mắm nhĩ Cà Ná nguyên chất. Hấp chín bọc lá chuối tỏa hương thơm dịu, giòn dai tự nhiên.',
+    image: 'https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-10cai', label: 'Xấp 10 cái', multiplier: 1 },
-      { id: 'opt-20cai', label: 'Xấp 20 cái', multiplier: 1.9 }
+      { id: 'opt-500g', label: 'Đòn 500g', multiplier: 1 },
+      { id: 'opt-1kg', label: 'Đòn 1kg tiện tiệc', multiplier: 1.95 }
     ]
   },
 
-  // ================= 3. MẬT NHO, RƯỢU & GIA VỊ (CONDIMENTS) =================
+  // ---------------- 3. HẢI SẢN & ĐỒ KHÔ CÀ NÁ (SEAFOOD) ----------------
+  {
+    id: 'sp-muc-kho',
+    name: 'Mực Khô Câu Phan Rang (Dày Mình, Ngọt Thịt)',
+    category: 'seafood',
+    basePrice: 280000,
+    unit: 'túi',
+    badge: 'Hút chân không',
+    source: 'Thuyền câu cảng Đông Hải',
+    desc: 'Mực ống đánh bắt câu tay, xẻ phơi ngay trên boong thuyền dưới nắng gắt Ninh Thuận. Thân trắng phấn, nướng lên ngọt mềm không dai.',
+    image: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&w=600&q=80',
+    inStock: true,
+    weights: [
+      { id: 'opt-250g', label: 'Túi 250g (Khoảng 4-6 con)', multiplier: 1 },
+      { id: 'opt-500g', label: 'Túi 500g (Khoảng 8-12 con)', multiplier: 1.95 }
+    ]
+  },
+  {
+    id: 'sp-muc-mot-nang',
+    name: 'Mực Một Nắng Cà Ná (Cấp đông/Giao gần)',
+    category: 'seafood',
+    basePrice: 220000,
+    unit: 'túi',
+    badge: 'Chỉ ship gần / Gửi xe',
+    source: 'Biển Cà Ná',
+    desc: 'Mực lá tươi dày cơm phơi qua duy nhất một con nắng giòn. Bên ngoài ráo dẻo, bên trong giữ nguyên độ tươi ngọt sần sật. Đóng thùng xốp ướp đá gel.',
+    image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=600&q=80',
+    inStock: true,
+    weights: [
+      { id: 'opt-500g', label: 'Túi 500g (2-3 con)', multiplier: 1 },
+      { id: 'opt-1kg', label: 'Túi 1kg loại VIP', multiplier: 1.95 }
+    ]
+  },
+  {
+    id: 'sp-kho-ca-du',
+    name: 'Khô Cá Đù 1 Nắng Ướp Vừa Ăn',
+    category: 'seafood',
+    basePrice: 110000,
+    unit: 'túi',
+    badge: 'Hút chân không',
+    source: 'Vùng biển Ninh Chữ',
+    desc: 'Cá đù xẻ bướm ướp muối ớt cay nhẹ vừa miệng, phơi ráo nắng. Chiên giòn hoặc nướng ăn kèm cơm nóng cực kỳ hao cơm.',
+    image: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&w=600&q=80',
+    inStock: true,
+    weights: [
+      { id: 'opt-500g', label: 'Túi 500g', multiplier: 1 },
+      { id: 'opt-1kg', label: 'Túi 1kg', multiplier: 1.95 }
+    ]
+  },
+
+  // ---------------- 4. MẬT NHO, RƯỢU & GIA VỊ (CONDIMENTS) ----------------
   {
     id: 'sp-mat-nho',
     name: 'Mật Nho Ninh Thuận Cô Đặc Nguyên Chất',
@@ -197,7 +257,7 @@ export const PRODUCTS = [
     unit: 'chai',
     badge: 'Cá cơm than 100%',
     source: 'Làng cá Cà Ná, Thuận Nam',
-    desc: 'Ủ chượp ròng rã 12 tháng từ cá cơm than béo mập và muối hạt tinh khiết Cà Ná. Màu cánh gián sóng sánh, thơm lừng vị đượm ngọt hậu môn vị.',
+    desc: 'Ủ chượp ròng rã 12 tháng từ cá cơm than béo mập và muối hạt tinh khiết Cà Ná. Màu cánh gián sóng sánh, thơm lừng vị đượm ngọt hậu.',
     image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
@@ -206,69 +266,69 @@ export const PRODUCTS = [
     ]
   },
 
-  // ================= 4. ĐẶC SẢN BIỂN & MÓN KHÔ (SEAFOOD) =================
+  // ---------------- 5. ĐẶC SẢN PHƠI NẮNG & SẤY DẺO (DRIED) ----------------
   {
-    id: 'sp-muc-kho',
-    name: 'Mực Khô Câu Phan Rang (Dày Mình, Ngọt Thịt)',
-    category: 'seafood',
-    basePrice: 280000,
-    unit: 'túi',
-    badge: 'Hút chân không',
-    source: 'Thuyền câu cảng Đông Hải',
-    desc: 'Mực ống đánh bắt câu tay, xẻ phơi ngay trên boong thuyền dưới nắng gắt Ninh Thuận. Thân trắng phấn, nướng lên ngọt mềm không dai.',
-    image: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-nho-say-deo',
+    name: 'Nho Đỏ Sấy Dẻo (Lò Nắng Tự Nhiên)',
+    category: 'dried',
+    basePrice: 85000,
+    unit: 'hũ',
+    badge: 'Lò sấy là Nắng',
+    source: 'Giàn phơi nắng tự nhiên Phan Rang',
+    desc: 'Những chùm nho đỏ chín mọng được hong khô từ chính "lò sấy thiên nhiên" – nắng gắt và gió lộng của xứ Ninh Thuận. Nho dẻo mềm, đượm mật tự nhiên, không tẩm ướp đường hay chất bảo quản.',
+    image: 'https://images.unsplash.com/photo-1595231712325-9fdec6ddff7f?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-250g', label: 'Túi 250g (Khoảng 4-6 con)', multiplier: 1 },
-      { id: 'opt-500g', label: 'Túi 500g (Khoảng 8-12 con)', multiplier: 1.95 }
+      { id: 'opt-250g', label: 'Hũ Pet 250g', multiplier: 1 },
+      { id: 'opt-500g', label: 'Túi Zip 500g', multiplier: 1.9 }
     ]
   },
   {
-    id: 'sp-muc-mot-nang',
-    name: 'Mực Một Nắng Cà Ná (Cấp đông/Giao gần)',
-    category: 'seafood',
-    basePrice: 220000,
-    unit: 'túi',
-    badge: 'Chỉ ship gần / Gửi xe',
-    source: 'Biển Cà Ná',
-    desc: 'Mực lá tươi dày cơm phơi qua duy nhất một con nắng giòn. Bên ngoài ráo dẻo, bên trong giữ nguyên độ tươi ngọt sần sật. Đóng thùng xốp ướp đá gel.',
-    image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-tao-say-deo',
+    name: 'Táo Xanh Sấy Dẻo Chua Ngọt (Hong Gió Nắng)',
+    category: 'dried',
+    basePrice: 65000,
+    unit: 'hũ',
+    badge: 'Ủ nắng giòn ngọt',
+    source: 'Vườn nắng Phan Rang',
+    desc: 'Táo gió xắt lát hong dưới cái nắng giòn tan xứ cát, gom trọn vị chua thanh dịu ngọt mộc mạc. Ăn vặt lành mạnh, dẻo dai tự nhiên không đường hóa học.',
+    image: 'https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-500g', label: 'Túi 500g (2-3 con)', multiplier: 1 },
-      { id: 'opt-1kg', label: 'Túi 1kg loại VIP', multiplier: 1.95 }
+      { id: 'opt-250g', label: 'Hũ 250g', multiplier: 1 },
+      { id: 'opt-500g', label: 'Hũ 500g', multiplier: 1.9 }
     ]
   },
   {
-    id: 'sp-kho-ca-du',
-    name: 'Khô Cá Đù 1 Nắng Ướp Vừa Ăn',
-    category: 'seafood',
-    basePrice: 110000,
-    unit: 'túi',
-    badge: 'Hút chân không',
-    source: 'Vùng biển Ninh Chữ',
-    desc: 'Cá đù xẻ bướm ướp muối ớt cay nhẹ vừa miệng, phơi ráo nắng. Chiên giòn hoặc nướng ăn kèm cơm nóng cực kỳ hao cơm.',
-    image: 'https://images.unsplash.com/photo-1534483509719-3feaee7c30da?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-banh-trang-mam-ruoc',
+    name: 'Bánh Tráng Mắm Ruốc Nướng Giòn',
+    category: 'dried',
+    basePrice: 35000,
+    unit: 'xấp',
+    badge: 'Phơi ráo nắng gắt',
+    source: 'Lò bánh truyền thống Phan Rang',
+    desc: 'Bánh tráng mè gạo phơi qua nắng giòn xứ cát rồi nướng giòn rụm phết mắm ruốc xào đậm đà, mỡ hành thơm nức vị quê nhà.',
+    image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-500g', label: 'Túi 500g', multiplier: 1 },
-      { id: 'opt-1kg', label: 'Túi 1kg', multiplier: 1.95 }
+      { id: 'opt-1xap', label: 'Túi 5 bánh nướng sẵn', multiplier: 1 },
+      { id: 'opt-3xap', label: 'Combo 3 túi (15 bánh)', multiplier: 2.8 }
     ]
   },
   {
-    id: 'sp-nem-chua',
-    name: 'Nem Chua Phan Rang (Gói Lá Chuối)',
-    category: 'seafood',
-    basePrice: 60000,
-    unit: 'xâu',
-    badge: 'Đặc sản mồi nhậu',
-    source: 'Lò nem gia truyền',
-    desc: 'Thịt heo nạc tươi quết nhuyễn kết hợp tỏi ớt tiêu đen bọc nhiều lớp lá chuối lên men tự nhiên. Vị chua thanh, giòn sần sật đặc trưng.',
-    image: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=600&q=80',
+    id: 'sp-banh-trang-me',
+    name: 'Bánh Tráng Mè Đen (Phơi Trảng Nắng)',
+    category: 'dried',
+    basePrice: 40000,
+    unit: 'xấp',
+    badge: 'Tráng mộc phơi nắng',
+    source: 'Làng nghề bánh tráng Phan Rang',
+    desc: 'Bánh tráng mè đen trải phên tre đón trọn vạt nắng đầu ngày. Bánh ráo cong tự nhiên, thơm bùi mùi gạo mới và mè đen rang.',
+    image: 'https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?auto=format&fit=crop&w=600&q=80',
     inStock: true,
     weights: [
-      { id: 'opt-1xau', label: 'Xâu 10 cây', multiplier: 1 },
-      { id: 'opt-2xau', label: 'Combo 2 xâu (20 cây)', multiplier: 1.9 }
+      { id: 'opt-10cai', label: 'Xấp 10 cái', multiplier: 1 },
+      { id: 'opt-20cai', label: 'Xấp 20 cái', multiplier: 1.9 }
     ]
   }
 ];

@@ -1,7 +1,47 @@
 import React from 'react';
-import { Sun, Flame, Clock, Heart, ArrowRight, Sprout } from 'lucide-react';
+import { 
+  Sun, 
+  Flame, 
+  Clock, 
+  Heart, 
+  ArrowRight, 
+  Sprout, 
+  Calendar, 
+  MapPin, 
+  Quote, 
+  Sparkles,
+  Compass,
+  CheckCircle2
+} from 'lucide-react';
 
-export default function StoryPage({ onNavigate }) {
+// Hàm chuẩn hóa ngày tháng chống lỗi chuỗi GMT dài ngoằng
+function formatStoryDate(dateVal) {
+  if (!dateVal) return '';
+  const str = String(dateVal).trim();
+  
+  // Nếu đã ở dạng dd/MM/yyyy sẵn
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) return str;
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+  return str;
+}
+
+// Hàm kiểm tra xem 1 chuỗi có phải là Date string hay không
+function isDateString(val) {
+  if (!val) return false;
+  const str = String(val).trim();
+  if (str.includes('GMT') || /^\d{4}-\d{2}-\d{2}/.test(str)) return true;
+  const d = new Date(str);
+  return !isNaN(d.getTime()) && str.length < 40 && (str.includes('-') || str.includes('/') || str.includes(':'));
+}
+
+export default function StoryPage({ stories = [], onNavigate }) {
   const handleGoToShop = () => {
     if (onNavigate) {
       onNavigate('shop');
@@ -9,82 +49,250 @@ export default function StoryPage({ onNavigate }) {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10 sm:py-16 space-y-14 overflow-hidden">
-      {/* Tiêu đề trang & Badge tinh tế */}
-      <div className="text-center space-y-4 max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/10 text-amber-800 border border-amber-600/20 text-xs font-semibold tracking-wide">
-          <Sprout className="w-3.5 h-3.5 text-amber-600" />
-          <span>Chuyện Người Làm Vườn</span>
-        </div>
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
+      
+      {/* ================= 1. HERO BANNER: TINH THẦN ĐẤT NẮNG PHAN RANG ================= */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-amber-500/10 via-amber-100/20 to-transparent border border-amber-200/50 p-8 sm:p-14 text-center">
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-orange-400/10 blur-3xl pointer-events-none" />
 
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-stone-900 tracking-tight leading-tight">
-          Hương Vị Thủ Công <br className="hidden sm:inline" />
-          Từ Nắng Gió Phan Rang
-        </h1>
-
-        <p className="text-xs sm:text-sm text-stone-500 leading-relaxed font-normal">
-          Ninh Thuận khô cằn với nắng gắt và gió lộng, nhưng chính điều kiện khắc nghiệt đó đã kết tinh nên những quả táo giòn ngọt đậm đà và những giàn nho mọng nước không nơi nào có được.
-        </p>
-      </div>
-
-      {/* 3 Trụ cột quy trình chế biến */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200/80 shadow-xs hover:shadow-md transition-shadow space-y-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100">
-            <Sun className="w-5 h-5 text-amber-600" />
+        <div className="relative z-10 max-w-3xl mx-auto space-y-4">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-xs text-amber-900 border border-amber-300/60 text-xs font-bold shadow-2xs tracking-wide">
+            <Sprout className="w-4 h-4 text-amber-600" />
+            <span>Ký Sự Người Làm Vườn Xứ Nắng</span>
           </div>
-          <h3 className="font-bold text-stone-900 text-base">Táo Tươi Hái Mỗi Sáng</h3>
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Từng quả táo được bọc túi sinh học tại vườn để ngừa sâu hại tự nhiên. Khi đạt độ giòn ngọt mọng nước nhất, táo được thu hái thủ công từ sớm tinh mơ.
-          </p>
-        </div>
 
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200/80 shadow-xs hover:shadow-md transition-shadow space-y-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-orange-50 text-orange-700 flex items-center justify-center border border-orange-100">
-            <Clock className="w-5 h-5 text-orange-600" />
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-stone-900 tracking-tight leading-[1.15]">
+            Mồ Hôi Đổ Xuống Đất Nung, <br />
+            <span className="bg-gradient-to-r from-amber-700 via-orange-600 to-amber-800 bg-clip-text text-transparent">
+              Vị Ngọt Kết Tinh Từ Nắng Gió
+            </span>
+          </h1>
+
+          <p className="text-xs sm:text-base text-stone-600 leading-relaxed font-light max-w-2xl mx-auto pt-2">
+            Ninh Thuận — nơi quanh năm chỉ có hai mùa: <strong className="font-semibold text-stone-800">mùa nắng</strong> và <strong className="font-semibold text-stone-800">mùa rất nắng</strong>. Nhưng cũng chính cái nắng rát da cùng gió Lào hào sảng ấy đã chắt lọc mật ngọt cho từng chùm nho đỏ mọng, từng trái táo giòn ngọt đậm sâu.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-6 pt-4 text-xs font-medium text-stone-500">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Thu hái mộc tại giàn
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Phơi nắng & sấy lạnh tự nhiên
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Không hóa chất bảo quản
+            </span>
           </div>
-          <h3 className="font-bold text-stone-900 text-base">Sấy Lạnh Giữ Vị 28 Tiếng</h3>
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Táo sau khi thái lát được tẩm ướp cùng lát tắc tươi hoặc muối ớt, sấy nhiệt độ thấp 45°C để giữ trọn vitamin C, vị dẻo mềm óng ả tự nhiên.
-          </p>
         </div>
+      </section>
 
-        <div className="bg-white p-6 sm:p-7 rounded-3xl border border-stone-200/80 shadow-xs hover:shadow-md transition-shadow space-y-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-700 flex items-center justify-center border border-rose-100">
-            <Flame className="w-5 h-5 text-rose-600" />
-          </div>
-          <h3 className="font-bold text-stone-900 text-base">Ủ Rượu Chum Sành 365 Ngày</h3>
-          <p className="text-xs text-stone-500 leading-relaxed">
-            Rượu nho Phan Rang được lên men tự nhiên với đường phèn trong chum sành đất nung hơn 1 năm ròng, cho ra nước rượu màu hổ phách sánh mịn, êm dịu, không gắt.
-          </p>
-        </div>
-      </div>
-
-      {/* Khối tâm tình vườn nhà */}
-      <div className="bg-stone-900 text-white rounded-3xl p-8 sm:p-10 space-y-6 shadow-xl relative overflow-hidden">
-        <div className="space-y-3 relative z-10 max-w-3xl">
-          <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-            <Heart className="w-5 h-5 text-red-400 fill-red-400" />
-            <span>Tâm Tình Vườn Nhà</span>
+      {/* ================= 2. BA NGUYÊN BẢN CỦA NÔNG SẢN XỨ NẮNG ================= */}
+      <section className="space-y-6">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+            Ba Thước Đo Cho Từng Mẻ Quà Quê
           </h2>
-          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light">
-            "Chúng mình không làm hàng công nghiệp số lượng lớn. Mỗi hũ táo sấy dẻo, mỗi chùm nho tươi hay chai rượu nho gửi tới tay bạn đều là thành quả lao động mộc mạc của gia đình. Hy vọng bạn và người thân sẽ cảm nhận trọn vẹn sự chân thành và nắng gió Ninh Thuận trong từng thức quà."
+          <p className="text-xs sm:text-sm text-stone-500">
+            Tỉ mỉ từ lúc cắt cành, chọn trái đến khi đóng gói gửi đi khắp mọi miền
           </p>
         </div>
 
-        {onNavigate && (
-          <div className="pt-2 relative z-10">
-            <button
-              type="button"
-              onClick={handleGoToShop}
-              className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-2xl flex items-center gap-2 transition-all shadow-md active:scale-95"
-            >
-              <span>Ghé Xem Đặc Sản Vườn Hôm Nay</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Cột 1 */}
+          <div className="group bg-white p-7 rounded-3xl border border-stone-200/90 shadow-xs hover:border-amber-400 hover:shadow-xl transition-all duration-300 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200/80 group-hover:scale-110 transition-transform">
+              <Sun className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono font-bold text-amber-700 uppercase tracking-widest">Gốc Vườn 01</span>
+              <h3 className="font-black text-stone-900 text-base">Hái Sớm Khi Sương Chưa Tan</h3>
+            </div>
+            <p className="text-xs text-stone-500 leading-relaxed font-light">
+              Táo gió và nho tươi chỉ được cắt cành từ 5h30 đến 7h sáng khi vỏ trái còn mát lạnh và giữ trọn lớp phấn tự nhiên. Tuyệt đối không hái giữa nắng trưa làm héo cuống hay nẫu ruột.
+            </p>
+          </div>
+
+          {/* Cột 2 */}
+          <div className="group bg-white p-7 rounded-3xl border border-stone-200/90 shadow-xs hover:border-orange-400 hover:shadow-xl transition-all duration-300 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-700 flex items-center justify-center border border-orange-200/80 group-hover:scale-110 transition-transform">
+              <Clock className="w-6 h-6 text-orange-600" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono font-bold text-orange-700 uppercase tracking-widest">Gốc Vườn 02</span>
+              <h3 className="font-black text-stone-900 text-base">Sấy Lạnh Thong Thả 28 Tiếng</h3>
+            </div>
+            <p className="text-xs text-stone-500 leading-relaxed font-light">
+              Táo sấy dẻo không dùng lò nhiệt cao gấp gáp. Chúng mình thái lát mộc, sấy tuần hoàn 45°C ròng rã hơn một ngày một đêm để đường tự nhiên cô đọng lại, dẻo dai và thơm thoang thoảng mùi tắc tươi.
+            </p>
+          </div>
+
+          {/* Cột 3 */}
+          <div className="group bg-white p-7 rounded-3xl border border-stone-200/90 shadow-xs hover:border-rose-400 hover:shadow-xl transition-all duration-300 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-700 flex items-center justify-center border border-rose-200/80 group-hover:scale-110 transition-transform">
+              <Flame className="w-6 h-6 text-rose-600" />
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-mono font-bold text-rose-700 uppercase tracking-widest">Gốc Vườn 03</span>
+              <h3 className="font-black text-stone-900 text-base">Ủ Chum Sành Đất Nung 365 Ngày</h3>
+            </div>
+            <p className="text-xs text-stone-500 leading-relaxed font-light">
+              Nho đỏ chín tới được ủ men tự nhiên trong chum sành mộc mạc suốt một năm. Men đất nung thở nhịp nhàng giúp rượu lên sắc hổ phách sóng sánh, vị đậm êm, không gây đau đầu hay khé cổ.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= 3. DÒNG THỜI GIAN NHẬT KÝ VƯỜN (EDITORIAL TIMELINE) ================= */}
+      <section className="space-y-10">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
+          <div>
+            <div className="flex items-center gap-2 text-amber-700 text-xs font-bold uppercase tracking-wider">
+              <Sparkles className="w-4 h-4" />
+              <span>Chuyện Người - Chuyện Nghề</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight mt-1">
+              Nhật Ký Mùa Vụ & Đời Sống Giàn Vườn
+            </h2>
+          </div>
+          <span className="text-xs text-stone-500 font-mono">
+            {stories.length} câu chuyện được lưu lại
+          </span>
+        </div>
+
+        {stories.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-dashed border-stone-300 p-12 text-center text-stone-400 text-xs space-y-2">
+            <Compass className="w-8 h-8 mx-auto text-stone-300 stroke-[1.5]" />
+            <p>Các mẩu chuyện về giàn nho đang được người làm vườn chép lại...</p>
+          </div>
+        ) : (
+          <div className="space-y-12">
+            {stories.map((storyItem, index) => {
+              // Bóc tách đúng các trường dữ liệu kể cả khi Sheet bị lệch cột
+              let displayDate = '';
+              let displayContent = '';
+
+              if (isDateString(storyItem.date)) {
+                displayDate = formatStoryDate(storyItem.date);
+                displayContent = storyItem.content || storyItem.story || '';
+              } else if (isDateString(storyItem.content)) {
+                displayDate = formatStoryDate(storyItem.content);
+                displayContent = storyItem.date || storyItem.story || '';
+              } else {
+                displayDate = formatStoryDate(storyItem.date) || 'Mùa vụ gần đây';
+                displayContent = storyItem.content || storyItem.story || storyItem.quote || '';
+              }
+
+              const isEven = index % 2 === 0;
+
+              return (
+                <article
+                  key={storyItem.id || index}
+                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-9 items-center group"
+                >
+                  {/* Cột Ảnh: Luân phiên đổi chiều chẵn lẻ */}
+                  <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-full min-h-[280px] rounded-2xl overflow-hidden relative shadow-inner ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
+                    <img
+                      src={storyItem.image || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
+                      alt={storyItem.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.src = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80";
+                      }}
+                    />
+                    
+                    {storyItem.season && (
+                      <span className="absolute top-3.5 left-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-white/10">
+                        {storyItem.season}
+                      </span>
+                    )}
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+
+                  {/* Cột Nội dung */}
+                  <div className={`lg:col-span-7 space-y-4 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
+                    {/* Metadata: Ngày tháng & Địa điểm chuẩn xác */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
+                      {displayDate && (
+                        <span className="flex items-center gap-1.5 font-medium text-stone-600 bg-stone-100 px-2.5 py-1 rounded-lg">
+                          <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                          <span>{displayDate}</span>
+                        </span>
+                      )}
+                      
+                      <span className="flex items-center gap-1 font-medium text-stone-500">
+                        <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                        <span>{storyItem.location || 'Phan Rang - Ninh Thuận'}</span>
+                      </span>
+                    </div>
+
+                    {/* Tiêu đề câu chuyện */}
+                    <h3 className="text-xl sm:text-2xl font-black text-stone-900 leading-snug group-hover:text-amber-800 transition-colors">
+                      {storyItem.title}
+                    </h3>
+
+                    {/* Đoạn văn mộc mạc */}
+                    {displayContent && (
+                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-light whitespace-pre-line">
+                        {displayContent}
+                      </p>
+                    )}
+
+                    {/* Tác giả / Ký tên */}
+                    <div className="pt-2 flex items-center justify-between border-t border-stone-100">
+                      <span className="text-[11px] font-bold text-amber-900/80 font-mono">
+                        — {storyItem.author || 'Tâm Xứ Nắng Gió'}
+                      </span>
+
+                      <div className="flex items-center gap-1 text-[11px] font-semibold text-stone-400">
+                        <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500/20" />
+                        <span>Chân thật từ vườn</span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
-      </div>
+      </section>
+
+      {/* ================= 4. KHỐI TÂM TÌNH VƯỜN NHÀ & NÚT GỌI ĐIỀU HƯỚNG ================= */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-stone-800">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 max-w-3xl space-y-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-800 text-amber-400 text-xs font-bold border border-amber-500/30">
+            <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
+            <span>Gửi Gắm Chân Tình</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-snug">
+            "Không Làm Hàng Công Nghiệp, <br />
+            Chỉ Gửi Đi Thức Quà Thật Của Mảnh Đất Quê."
+          </h2>
+
+          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light">
+            Mỗi hũ táo sấy dẻo, mỗi chùm nho tươi hay chai rượu nho gửi tới tay bạn và gia đình đều mang theo vị mặn mòi của gió biển, cái gắt nồng của nắng khô và sự chân chất của những người cả đời gắn bó với đất đai Ninh Thuận. Cảm ơn bạn đã đồng hành và san sẻ cùng nông sản quê hương.
+          </p>
+
+          {onNavigate && (
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={handleGoToShop}
+                className="group px-7 py-4 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-2xl flex items-center gap-2.5 transition-all shadow-lg shadow-amber-950/40 active:scale-95 cursor-pointer"
+              >
+                <span>Ghé Xem Đặc Sản Tươi Vừa Thu Hái</span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Sparkles, 
@@ -6,33 +6,58 @@ import {
   Flame, 
   Wine, 
   Fish, 
+  Sun,
   ShoppingBag, 
-  Check, 
-  MapPin, 
   ShieldCheck, 
-  ArrowRight
+  ArrowRight,
+  Leaf,
+  Heart,
+  SlidersHorizontal,
+  RotateCcw,
+  CheckCircle2
 } from 'lucide-react';
-import { CATEGORIES } from '../data/products';
+import ProductCard from '../components/ProductCard';
 
-// Ánh xạ icon tương ứng với từng danh mục
-const categoryIcons = {
-  fresh: Apple,
-  dried: Flame,
-  condiments: Wine,
-  seafood: Fish
+// Ánh xạ linh hoạt theo tên icon khai báo trên Google Sheet
+const ICON_MAP = {
+  Apple,
+  Sparkles,
+  Fish,
+  Wine,
+  Sun,
+  Flame,
+  ShoppingBag,
+  Leaf,
+  Heart
 };
 
-// Loại bỏ 'all' để giao diện chỉ giữ lại đúng 4 danh mục thực tế
-const FILTER_CATEGORIES = CATEGORIES.filter((cat) => cat.id !== 'all');
+export default function ShopPage({ 
+  products = [], 
+  categories = [], 
+  initialCategory = null, 
+  onAddToCart, 
+  onNavigate 
+}) {
+  const [selectedCategories, setSelectedCategories] = useState(() => {
+    if (initialCategory && initialCategory !== 'all') {
+      return [initialCategory];
+    }
+    return [];
+  });
 
-export default function ShopPage({ products = [], onAddToCart, onNavigate }) {
-  // Mảng lưu danh sách categoryId đang được chọn
-  const [selectedCategories, setSelectedCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedWeights, setSelectedWeights] = useState({});
-  const [addedItemEffect, setAddedItemEffect] = useState(null);
+  const [sortBy, setSortBy] = useState('default'); // default | price-asc | price-desc | name
 
-  // Toggle chọn / bỏ chọn danh mục
+  // Cập nhật lại bộ lọc nếu initialCategory từ ngoài truyền vào thay đổi
+  useEffect(() => {
+    if (initialCategory && initialCategory !== 'all') {
+      setSelectedCategories([initialCategory]);
+    } else if (initialCategory === 'all') {
+      setSelectedCategories([]);
+    }
+  }, [initialCategory]);
+
+  // Toggle chọn / bỏ chọn danh mục (Multi-select)
   const handleToggleCategory = (catId) => {
     setSelectedCategories((prev) => {
       if (prev.includes(catId)) {
@@ -43,274 +68,271 @@ export default function ShopPage({ products = [], onAddToCart, onNavigate }) {
     });
   };
 
-  // Lọc sản phẩm: Nếu không chọn danh mục nào thì mặc định hiển thị tất cả
+  const handleSelectAllCategories = () => {
+    setSelectedCategories([]);
+  };
+
+  // Lọc sản phẩm theo danh mục và từ khóa tìm kiếm, sau đó sắp xếp
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    let result = products.filter((p) => {
       const matchCat =
         selectedCategories.length === 0 || selectedCategories.includes(p.category);
 
+      const query = searchQuery.toLowerCase().trim();
       const matchSearch =
-        !searchQuery.trim() ||
-        p.name.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
-        (p.source && p.source.toLowerCase().includes(searchQuery.toLowerCase().trim())) ||
-        (p.desc && p.desc.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+        !query ||
+        p.name?.toLowerCase().includes(query) ||
+        (p.source && p.source.toLowerCase().includes(query)) ||
+        (p.desc && p.desc.toLowerCase().includes(query));
 
       return matchCat && matchSearch;
     });
-  }, [products, selectedCategories, searchQuery]);
 
-  const handleSelectWeight = (productId, weightOption) => {
-    setSelectedWeights((prev) => ({
-      ...prev,
-      [productId]: weightOption
-    }));
-  };
-
-  const handleAddToCartClick = (product) => {
-    const defaultWeight = product.weights?.[0] || { id: 'std', label: product.unit || 'Tiêu chuẩn', multiplier: 1 };
-    const activeWeight = selectedWeights[product.id] || defaultWeight;
-
-    if (onAddToCart) {
-      onAddToCart(product, activeWeight, 1);
+    if (sortBy === 'price-asc') {
+      result.sort((a, b) => (Number(a.basePrice || a.price) || 0) - (Number(b.basePrice || b.price) || 0));
+    } else if (sortBy === 'price-desc') {
+      result.sort((a, b) => (Number(b.basePrice || b.price) || 0) - (Number(a.basePrice || a.price) || 0));
+    } else if (sortBy === 'name') {
+      result.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
     }
 
-    setAddedItemEffect(product.id);
-    setTimeout(() => {
-      setAddedItemEffect(null);
-    }, 1200);
-  };
+    return result;
+  }, [products, selectedCategories, searchQuery, sortBy]);
+
+  const displayCategories = useMemo(() => {
+    return categories.filter((c) => c.id !== 'all');
+  }, [categories]);
+
+  // Đếm số lượng sản phẩm của từng danh mục
+  const categoryCounts = useMemo(() => {
+    const counts = {};
+    products.forEach((p) => {
+      counts[p.category] = (counts[p.category] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fadeIn">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
       
       {/* ================= 1. BANNER TIÊU ĐỀ TRANG ================= */}
-      <div className="bg-gradient-to-r from-stone-900 via-amber-950 to-stone-900 text-white rounded-3xl p-6 sm:p-10 shadow-lg relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30">
-            <ShieldCheck className="w-4 h-4" />
-            <span>Nông sản & Đặc sản nắng gió Ninh Thuận</span>
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-8 sm:p-12 shadow-xl border border-stone-800">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 max-w-3xl space-y-3.5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-xs font-bold border border-amber-400/20 shadow-2xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Nông Sản Tươi Hái Mỗi Sáng • Đóng Thùng Xốp Gửi Xe</span>
           </div>
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-            Gian Hàng Đặc Sản Xứ Nắng Gió
+
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+            Gian Hàng Đặc Sản <br className="hidden sm:inline" />
+            <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
+              Chính Gốc Xứ Nắng Gió
+            </span>
           </h1>
-          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-            Hái tươi tại giàn, bọc xốp chống dập, gửi xe thẳng vào Sài Gòn và các tỉnh. Có thể chọn kết hợp nhiều danh mục để tìm món ưng ý.
+
+          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light max-w-2xl">
+            Tất cả táo gió, nho mộc, rượu nho và hải sản phơi ráo đều được chuẩn bị kỹ lưỡng tại Phan Rang, bảo quản giữ trọn độ tươi giòn gửi vào bến xe TP.HCM và các tỉnh toàn quốc.
           </p>
+
+          <div className="flex flex-wrap items-center gap-5 pt-2 text-[11px] text-stone-400 font-medium">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Hút chân không & bọc chống sốc
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Đổi trả 100% nếu dập hỏng
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Tặng quà quê khi chuyển khoản
+            </span>
+          </div>
         </div>
+      </section>
 
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-radial from-amber-600/10 to-transparent pointer-events-none" />
-      </div>
-
-      {/* ================= 2. BỘ LỌC ĐA DANH MỤC & TÌM KIẾM ================= */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-xs space-y-4">
+      {/* ================= 2. BỘ LỌC TÌM KIẾM & DANH MỤC TRÊN 1 HÀNG ================= */}
+      <section className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-xs space-y-4">
         
-        {/* TẦNG 1: Ô TÌM KIẾM RỘNG RÃI & NÚT ĐẶT LẠI */}
+        {/* Hàng 1: Ô tìm kiếm + Sắp xếp */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm theo tên đặc sản (táo, nho, mực, tỏi...), xuất xứ..."
+              placeholder="Tìm kiếm táo giòn, nho đỏ, rượu ủ, mực một nắng, tỏi Phan Rang..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs pl-10 pr-4 py-3 rounded-2xl border border-stone-200 bg-stone-50/60 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 shadow-2xs transition-all"
+              className="w-full text-xs pl-10 pr-9 py-3 rounded-2xl border border-stone-200 bg-stone-50/80 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-3 text-stone-400 hover:text-stone-600 text-xs px-1"
+                className="absolute right-3.5 top-3 text-stone-400 hover:text-stone-700 text-xs px-1 cursor-pointer"
+                title="Xóa tìm kiếm"
               >
                 ✕
               </button>
             )}
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 text-xs text-stone-500">
-            <span>
-              {selectedCategories.length > 0 ? (
-                <>Đang lọc: <strong className="text-amber-800 font-bold">{selectedCategories.length} danh mục</strong> ({filteredProducts.length} món)</>
-              ) : (
-                <>Tất cả: <strong className="text-stone-900 font-bold font-mono">{filteredProducts.length}</strong> món</>
-              )}
-            </span>
+          {/* Sắp xếp giá & tên */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative flex items-center">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-stone-400 absolute left-3 pointer-events-none" />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="text-xs pl-8 pr-7 py-3 rounded-2xl border border-stone-200 bg-stone-50/80 hover:bg-white text-stone-700 font-bold focus:outline-none focus:border-amber-600 cursor-pointer transition-all"
+              >
+                <option value="default">Mặc định</option>
+                <option value="price-asc">Giá: Thấp → Cao</option>
+                <option value="price-desc">Giá: Cao → Thấp</option>
+                <option value="name">Tên: A → Z</option>
+              </select>
+            </div>
 
-            {/* Nút xem lại tất cả khi đang có điều kiện lọc hoặc từ khóa */}
-            {(selectedCategories.length > 0 || searchQuery) && (
+            {(selectedCategories.length > 0 || searchQuery || sortBy !== 'default') && (
               <button
                 type="button"
                 onClick={() => {
                   setSelectedCategories([]);
                   setSearchQuery('');
+                  setSortBy('default');
                 }}
-                className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-[11px] transition-all border border-amber-200/60"
+                className="p-3 rounded-2xl border border-stone-200 hover:bg-stone-100 text-stone-600 transition-colors cursor-pointer"
+                title="Đặt lại bộ lọc"
               >
-                Xem tất cả
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
         </div>
 
-        {/* TẦNG 2: 4 DANH MỤC CHIA ĐỀU 4 CỘT CÂN ĐỐI (KHÔNG CÒN TRỐNG, KHÔNG XÔ CHỮ) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-stone-100">
-          {FILTER_CATEGORIES.map((cat) => {
-            const Icon = categoryIcons[cat.id] || Sparkles;
+        {/* Hàng 2: DANH MỤC TRÊN 1 HÀNG DUY NHẤT (CÓ CUỘN NGANG ẨN THANH CUỘN) */}
+        <div className="pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
+          {/* Nút Xem tất cả */}
+          <button
+            type="button"
+            onClick={handleSelectAllCategories}
+            className={`shrink-0 py-2 px-3.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
+              selectedCategories.length === 0
+                ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
+                : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border-stone-200'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Tất cả</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+              selectedCategories.length === 0 ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
+            }`}>
+              {products.length}
+            </span>
+          </button>
+
+          {/* Các danh mục từ Google Sheet */}
+          {displayCategories.map((cat) => {
+            const IconComponent = ICON_MAP[cat.icon] || Sparkles;
             const isCatActive = selectedCategories.includes(cat.id);
+            const itemCount = categoryCounts[cat.id] || 0;
 
             return (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => handleToggleCategory(cat.id)}
-                className={`w-full py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-98 border select-none ${
+                className={`shrink-0 py-2 px-3.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border whitespace-nowrap ${
                   isCatActive
-                    ? 'bg-amber-700 text-white border-amber-700 shadow-xs ring-1 ring-amber-700'
-                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200/90'
+                    ? 'bg-amber-800 text-white border-amber-800 shadow-xs ring-1 ring-amber-800'
+                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
                 }`}
               >
-                <Icon className={`w-4 h-4 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-stone-400'}`} />
-                <span className="truncate">{cat.label}</span>
+                <IconComponent className={`w-3.5 h-3.5 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
+                <span>{cat.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  isCatActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
+                }`}>
+                  {itemCount}
+                </span>
               </button>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* ================= 3. DANH SÁCH SẢN PHẨM ================= */}
+      {/* ================= 3. LƯỚI SẢN PHẨM ================= */}
       {filteredProducts.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-stone-200/80 shadow-xs space-y-3">
-          <p className="text-stone-500 text-sm">Không tìm thấy món đặc sản nào khớp với bộ lọc hiện tại.</p>
+        <section className="bg-white rounded-3xl p-12 sm:p-16 text-center border border-dashed border-stone-300 space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
+            <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="font-bold text-stone-800 text-base">Không tìm thấy món phù hợp</h3>
+            <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
+              Không có sản phẩm nào khớp với bộ lọc hoặc từ khóa "{searchQuery}". Bạn thử tìm với từ khóa khác như: <span className="text-amber-800 font-semibold">táo gió, nho đỏ, rượu ủ, mủ trôm, mực một nắng...</span>
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategories([]);
+                setSearchQuery('');
+                setSortBy('default');
+              }}
+              className="px-5 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <span>Xem lại toàn bộ kệ hàng</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between text-xs text-stone-500 px-1">
+            <span>Hiển thị <strong className="text-stone-900 font-mono font-bold">{filteredProducts.length}</strong> sản phẩm</span>
+            <span className="text-amber-800 font-medium">Bấm chọn quy cách & xem quà tặng kèm</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onAddToCart={onAddToCart}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ================= 4. BANNER CAM KẾT VẬN CHUYỂN CUỐI TRANG ================= */}
+      <section className="bg-amber-50/80 rounded-3xl p-6 sm:p-8 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="space-y-1.5 text-center sm:text-left">
+          <h4 className="font-bold text-sm sm:text-base text-amber-950 flex items-center justify-center sm:justify-start gap-2">
+            <Sparkles className="w-4 h-4 text-amber-700" />
+            <span>Đơn Hàng Gửi Xe Vào Sài Gòn & Các Tỉnh</span>
+          </h4>
+          <p className="text-xs text-amber-900/80 leading-relaxed font-light max-w-2xl">
+            Nông sản tươi được chèn giấy rơm và bọc thùng xốp chuyên dụng, gửi xe khách trong đêm để sáng sớm hôm sau tới nơi vẫn giữ nguyên cuống xanh và vị ngọt giòn.
+          </p>
+        </div>
+
+        {onNavigate && (
           <button
             type="button"
-            onClick={() => {
-              setSelectedCategories([]);
-              setSearchQuery('');
-            }}
-            className="text-xs font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
+            onClick={() => onNavigate('story')}
+            className="px-5 py-3 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
           >
-            <span>Đặt lại bộ lọc (Xem tất cả)</span>
+            <span>Đọc chuyện mùa vụ</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-          {filteredProducts.map((product) => {
-            const defaultWeight = product.weights?.[0] || { id: 'std', label: product.unit || 'Tiêu chuẩn', multiplier: 1 };
-            const activeWeight = selectedWeights[product.id] || defaultWeight;
-            
-            const base = Number(product.basePrice || product.price || 0);
-            const multiplier = activeWeight.multiplier || 1;
-            const bonus = activeWeight.priceBonus || 0;
-            const currentPrice = Math.round((base + bonus) * multiplier);
+        )}
+      </section>
 
-            const isJustAdded = addedItemEffect === product.id;
-
-            return (
-              <div
-                key={product.id}
-                className="bg-white rounded-3xl border border-stone-200/80 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col overflow-hidden group"
-              >
-                {/* Ảnh sản phẩm + Nguồn gốc + Badge */}
-                <div className="relative aspect-4/3 overflow-hidden bg-stone-100">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                  />
-                  
-                  {product.badge && (
-                    <span className="absolute top-3 left-3 bg-stone-900/85 backdrop-blur-xs text-amber-200 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
-                      {product.badge}
-                    </span>
-                  )}
-
-                  {product.source && (
-                    <span className="absolute bottom-2 left-2 right-2 bg-white/90 backdrop-blur-xs text-stone-700 text-[10px] font-bold px-2 py-0.5 rounded-lg flex items-center gap-1 truncate shadow-2xs">
-                      <MapPin className="w-3 h-3 text-amber-700 shrink-0" />
-                      <span className="truncate">{product.source}</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Nội dung card */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <h3 className="font-bold text-stone-900 text-sm leading-snug line-clamp-2 group-hover:text-amber-800 transition-colors">
-                      {product.name}
-                    </h3>
-                    {product.desc && (
-                      <p className="text-[11px] text-stone-500 mt-1 line-clamp-2 leading-relaxed">
-                        {product.desc}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Lựa chọn quy cách (weights / options) */}
-                  {product.weights && product.weights.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                        Chọn quy cách:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {product.weights.map((w) => {
-                          const isWeightActive = activeWeight.id === w.id;
-                          return (
-                            <button
-                              key={w.id}
-                              type="button"
-                              onClick={() => handleSelectWeight(product.id, w)}
-                              className={`text-[10.5px] px-2.5 py-1 rounded-xl font-bold transition-all border ${
-                                isWeightActive
-                                  ? 'bg-amber-50 text-amber-900 border-amber-600 shadow-2xs'
-                                  : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                              }`}
-                            >
-                              {w.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Giá & Nút Thêm Vào Giỏ */}
-                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
-                    <div>
-                      <span className="text-[10px] text-stone-400 block">Đơn giá:</span>
-                      <span className="font-mono font-black text-amber-900 text-base">
-                        {currentPrice.toLocaleString('vi-VN')}đ
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAddToCartClick(product)}
-                      className={`px-3.5 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-xs ${
-                        isJustAdded
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-stone-900 hover:bg-amber-700 text-white'
-                      }`}
-                    >
-                      {isJustAdded ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          <span>Đã thêm</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>Thêm giỏ</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
