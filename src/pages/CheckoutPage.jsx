@@ -30,7 +30,6 @@ function isBadOrderStatus(statusStr) {
   );
 }
 
-// Hàm parse ngày an toàn để sắp xếp dòng thời gian
 function parseDateForSort(dateStr) {
   if (!dateStr) return 0;
   if (dateStr instanceof Date) return dateStr.getTime();
@@ -91,9 +90,7 @@ export default function CheckoutPage({
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) ? '' : 'Email không đúng định dạng.';
   };
 
-  // =========================================================================
-  // TRA CỨU LỊCH SỬ KHÁCH HÀNG & CƠ CHẾ KHÔI PHỤC UY TÍN (PARDONING)
-  // =========================================================================
+  // Tra cứu lịch sử khách hàng & cơ chế khôi phục uy tín
   const customerHistory = useMemo(() => {
     if (!cleanPhone || cleanPhone.length < 9) return null;
     try {
@@ -110,17 +107,14 @@ export default function CheckoutPage({
       });
 
       if (matchedOrders.length > 0) {
-        // 1. Sắp xếp đơn từ mới nhất đến cũ nhất
         matchedOrders.sort((a, b) => parseDateForSort(b.createdAt) - parseDateForSort(a.createdAt));
 
         const latestOrder = matchedOrders[0];
         const isLatestSuccess = latestOrder && !isBadOrderStatus(latestOrder.status);
 
-        // Đơn thành công
         const validOrders = matchedOrders.filter((ord) => !isBadOrderStatus(ord.status));
         const hasSuccess = validOrders.length > 0;
 
-        // Đơn bom & đơn hủy
         const bombedOrders = matchedOrders.filter((ord) => {
           const norm = normalizeOrderStatus(ord.status);
           const raw = String(ord.status || '').toLowerCase();
@@ -134,13 +128,7 @@ export default function CheckoutPage({
           return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
         });
 
-        // =====================================================================
-        // CƠ CHẾ KHÔI PHỤC UY TÍN:
-        // Nếu đơn gần đây nhất là đơn thành công -> Khôi phục uy tín hoàn toàn!
-        // =====================================================================
         const isPardoned = isLatestSuccess && hasSuccess;
-
-        // Án phạt Bom chỉ kích hoạt nếu CHƯA được khôi phục uy tín và có đơn bom chưa được chuộc lỗi
         const activeBombedRisk = !isPardoned && (bombedOrders.length > 0);
         const activeFrequentCanceller = !isPardoned && (cancelledOrders.length >= 2);
 
@@ -177,7 +165,6 @@ export default function CheckoutPage({
     };
   }, [cleanPhone, shopConfig?.orders]);
 
-  // Điều phối thanh toán (Chỉ ép khi án phạt bom đang hiệu lực)
   useEffect(() => {
     if (customerHistory?.hasBombedHistory) {
       if (paymentMethod !== 'full_qr') setPaymentMethod('full_qr');
@@ -193,7 +180,6 @@ export default function CheckoutPage({
   const singleSuggestedVoucher = useMemo(() => {
     if (!customerHistory) return null;
     
-    // Nếu là khách đã có đơn thành công (hoặc đã được khôi phục uy tín)
     if (customerHistory.isOldCustomer) {
       if (customerHistory.canUseOldCode && !isLoyaltyCodeApplied && customerHistory.latestOrderCode) {
         const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
@@ -207,7 +193,6 @@ export default function CheckoutPage({
       return null;
     }
 
-    // Nếu chỉ có lịch sử hủy/bom hoặc là khách mới hoàn toàn
     if (!isWelcomeCodeApplied) {
       const welcomeVoucher = shopConfig?.vouchers?.find((v) => v.code === 'LAMQUEN');
       if (welcomeVoucher) {
@@ -296,6 +281,11 @@ export default function CheckoutPage({
     setTimeout(() => setPrintStage(3), 1200);
 
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
+
+    // TÁCH MÃ THẬT VÀ MÃ ĐƠN CŨ ĐỂ KHÔNG BỊ BÁO "MÃ KO HỢP LỆ"
+    const realVouchersOnly = appliedVouchers.filter(v => !v.code.startsWith('XNG'));
+    const previousOrderCodeUsed = appliedVouchers.find(v => v.code.startsWith('XNG'))?.code || '';
+
     try {
       await onSubmitOrder({
         customer,
@@ -309,7 +299,8 @@ export default function CheckoutPage({
         total: finalTotalAmount,
         rawTotal: totalAmount,
         discount: discountAmount,
-        voucherCode: appliedVouchers.map(v => v.code).join(', '),
+        voucherCode: realVouchersOnly.map(v => v.code).join(', '), // Chỉ gửi voucher thực tế
+        usedPreviousOrderCode: previousOrderCodeUsed,              // Mã đơn cũ đi riêng
         appliedVouchers: calculatedVouchers,
         cart,
       });

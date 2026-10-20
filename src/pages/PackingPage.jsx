@@ -3,10 +3,21 @@ import {
   PackageCheck, RefreshCw, Printer, 
   CheckCircle2, Lock, ArrowLeft, Banknote, 
   ShieldCheck, AlertCircle, Gift, Check, RotateCcw,
-  Layers
+  Layers, Package
 } from 'lucide-react';
+import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 
 const POLLING_INTERVAL_SECONDS = 20;
+
+// Hàm làm sạch ghi chú: lọc bỏ log hệ thống [Mã ko hợp lệ: ...], chỉ giữ lại lời dặn của khách
+function formatCustomerNote(rawNote) {
+  if (!rawNote) return '';
+  return String(rawNote)
+    .replace(/\|\s*Mã ko hợp lệ:[^\]]*/gi, '')
+    .replace(/\[Mã ko hợp lệ:[^\]]*\]\s*/gi, '')
+    .replace(/\[\s*\]/g, '')
+    .trim();
+}
 
 export default function PackingPage({ 
   orders = [], 
@@ -30,7 +41,6 @@ export default function PackingPage({
   const [isBackgroundPolling, setIsBackgroundPolling] = useState(false);
   const [countdown, setCountdown] = useState(POLLING_INTERVAL_SECONDS);
 
-  // Fallback đọc trực tiếp đơn hàng từ localStorage nếu prop orders từ App.jsx chưa cập nhật kịp
   const effectiveOrders = useMemo(() => {
     if (Array.isArray(orders) && orders.length > 0) {
       return orders;
@@ -167,7 +177,7 @@ export default function PackingPage({
       ? order.total 
       : (Number(String(order.total || '').replace(/[^0-9]/g, '')) || 0);
 
-    if (method.includes('100%') || method.includes('full')) {
+    if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
         type: 'PAID_FULL',
         collectAmount: 0,
@@ -202,19 +212,11 @@ export default function PackingPage({
     };
   };
 
+  // Lọc đơn hợp lệ vào kho
   const packableOrders = useMemo(() => {
     return effectiveOrders.filter((o) => {
-      const s = String(o.status || '').trim().toLowerCase();
-      if (s.includes('hủy') || s.includes('hoàn thành')) return false;
-
-      return (
-        s.includes('xác nhận') ||
-        s.includes('chờ đóng') ||
-        s.includes('confirmed') ||
-        s.includes('cọc') ||
-        s.includes('100%') ||
-        s === 'pending'
-      );
+      const statusCode = normalizeOrderStatus(o.status);
+      return statusCode === ORDER_STATUS.CONFIRMED || statusCode === ORDER_STATUS.PACKING;
     });
   }, [effectiveOrders]);
 
@@ -310,7 +312,6 @@ export default function PackingPage({
     return pickingSummary.filter((it) => pickedItems[it.key]).length;
   }, [pickingSummary, pickedItems]);
 
-  // HÀM TẠO NỘI DUNG HTML CỦA 1 TEM DÁN THÙNG
   const renderSingleShippingLabelHtml = (order) => {
     const collectInfo = getCollectInfo(order);
     const allItems = parseOrderItems(order);
@@ -318,6 +319,7 @@ export default function PackingPage({
     const MAX_ITEMS = 6;
     const visibleItems = allItems.slice(0, MAX_ITEMS);
     const hasMoreItems = allItems.length > MAX_ITEMS;
+    const cleanNote = formatCustomerNote(order.note);
 
     const itemsRowsHtml = visibleItems.map((it, idx) => `
       <tr style="${it.isGift ? 'background: #fffbeb;' : ''}">
@@ -388,9 +390,9 @@ export default function PackingPage({
               </div>
             ` : ''}
 
-            ${order.note ? `
+            ${cleanNote ? `
               <div class="note-box">
-                <strong>* Ghi chú khách:</strong> ${order.note}
+                <strong>* Ghi chú khách:</strong> ${cleanNote}
               </div>
             ` : ''}
           </div>
@@ -416,7 +418,6 @@ export default function PackingPage({
     `;
   };
 
-  // CORE IN SIÊU TỐC: HỖ TRỢ IN 1 ĐƠN HOẶC IN TOÀN BỘ DANH SÁCH
   const executeFastPrint = (ordersToPrint, title = 'In Tem') => {
     if (!ordersToPrint || ordersToPrint.length === 0) return;
 
@@ -452,7 +453,6 @@ export default function PackingPage({
               color: #000;
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
             }
-            /* Mỗi kiện hàng là 1 trang in riêng biệt (100x150mm) */
             .shipping-card-page {
               width: 100mm;
               height: 150mm;
@@ -650,7 +650,6 @@ export default function PackingPage({
         <body>
           ${cardsHtml}
           <script>
-            // Bật lệnh in ngay lập tức khi load xong
             window.onload = function() {
               window.focus();
               window.print();
@@ -723,7 +722,6 @@ export default function PackingPage({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* NÚT IN TOÀN BỘ TEM DANH SÁCH */}
             {packableOrders.length > 0 && (
               <button
                 type="button"
@@ -736,7 +734,6 @@ export default function PackingPage({
               </button>
             )}
 
-            {/* Nút Làm Mới */}
             <button
               type="button"
               disabled={isRefreshing}
@@ -755,7 +752,7 @@ export default function PackingPage({
           </div>
         </div>
 
-        {/* Tab Soạn hàng */}
+        {/* Tab chuyển đổi */}
         <div className="bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -791,7 +788,7 @@ export default function PackingPage({
             <div>
               <h3 className="text-sm font-black text-stone-900">Nông Sản & Quà Tặng Cần Gom</h3>
               <p className="text-xs text-stone-500">
-                Bấm vào món để đánh dấu đã gom đủ số lượng (món không bị ẩn)
+                Bấm vào món để đánh dấu đã gom đủ số lượng ngoài giàn / trong kho
               </p>
             </div>
 
@@ -869,7 +866,7 @@ export default function PackingPage({
                     <div className="text-right shrink-0">
                       <span className={`text-base font-black font-mono px-2.5 py-1 rounded-xl border transition-colors ${
                         isPicked 
-                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
                           : 'text-amber-900 bg-amber-100/90 border-amber-200'
                       }`}>
                         x{item.quantity}
@@ -892,13 +889,20 @@ export default function PackingPage({
             </div>
           ) : (
             packableOrders.map((ord) => {
+              const currentStatusCode = normalizeOrderStatus(ord.status);
+              const isPackingNow = currentStatusCode === ORDER_STATUS.PACKING;
               const collectInfo = getCollectInfo(ord);
               const items = parseOrderItems(ord);
+              const cleanNote = formatCustomerNote(ord.note);
 
               return (
                 <div 
                   key={ord.code} 
-                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs p-5 sm:p-6 space-y-4"
+                  className={`bg-white rounded-3xl border shadow-xs p-5 sm:p-6 space-y-4 transition-all ${
+                    isPackingNow 
+                      ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10' 
+                      : 'border-stone-200/90'
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
                     <div className="space-y-1.5 flex-1 min-w-0">
@@ -912,6 +916,19 @@ export default function PackingPage({
                             {ord.phone}
                           </span>
                         )}
+
+                        {isPackingNow ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-900 border-purple-300">
+                            <Package className="w-3.5 h-3.5 text-purple-700" />
+                            <span>Đang đóng gói</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-900 border-blue-300">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-700" />
+                            <span>Đã xác nhận (Chờ kho gói)</span>
+                          </span>
+                        )}
+
                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md ${collectInfo.badgeStyle}`}>
                           {collectInfo.type === 'PAID_FULL' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
                           {collectInfo.type === 'DEPOSIT_REMAINING' && <AlertCircle className="w-3.5 h-3.5 text-amber-600" />}
@@ -924,15 +941,14 @@ export default function PackingPage({
                         📍 <strong>Điểm giao / Bến xe:</strong> {ord.address}
                       </p>
 
-                      {ord.note && (
+                      {cleanNote && (
                         <p className="text-rose-700 italic text-xs">
-                          * Ghi chú khách: {ord.note}
+                          * Ghi chú khách: {cleanNote}
                         </p>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* IN 1 ĐƠN SIÊU TỐC */}
                       <button
                         type="button"
                         onClick={() => executeFastPrint([ord], `Tem_${ord.code}`)}
@@ -942,18 +958,28 @@ export default function PackingPage({
                         <span>In Tem</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => onUpdateStatus(ord.code, 'Đang giao')}
-                        className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Đã Đóng Xong</span>
-                      </button>
+                      {!isPackingNow ? (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateStatus(ord.code, 'Đang đóng gói')}
+                          className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          <Package className="w-4 h-4" />
+                          <span>Bắt Đầu Đóng</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onUpdateStatus(ord.code, 'Đang giao')}
+                          className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Đã Gói Xong ➔ Giao Xe</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Danh sách món cần bỏ vào thùng */}
                   <div className="space-y-1.5 bg-stone-50/70 p-4 rounded-2xl border border-stone-200/60">
                     <span className="text-[11px] font-extrabold uppercase text-stone-500 tracking-wider block mb-1">
                       Món cần bỏ vào thùng xốp ({items.length} món):

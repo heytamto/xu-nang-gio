@@ -1,21 +1,15 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   FileSpreadsheet, Loader2, RefreshCw, Search, X, 
-  PhoneCall, Trash2, Clock, CheckCircle2, Truck, XCircle, Check, Calendar, 
-  AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle, Zap,
-  Lock, Edit3
+  PhoneCall, Trash2, Clock, Calendar, 
+  AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
+  Lock, Edit3, CheckCircle2
 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
-
-const STATUS_ICONS = {
-  [ORDER_STATUS.PENDING]: Clock,
-  [ORDER_STATUS.CONFIRMED]: CheckCircle2,
-  [ORDER_STATUS.SHIPPING]: Truck,
-  [ORDER_STATUS.COMPLETED]: Check,
-  [ORDER_STATUS.CANCELLED]: XCircle,
-  [ORDER_STATUS.BOMBED]: AlertTriangle
-};
+import { parseCleanMoney, parseOrderTimestamp } from '../../utils/orderRiskUtils';
+import { useAdminDashboard } from '../../hooks/useAdminDashboard';
+import ConfirmModal from './ConfirmModal';
 
 const PAYMENT_LABELS = {
   deposit: 'Cọc 50.000đ',
@@ -26,64 +20,16 @@ const PAYMENT_LABELS = {
 // MA TRẬN TIẾN TRÌNH TRẠNG THÁI 1 CHIỀU (FORWARD-ONLY)
 const FORWARD_STATUS_MAP = {
   [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.SHIPPING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PACKING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.PACKING]: [ORDER_STATUS.SHIPPING, ORDER_STATUS.CANCELLED],
   [ORDER_STATUS.SHIPPING]: [ORDER_STATUS.COMPLETED, ORDER_STATUS.BOMBED, ORDER_STATUS.CANCELLED],
   [ORDER_STATUS.COMPLETED]: [],
   [ORDER_STATUS.CANCELLED]: [],
   [ORDER_STATUS.BOMBED]: []
 };
 
-function parseCleanMoney(val) {
-  if (val === null || val === undefined || val === '') return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-
-  const str = String(val).trim();
-  const cleanDigits = str.replace(/[^0-9]/g, '');
-  if (!cleanDigits) return 0;
-
-  const len = cleanDigits.length;
-  if (len >= 12 && len % 2 === 0) {
-    const half1 = cleanDigits.slice(0, len / 2);
-    const half2 = cleanDigits.slice(len / 2);
-    if (half1 === half2) {
-      return Number(half1) || 0;
-    }
-  }
-
-  const num = Number(cleanDigits);
-  return isNaN(num) ? 0 : num;
-}
-
-function parseOrderDate(dateStr) {
-  if (!dateStr) return null;
-  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
-  let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
-  if (str.includes('/')) {
-    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (match) {
-      const [, d, m, y] = match;
-      const parsed = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    }
-  }
-  const d = new Date(str);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-function parseOrderTimestamp(dateStr) {
-  const d = parseOrderDate(dateStr);
-  return d ? d.getTime() : 0;
-}
-
-function isBadStatus(statusStr) {
-  const normalized = normalizeOrderStatus(statusStr);
-  if (normalized === ORDER_STATUS.CANCELLED || normalized === ORDER_STATUS.BOMBED) return true;
-  const raw = String(statusStr || '').trim().toLowerCase();
-  return raw === 'đã hủy' || raw === 'da huy' || raw === 'cancelled' || raw === 'bom hàng' || raw === 'bom hang' || raw === 'bombed';
-}
-
 // =========================================================================
-// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG: CÔ LẬP BỘ ĐẾM 30P & TỰ ĐỘNG CHUYỂN TRẠNG THÁI
+// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG: HIỆN NGAY KÈM ĐỒNG HỒ ĐẾM NGƯỢC 30P
 // =========================================================================
 function DashboardOrderRow({
   ord,
@@ -105,18 +51,9 @@ function DashboardOrderRow({
     String(ord.paymentMethod || '').toLowerCase().includes('100%') || 
     ord.paymentMethod === 'full_qr';
 
-  const isPrepaid = useMemo(() => {
-    const method = String(ord.paymentMethod || '').toLowerCase();
-    return method.includes('100%') || method.includes('cọc') || method === 'full_qr' || method === 'deposit';
-  }, [ord.paymentMethod]);
-
   const cleanTotalNum = parseCleanMoney(ord.total);
   const formattedCreatedAt = formatDateTime(ord.createdAt, 'Vừa xong');
-  const isAutoConfirmed = Boolean(ord.note && String(ord.note).includes('[Auto-Confirm'));
 
-  const hasAutoTriggeredRef = useRef(false);
-
-  // Nhịp đếm giây độc lập cho dòng đơn Pending
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (currentStatusCode !== ORDER_STATUS.PENDING) return;
@@ -130,22 +67,6 @@ function DashboardOrderRow({
   const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
   const cancelMinutes = Math.floor(remainingMs / 60000);
   const cancelSeconds = Math.floor((remainingMs % 60000) / 1000);
-
-  // Tự động chuyển sang Đã xác nhận khi hết hạn 30 phút đổi ý
-  useEffect(() => {
-    if (
-      currentStatusCode === ORDER_STATUS.PENDING &&
-      orderTimestamp > 0 &&
-      elapsedMs >= 30 * 60 * 1000 &&
-      isPrepaid &&
-      !isBombedRisk &&
-      !isProcessing &&
-      !hasAutoTriggeredRef.current
-    ) {
-      hasAutoTriggeredRef.current = true;
-      onSelectStatus(ord, ORDER_STATUS.CONFIRMED);
-    }
-  }, [elapsedMs, currentStatusCode, orderTimestamp, isPrepaid, isBombedRisk, isProcessing, ord, onSelectStatus]);
 
   const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
   const isTerminalStatus = allowedNextStatuses.length === 0;
@@ -217,21 +138,19 @@ function DashboardOrderRow({
               </span>
             ) : null}
 
-            {isAutoConfirmed && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
-                <Zap className="w-3 h-3 text-indigo-600" />
-                <span>Tự động xác nhận</span>
-              </span>
-            )}
-
-            {isStillInCancelWindow && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/80 text-amber-950 border border-amber-300">
+            {isStillInCancelWindow ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/90 text-amber-950 border border-amber-300 shadow-2xs">
                 <Clock className="w-3 h-3 text-amber-600 animate-spin" />
                 <span>
                   Khách còn <strong>{String(cancelMinutes).padStart(2, '0')}:{String(cancelSeconds).padStart(2, '0')}</strong> đổi ý
                 </span>
               </span>
-            )}
+            ) : currentStatusCode === ORDER_STATUS.PENDING ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Đã qua 30p • Sẵn sàng duyệt</span>
+              </span>
+            ) : null}
           </div>
 
           {ord.address && (
@@ -402,11 +321,19 @@ export default function DashboardTab({
   actionLoadingCode = null,
   onShowAlert
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilterType, setDateFilterType] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING);
+  const {
+    searchQuery, setSearchQuery,
+    dateFilterType, setDateFilterType,
+    startDate,
+    endDate,
+    statusFilter, setStatusFilter,
+    handleStartDateChange,
+    handleEndDateChange,
+    filteredOrders,
+    metrics,
+    topProducts,
+    getRiskTraceDetails
+  } = useAdminDashboard(orders, depositAmount);
 
   const [pendingStatusModal, setPendingStatusModal] = useState(null);
   const [statusReason, setStatusReason] = useState('');
@@ -416,223 +343,8 @@ export default function DashboardTab({
   const [overrideTargetStatus, setOverrideTargetStatus] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
 
-  const handleStartDateChange = (val) => {
-    setStartDate(val);
-    if (val && endDate) {
-      const diffDays = Math.ceil((new Date(endDate) - new Date(val)) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) setEndDate(val);
-      else if (diffDays > 30) {
-        const maxEnd = new Date(val);
-        maxEnd.setDate(maxEnd.getDate() + 30);
-        setEndDate(maxEnd.toISOString().split('T')[0]);
-        if (onShowAlert) onShowAlert('Khoảng thời gian chọn tối đa là 30 ngày.');
-      }
-    }
-  };
-
-  const handleEndDateChange = (val) => {
-    if (!startDate && val) { setEndDate(val); return; }
-    if (startDate && val) {
-      const diffDays = Math.ceil((new Date(val) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) { if (onShowAlert) onShowAlert('Ngày kết thúc không được nhỏ hơn ngày bắt đầu.'); return; }
-      if (diffDays > 30) {
-        const maxEnd = new Date(startDate);
-        maxEnd.setDate(maxEnd.getDate() + 30);
-        setEndDate(maxEnd.toISOString().split('T')[0]);
-        if (onShowAlert) onShowAlert('Khoảng thời gian chọn tối đa là 30 ngày.');
-        return;
-      }
-    }
-    setEndDate(val);
-  };
-
-  const customerProfileByPhone = useMemo(() => {
-    const map = new Map();
-    orders.forEach((ord) => {
-      const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
-      if (cleanP.length >= 8) {
-        const key = cleanP.slice(-9);
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(ord);
-      }
-    });
-
-    const profileMap = new Map();
-    map.forEach((orderList, key) => {
-      const sorted = [...orderList].sort((a, b) => parseOrderTimestamp(b.createdAt) - parseOrderTimestamp(a.createdAt));
-      const latestOrder = sorted[0];
-      const isLatestSuccess = latestOrder && !isBadStatus(latestOrder.status);
-
-      const bombedOrders = sorted.filter(ord => {
-        const norm = normalizeOrderStatus(ord.status);
-        const raw = String(ord.status || '').toLowerCase();
-        const isPrepaid100 = String(ord.paymentMethod || '').toLowerCase().includes('100%') || ord.paymentMethod === 'full_qr';
-        return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
-      });
-
-      const cancelledOrders = sorted.filter(ord => {
-        const norm = normalizeOrderStatus(ord.status);
-        const raw = String(ord.status || '').toLowerCase();
-        return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
-      });
-
-      const validOrders = sorted.filter(ord => !isBadStatus(ord.status));
-      const isPardoned = isLatestSuccess && validOrders.length > 0 && (bombedOrders.length > 0 || cancelledOrders.length > 0);
-      const primaryBadOrder = bombedOrders[0] || cancelledOrders[0] || null;
-
-      let reason = '';
-      if (primaryBadOrder) {
-        let rawReason = primaryBadOrder.cancelReason || primaryBadOrder.reason || '';
-        if (!rawReason && primaryBadOrder.note) {
-          const matchNote = String(primaryBadOrder.note).match(/\[(BOM HÀNG\vert{}LÝ DO HỦY):\s*([^\]]+)\]/i);
-          rawReason = matchNote ? matchNote[2] : primaryBadOrder.note;
-        }
-        reason = rawReason || (primaryBadOrder.status === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');
-      }
-
-      profileMap.set(key, {
-        isPardoned,
-        hasActiveBombedRisk: !isPardoned && bombedOrders.length > 0,
-        hasActiveCancelledRisk: !isPardoned && cancelledOrders.length >= 2,
-        primaryBadOrder,
-        badOrderReason: reason
-      });
-    });
-
-    return profileMap;
-  }, [orders]);
-
-  const getRiskTraceDetails = (currentOrder) => {
-    const currentP = String(currentOrder.phone || currentOrder.customer?.phone || '').replace(/\D/g, '');
-    if (currentP.length < 8) return { hasRisk: false, isPardoned: false };
-    const profile = customerProfileByPhone.get(currentP.slice(-9));
-    if (!profile) return { hasRisk: false, isPardoned: false };
-
-    return {
-      hasRisk: profile.hasActiveBombedRisk || profile.hasActiveCancelledRisk,
-      isPardoned: profile.isPardoned,
-      isBombedRisk: profile.hasActiveBombedRisk,
-      isCancelledRisk: profile.hasActiveCancelledRisk,
-      primaryRefer: profile.primaryBadOrder ? {
-        orderCode: profile.primaryBadOrder.code,
-        statusLabel: normalizeOrderStatus(profile.primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Bom hàng' : 'Đã hủy',
-        reason: profile.badOrderReason
-      } : null
-    };
-  };
-
-  const filteredOrders = useMemo(() => {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const yesterdayStart = todayStart - 86400000;
-
-    return orders.filter((order) => {
-      const rawPhone = String(order.phone || '').replace(/\D/g, '');
-      const rawName = String(order.name || '').toLowerCase();
-      const rawCode = String(order.code || '').toLowerCase();
-      const currentStatusCode = normalizeOrderStatus(order.status);
-
-      const search = searchQuery.trim().toLowerCase();
-      const searchPhone = search.replace(/\D/g, '');
-
-      const matchSearch =
-        !search ||
-        rawCode.includes(search) ||
-        rawName.includes(search) ||
-        (searchPhone && rawPhone.includes(searchPhone));
-
-      if (!matchSearch) return false;
-      if (statusFilter !== 'all' && currentStatusCode !== statusFilter) return false;
-      if (dateFilterType === 'all') return true;
-
-      const orderDate = parseOrderDate(order.createdAt);
-      if (!orderDate) return true;
-
-      const orderTime = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()).getTime();
-      if (dateFilterType === 'today') return orderTime === todayStart;
-      if (dateFilterType === 'yesterday') return orderTime === yesterdayStart;
-      if (dateFilterType === '7days') return orderTime >= todayStart - 7 * 86400000 && orderTime <= todayStart;
-      if (dateFilterType === '30days') return orderTime >= todayStart - 30 * 86400000 && orderTime <= todayStart;
-      if (dateFilterType === 'custom') {
-        const startTimestamp = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
-        const endTimestamp = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
-        if (startTimestamp && endTimestamp) return orderTime >= startTimestamp && orderTime <= endTimestamp;
-        if (startTimestamp) return orderTime >= startTimestamp;
-        if (endTimestamp) return orderTime <= endTimestamp;
-      }
-      return true;
-    });
-  }, [orders, searchQuery, statusFilter, dateFilterType, startDate, endDate]);
-
-  const metrics = useMemo(() => {
-    const validOrders = filteredOrders.filter((o) => {
-      const st = normalizeOrderStatus(o.status);
-      return st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
-    });
-    const cancelledOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
-    const bombedOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.BOMBED);
-
-    const totalRevenue = validOrders.reduce((sum, o) => sum + parseCleanMoney(o.total), 0);
-    const totalOrders = validOrders.length;
-    const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-
-    const realReceivedMoney = validOrders.reduce((sum, o) => {
-      const st = normalizeOrderStatus(o.status);
-      const isConfirmed = st === ORDER_STATUS.CONFIRMED || st === ORDER_STATUS.SHIPPING || st === ORDER_STATUS.COMPLETED;
-      if (!isConfirmed) return sum;
-      const method = String(o.paymentMethod || '').toLowerCase();
-      const numTotal = parseCleanMoney(o.total);
-      if (method.includes('100%') || method.includes('full') || st === ORDER_STATUS.COMPLETED) return sum + numTotal;
-      if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
-      return sum;
-    }, 0);
-
-    const retainedDepositFromBombed = bombedOrders.reduce((sum, o) => {
-      const method = String(o.paymentMethod || '').toLowerCase();
-      if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
-      return sum;
-    }, 0);
-
-    const grandTotalOrders = filteredOrders.length;
-    const badOrderCount = cancelledOrders.length + bombedOrders.length;
-    const lossRate = grandTotalOrders > 0 ? Math.round((badOrderCount / grandTotalOrders) * 100) : 0;
-
-    return { 
-      totalRevenue, totalOrders, avgOrderValue, realReceivedMoney,
-      cancelledCount: cancelledOrders.length, bombedCount: bombedOrders.length,
-      retainedDeposit: retainedDepositFromBombed, lossRate
-    };
-  }, [filteredOrders, depositAmount]);
-
-  const topProducts = useMemo(() => {
-    const productStats = {};
-    const validOrders = filteredOrders.filter((o) => {
-      const st = normalizeOrderStatus(o.status);
-      return st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
-    });
-
-    validOrders.forEach((order) => {
-      if (Array.isArray(order.cart) && order.cart.length > 0) {
-        order.cart.forEach((item) => {
-          const key = item.name || 'Đặc sản';
-          if (!productStats[key]) productStats[key] = { name: key, quantity: 0 };
-          productStats[key].quantity += (Number(item.quantity) || 1);
-        });
-      } else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
-        order.itemsSummary.split(',').forEach((p) => {
-          const trimmed = p.trim();
-          if (!trimmed) return;
-          const matchQty = trimmed.match(/x(\d+)\s*$/i);
-          let qty = matchQty ? (Number(matchQty[1]) || 1) : 1;
-          let prodName = matchQty ? trimmed.replace(/x\d+\s*$/i, '').trim() : trimmed;
-          if (!productStats[prodName]) productStats[prodName] = { name: prodName, quantity: 0 };
-          productStats[prodName].quantity += qty;
-        });
-      }
-    });
-
-    return Object.values(productStats).sort((a, b) => b.quantity - a.quantity);
-  }, [filteredOrders]);
+  // State điều khiển ConfirmModal giao diện chuẩn
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 
   const handleInspectReferOrder = (code) => {
     setSearchQuery(code);
@@ -651,10 +363,30 @@ export default function DashboardTab({
       order.paymentMethod === 'full_qr';
 
     if (isFullPrepaid && normalizedTarget === ORDER_STATUS.BOMBED) {
-      const msg = 'Đơn hàng này đã thanh toán chuyển khoản 100%, không thể đánh dấu Bom hàng!';
-      if (onShowAlert) onShowAlert(msg);
-      else alert(msg);
+      setConfirmModalConfig({
+        isAlert: true,
+        title: 'Thao Tác Không Hợp Lệ',
+        message: 'Đơn hàng này đã thanh toán chuyển khoản 100%, không thể đánh dấu Bom hàng!'
+      });
       return;
+    }
+
+    const currentStatusCode = normalizeOrderStatus(order.status);
+    if (currentStatusCode === ORDER_STATUS.PENDING && normalizedTarget === ORDER_STATUS.CONFIRMED) {
+      const elapsed = Date.now() - parseOrderTimestamp(order.createdAt);
+      const isWithin30Mins = elapsed < 30 * 60 * 1000;
+
+      if (isWithin30Mins) {
+        const remainingMin = Math.ceil((30 * 60 * 1000 - elapsed) / 60000);
+        setConfirmModalConfig({
+          isAlert: false,
+          title: 'Khách Còn Thời Gian Đổi Ý',
+          message: `Khách vẫn còn khoảng ${remainingMin} phút đổi ý trên hệ thống.\n\nBạn đã kiểm tra tài khoản nhận đủ tiền cọc/chuyển khoản của khách chưa? Xác nhận duyệt đơn chuyển Kho?`,
+          confirmLabel: 'Đã nhận tiền, Duyệt',
+          onConfirm: () => onUpdateStatus(order.code, targetStatus)
+        });
+        return;
+      }
     }
 
     if (normalizedTarget === ORDER_STATUS.CANCELLED || normalizedTarget === ORDER_STATUS.BOMBED) {
@@ -666,6 +398,16 @@ export default function DashboardTab({
     }
 
     onUpdateStatus(order.code, targetStatus);
+  };
+
+  const handleDeleteWithConfirm = (code) => {
+    setConfirmModalConfig({
+      isAlert: false,
+      title: 'Xóa Đơn Hàng',
+      message: `Bạn có chắc chắn muốn xóa đơn hàng ${code} không? Dữ liệu trên Google Sheet cũng sẽ bị xóa bỏ hoàn toàn.`,
+      confirmLabel: 'Xác nhận xóa',
+      onConfirm: () => onDeleteOrder(code)
+    });
   };
 
   return (
@@ -869,7 +611,7 @@ export default function DashboardTab({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
                   className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
                 />
               </div>
@@ -879,7 +621,7 @@ export default function DashboardTab({
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => handleEndDateChange(e.target.value)}
+                  onChange={(e) => handleEndDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
                   className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
                 />
               </div>
@@ -933,7 +675,7 @@ export default function DashboardTab({
                   setOverrideTargetStatus(normalizeOrderStatus(targetOrd.status));
                   setOverrideReason('');
                 }}
-                onDeleteOrder={onDeleteOrder}
+                onDeleteOrder={handleDeleteWithConfirm}
               />
             ))
           )}
@@ -1135,6 +877,11 @@ export default function DashboardTab({
         </div>
       )}
 
+      {/* CONFIRM MODAL ĐỒNG BỘ GIAO DIỆN CHUẨN */}
+      <ConfirmModal 
+        modalConfig={confirmModalConfig} 
+        onClose={() => setConfirmModalConfig(null)} 
+      />
     </div>
   );
 }

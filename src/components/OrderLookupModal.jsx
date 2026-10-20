@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 
-// Hàm parse chuỗi ngày giờ linh hoạt (hỗ trợ dd/MM/yyyy HH:mm:ss và ISO)
 function parseOrderTimestamp(dateStr) {
   if (!dateStr) return 0;
   if (dateStr instanceof Date) return dateStr.getTime();
@@ -28,13 +27,11 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedCode, setCopiedCode] = useState('');
 
-  // State phục vụ modal xác nhận hủy đơn
   const [cancellingOrder, setCancellingOrder] = useState(null);
   const [cancelReason, setCancelReason] = useState('Đổi ý / Không còn nhu cầu');
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
   const [cancelSuccessNote, setCancelSuccessNote] = useState('');
 
-  // Tick cập nhật thời gian mỗi giây cho bộ đếm 30 phút
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -51,7 +48,6 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
   const cleanHotline = String(hotline).replace(/[^0-9]/g, '');
   const zaloPhone = String(shopConfig?.zaloPhone || cleanHotline || '0848957345').replace(/[^0-9]/g, '');
 
-  // Tính số mili-giây còn lại trong mốc 30 phút đổi ý
   const getRemainingCancelTime = (createdAtStr) => {
     const orderTime = parseOrderTimestamp(createdAtStr);
     if (!orderTime) return 0;
@@ -83,35 +79,15 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
 
   const getOrderTotalDisplay = (ord) => {
     const rawVal = ord.total ?? ord.totalAmount ?? ord.tongTien ?? ord.amount ?? ord.rawTotal;
-    
     if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
-      if (typeof rawVal === 'number' && rawVal > 0) {
-        return `${rawVal.toLocaleString('vi-VN')} đ`;
-      }
+      if (typeof rawVal === 'number' && rawVal > 0) return `${rawVal.toLocaleString('vi-VN')} đ`;
       const cleanNum = Number(String(rawVal).replace(/[^0-9]/g, ''));
-      if (!isNaN(cleanNum) && cleanNum > 0) {
-        return `${cleanNum.toLocaleString('vi-VN')} đ`;
-      }
+      if (!isNaN(cleanNum) && cleanNum > 0) return `${cleanNum.toLocaleString('vi-VN')} đ`;
     }
-
     if (Array.isArray(ord.cart) && ord.cart.length > 0) {
       const calc = ord.cart.reduce((sum, it) => sum + ((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
       if (calc > 0) return `${calc.toLocaleString('vi-VN')} đ`;
     }
-
-    if (ord.itemsSummary) {
-      const matches = [...String(ord.itemsSummary).matchAll(/([0-9.]+)\s*đ?\s*x\s*(\d+)/gi)];
-      if (matches.length > 0) {
-        let sum = 0;
-        matches.forEach(m => {
-          const price = Number(m[1].replace(/\./g, '')) || 0;
-          const qty = Number(m[2]) || 1;
-          sum += price * qty;
-        });
-        if (sum > 0) return `${sum.toLocaleString('vi-VN')} đ`;
-      }
-    }
-
     return 'Liên hệ nhà vườn';
   };
 
@@ -128,6 +104,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
     }
   };
 
+  // Tra cứu thông tin: Ưu tiên dữ liệu Google Sheet đè lên LocalStorage
   const handleLookup = async (e) => {
     if (e) e.preventDefault();
     setErrorMessage('');
@@ -150,24 +127,22 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
     setLoading(true);
     let matchedList = [];
 
-    // 1. Kiểm tra trong LocalStorage
+    // 1. Đọc tạm từ LocalStorage
     try {
       const localOrders = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-      const localMatches = localOrders.filter(ord => {
+      matchedList = localOrders.filter(ord => {
         const ordCode = String(ord.code || '').trim().toLowerCase();
         const ordPhone = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
-        
         if (isPhoneSearch && ordPhone) {
           return ordPhone.endsWith(cleanDigits.slice(-8)) || cleanDigits.endsWith(ordPhone.slice(-8));
         }
         return ordCode.includes(rawVal.toLowerCase());
       });
-      matchedList = [...localMatches];
     } catch (err) {
       console.warn("Lỗi đọc local:", err);
     }
 
-    // 2. Tra cứu trực tiếp trên Google Sheet Webhook
+    // 2. Tra cứu trực tiếp trên Google Sheet Webhook (Dữ liệu chuẩn xác nhất)
     try {
       const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
       if (webhookUrl) {
@@ -176,9 +151,21 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
         
         if (data.status === 'success' && Array.isArray(data.orders)) {
           const orderMap = new Map();
-          data.orders.forEach(o => { if (o && o.code) orderMap.set(o.code, o); });
+          // Đưa local vào trước
           matchedList.forEach(o => { if (o && o.code) orderMap.set(o.code, o); });
+          // Đưa dữ liệu Sheet vào sau để ghi đè trạng thái mới nhất từ server
+          data.orders.forEach(o => { if (o && o.code) orderMap.set(o.code, o); });
+          
           matchedList = Array.from(orderMap.values());
+          // Đồng bộ ngược lại LocalStorage để lần sau không bị lệch
+          try {
+            const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
+            const localUpdated = local.map(loc => {
+              const fromSheet = orderMap.get(loc.code);
+              return fromSheet ? { ...loc, ...fromSheet } : loc;
+            });
+            localStorage.setItem('shop_orders', JSON.stringify(localUpdated));
+          } catch (_) {}
         }
       }
     } catch (err) {
@@ -192,11 +179,10 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
     }
   };
 
-  // Xử lý gửi yêu cầu hủy đơn
+  // Xử lý gửi yêu cầu hủy đơn an toàn không bị CORS
   const handleConfirmCancelOrder = async () => {
     if (!cancellingOrder) return;
 
-    // Kiểm tra chặn nếu quá 30 phút
     const remainingMs = getRemainingCancelTime(cancellingOrder.createdAt);
     if (remainingMs <= 0) {
       alert("Đã qua thời gian 30 phút đổi ý, đơn hàng đã được lên lịch cắt giàn đóng thùng. Vui lòng liên hệ trực tiếp hotline để được hỗ trợ!");
@@ -205,7 +191,6 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
     }
 
     setIsSubmittingCancel(true);
-
     const orderCode = cancellingOrder.code;
     const isPrepaid = 
       cancellingOrder.paymentMethod === 'deposit' || 
@@ -213,7 +198,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
       String(cancellingOrder.paymentMethod || '').toLowerCase().includes('cọc') ||
       String(cancellingOrder.paymentMethod || '').toLowerCase().includes('100%');
 
-    // 1. Cập nhật state nội bộ
+    // 1. Cập nhật state UI ngay lập tức
     setOrders((prev) => 
       (prev || []).map(o => o.code === orderCode ? { ...o, status: 'Đã hủy' } : o)
     );
@@ -227,19 +212,12 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
       console.error(e);
     }
 
-    // 3. Gọi Webhook cập nhật lên Sheet
+    // 3. Gửi Webhook dạng GET hoặc URL param để tránh triệt để lỗi CORS của Google Apps Script
     const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
     if (webhookUrl) {
       try {
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'customer_cancel_order',
-            code: orderCode,
-            reason: cancelReason
-          })
-        });
+        const fullUrl = `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}action=customer_cancel_order&code=${encodeURIComponent(orderCode)}&reason=${encodeURIComponent(cancelReason)}`;
+        await fetch(fullUrl, { method: 'GET', mode: 'no-cors' });
       } catch (err) {
         console.warn('Lỗi ghi nhận hủy đơn lên Sheet:', err);
       }
@@ -369,7 +347,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
             const statusCode = normalizeOrderStatus(ord.status);
             const statusMeta = ORDER_STATUS_MAP[statusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
             
-            // ĐIỀU KIỆN ĐƯỢC ĐỔI Ý HỦY ĐƠN: Đang "Chờ xác nhận" VÀ Còn trong 30 phút
+            // Điều kiện hủy đơn: Đang "Chờ xác nhận" VÀ Còn trong 30 phút
             const remainingCancelMs = getRemainingCancelTime(ord.createdAt);
             const isWithin30Mins = remainingCancelMs > 0;
             const canCancelDirectly = statusCode === ORDER_STATUS.PENDING && isWithin30Mins;
@@ -471,7 +449,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
                   </span>
                 </div>
 
-                {/* KHU VỰC THAO TÁC / HỦY ĐƠN: 30 PHÚT ĐỔI Ý */}
+                {/* Khu vực trạng thái & nút hủy 30 phút */}
                 <div className="pt-2 border-t border-stone-200/60 flex items-center justify-between gap-2">
                   {canCancelDirectly ? (
                     <div className="flex items-center justify-between w-full gap-2">
@@ -490,7 +468,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
                         }}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-all active:scale-95 cursor-pointer shadow-2xs"
                       >
-                        <Ban className="w-3 h-3" />
+                        <Ban className="w-3 1-3" />
                         <span>Hủy đơn</span>
                       </button>
                     </div>
@@ -552,7 +530,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
           </div>
         </div>
 
-        {/* MODAL POPUP XÁC NHẬN HỦY ĐƠN HÀNG */}
+        {/* Modal Popup xác nhận hủy đơn hàng */}
         {cancellingOrder && (
           <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-xs rounded-3xl p-5 flex flex-col justify-center items-center z-20 animate-fadeIn text-stone-900">
             <div className="bg-white rounded-2xl p-5 w-full max-w-sm border border-stone-200 shadow-2xl space-y-4">
