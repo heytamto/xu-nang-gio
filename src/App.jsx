@@ -254,7 +254,6 @@ export default function App() {
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
     const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
 
-    // Tính tổng số lượng món này sẽ có trong giỏ
     const existingItem = cart.find((item) => item.id === cartItemId);
     const currentQtyInCart = existingItem ? existingItem.quantity : 0;
     const newTotalQuantity = currentQtyInCart + quantity;
@@ -352,6 +351,7 @@ export default function App() {
       rawTotal: orderData.rawTotal || totalAmount,
       discount: orderData.discount || 0,
       voucherCode: orderData.voucherCode || '',
+      status: 'Chờ xác nhận',
       cart: cart.map((item) => ({
         productId: item.productId,
         weightId: item.weightId || 'std',

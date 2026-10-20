@@ -1,17 +1,20 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   FileSpreadsheet, Loader2, RefreshCw, Search, X, 
-  PhoneCall, Trash2, Clock, CheckCircle2, Truck, XCircle, Check, Calendar
+  PhoneCall, Trash2, Clock, CheckCircle2, Truck, XCircle, Check, Calendar, 
+  AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle, Zap,
+  Lock, Edit3
 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
+import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
 
-// Chuẩn hóa bộ trạng thái tinh gọn theo đúng luồng vận hành
-const STATUS_CONFIG = {
-  'Chờ xác nhận': { bg: 'bg-amber-50 text-amber-800 border-amber-200', icon: Clock },
-  'Đã xác nhận': { bg: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle2 },
-  'Đang giao': { bg: 'bg-indigo-50 text-indigo-800 border-indigo-200', icon: Truck },
-  'Hoàn thành': { bg: 'bg-stone-100 text-stone-800 border-stone-200', icon: Check },
-  'Đã hủy': { bg: 'bg-rose-50 text-rose-700 border-rose-200', icon: XCircle }
+const STATUS_ICONS = {
+  [ORDER_STATUS.PENDING]: Clock,
+  [ORDER_STATUS.CONFIRMED]: CheckCircle2,
+  [ORDER_STATUS.SHIPPING]: Truck,
+  [ORDER_STATUS.COMPLETED]: Check,
+  [ORDER_STATUS.CANCELLED]: XCircle,
+  [ORDER_STATUS.BOMBED]: AlertTriangle
 };
 
 const PAYMENT_LABELS = {
@@ -20,18 +23,24 @@ const PAYMENT_LABELS = {
   cod: 'COD (Trả sau)'
 };
 
-// Hàm bóc tách số tiền an toàn, chống lỗi lặp chuỗi (e.g. 82.800.008.200.000đ)
+// MA TRẬN TIẾN TRÌNH TRẠNG THÁI 1 CHIỀU (FORWARD-ONLY)
+const FORWARD_STATUS_MAP = {
+  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.SHIPPING, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.SHIPPING]: [ORDER_STATUS.COMPLETED, ORDER_STATUS.BOMBED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.COMPLETED]: [],
+  [ORDER_STATUS.CANCELLED]: [],
+  [ORDER_STATUS.BOMBED]: []
+};
+
 function parseCleanMoney(val) {
   if (val === null || val === undefined || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
 
   const str = String(val).trim();
-  // Nếu chuỗi chứa dấu phân cách hàng ngàn dạng VN (8.200.000)
-  // Loại bỏ chữ 'đ', khoảng trắng và dấu chấm/phẩy ngăn cách
   const cleanDigits = str.replace(/[^0-9]/g, '');
   if (!cleanDigits) return 0;
 
-  // Nếu chuỗi bị lặp đôi đối xứng do lỗi ghép chuỗi (ví dụ: "82000008200000")
   const len = cleanDigits.length;
   if (len >= 12 && len % 2 === 0) {
     const half1 = cleanDigits.slice(0, len / 2);
@@ -45,6 +54,344 @@ function parseCleanMoney(val) {
   return isNaN(num) ? 0 : num;
 }
 
+function parseOrderDate(dateStr) {
+  if (!dateStr) return null;
+  if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+  let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
+  if (str.includes('/')) {
+    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (match) {
+      const [, d, m, y] = match;
+      const parsed = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseOrderTimestamp(dateStr) {
+  const d = parseOrderDate(dateStr);
+  return d ? d.getTime() : 0;
+}
+
+function isBadStatus(statusStr) {
+  const normalized = normalizeOrderStatus(statusStr);
+  if (normalized === ORDER_STATUS.CANCELLED || normalized === ORDER_STATUS.BOMBED) return true;
+  const raw = String(statusStr || '').trim().toLowerCase();
+  return raw === 'đã hủy' || raw === 'da huy' || raw === 'cancelled' || raw === 'bom hàng' || raw === 'bom hang' || raw === 'bombed';
+}
+
+// =========================================================================
+// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG: CÔ LẬP BỘ ĐẾM 30P & TỰ ĐỘNG CHUYỂN TRẠNG THÁI
+// =========================================================================
+function DashboardOrderRow({
+  ord,
+  riskTrace,
+  isInspectingRefer,
+  isProcessing,
+  onSelectStatus,
+  onInspectRefer,
+  onOpenOverride,
+  onDeleteOrder
+}) {
+  const currentStatusCode = normalizeOrderStatus(ord.status);
+  const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
+  const displayPayment = PAYMENT_LABELS[ord.paymentMethod] || ord.paymentMethod || 'Chưa chọn';
+
+  const { hasRisk, isPardoned, isBombedRisk, isCancelledRisk, primaryRefer } = riskTrace;
+
+  const isFullPrepaid = 
+    String(ord.paymentMethod || '').toLowerCase().includes('100%') || 
+    ord.paymentMethod === 'full_qr';
+
+  const isPrepaid = useMemo(() => {
+    const method = String(ord.paymentMethod || '').toLowerCase();
+    return method.includes('100%') || method.includes('cọc') || method === 'full_qr' || method === 'deposit';
+  }, [ord.paymentMethod]);
+
+  const cleanTotalNum = parseCleanMoney(ord.total);
+  const formattedCreatedAt = formatDateTime(ord.createdAt, 'Vừa xong');
+  const isAutoConfirmed = Boolean(ord.note && String(ord.note).includes('[Auto-Confirm'));
+
+  const hasAutoTriggeredRef = useRef(false);
+
+  // Nhịp đếm giây độc lập cho dòng đơn Pending
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (currentStatusCode !== ORDER_STATUS.PENDING) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [currentStatusCode]);
+
+  const orderTimestamp = parseOrderTimestamp(ord.createdAt);
+  const elapsedMs = orderTimestamp ? (now - orderTimestamp) : 0;
+  const remainingMs = Math.max(0, 30 * 60 * 1000 - elapsedMs);
+  const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
+  const cancelMinutes = Math.floor(remainingMs / 60000);
+  const cancelSeconds = Math.floor((remainingMs % 60000) / 1000);
+
+  // Tự động chuyển sang Đã xác nhận khi hết hạn 30 phút đổi ý
+  useEffect(() => {
+    if (
+      currentStatusCode === ORDER_STATUS.PENDING &&
+      orderTimestamp > 0 &&
+      elapsedMs >= 30 * 60 * 1000 &&
+      isPrepaid &&
+      !isBombedRisk &&
+      !isProcessing &&
+      !hasAutoTriggeredRef.current
+    ) {
+      hasAutoTriggeredRef.current = true;
+      onSelectStatus(ord, ORDER_STATUS.CONFIRMED);
+    }
+  }, [elapsedMs, currentStatusCode, orderTimestamp, isPrepaid, isBombedRisk, isProcessing, ord, onSelectStatus]);
+
+  const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
+  const isTerminalStatus = allowedNextStatuses.length === 0;
+  const isLockedStatus = isInspectingRefer || isTerminalStatus;
+
+  return (
+    <div 
+      className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs ${
+        isBombedRisk 
+          ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-400 shadow-2xs' 
+          : isCancelledRisk
+            ? 'bg-amber-50/50 border-amber-200 ring-1 ring-amber-300'
+            : isPardoned
+              ? 'bg-emerald-50/30 border-emerald-200/80'
+              : 'bg-white border-transparent'
+      }`}
+    >
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1.5 flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
+              {ord.code}
+            </span>
+            <strong className="text-stone-900 text-sm">{ord.name}</strong>
+            
+            {ord.phone && (
+              <a
+                href={`tel:${ord.phone}`}
+                className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
+                  isBombedRisk
+                    ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-2xs'
+                    : isCancelledRisk
+                      ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                      : isPardoned
+                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                        : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
+                }`}
+                title={isBombedRisk ? '⚠️ Khách đang bị treo án bom đơn gần nhất!' : isPardoned ? '✨ Khách từng có đơn xấu nhưng đã khôi phục uy tín thành công' : ''}
+              >
+                <PhoneCall className={`w-3 h-3 ${isBombedRisk || isCancelledRisk ? 'text-white' : 'text-stone-700'}`} />
+                <span>{ord.phone}</span>
+                {isBombedRisk && (
+                  <span className="text-[9px] bg-white text-red-700 px-1 rounded font-black ml-0.5">
+                    ĐANG TREO BOM
+                  </span>
+                )}
+              </a>
+            )}
+
+            <span className="text-[10.5px] text-stone-400 font-mono inline-flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-stone-400" />
+              <span>({formattedCreatedAt})</span>
+            </span>
+
+            {isBombedRisk ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
+                <ShieldAlert className="w-3 h-3 text-red-700" />
+                <span>Khách rủi ro cao</span>
+              </span>
+            ) : isPardoned ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                <CheckCircle className="w-3 h-3 text-emerald-700" />
+                <span>Đã khôi phục uy tín</span>
+              </span>
+            ) : isCancelledRisk ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <History className="w-3 h-3 text-amber-700" />
+                <span>Từng hủy nhiều lần</span>
+              </span>
+            ) : null}
+
+            {isAutoConfirmed && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-300">
+                <Zap className="w-3 h-3 text-indigo-600" />
+                <span>Tự động xác nhận</span>
+              </span>
+            )}
+
+            {isStillInCancelWindow && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/80 text-amber-950 border border-amber-300">
+                <Clock className="w-3 h-3 text-amber-600 animate-spin" />
+                <span>
+                  Khách còn <strong>{String(cancelMinutes).padStart(2, '0')}:{String(cancelSeconds).padStart(2, '0')}</strong> đổi ý
+                </span>
+              </span>
+            )}
+          </div>
+
+          {ord.address && (
+            <p className={`text-[11px] line-clamp-1 p-1 rounded-md transition-colors ${
+              isBombedRisk
+                ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block'
+                : isCancelledRisk
+                  ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300 inline-block'
+                  : 'text-stone-600'
+            }`}>
+              📍 <strong>Giao đến:</strong> {ord.address}
+            </p>
+          )}
+
+          {ord.itemsSummary && (
+            <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
+              🛍️ {ord.itemsSummary}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0">
+          <div className="text-left md:text-right">
+            <span className="font-mono font-black text-stone-900 text-sm block">
+              {cleanTotalNum.toLocaleString('vi-VN')}đ
+            </span>
+            <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+              {displayPayment}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {isLockedStatus ? (
+              <div className="flex items-center gap-1">
+                <div 
+                  className={`text-[11px] font-bold px-3 py-1.5 rounded-xl border flex items-center gap-1.5 select-none ${statusMeta.bg}`}
+                  title={isInspectingRefer ? "Đang xem chi tiết đơn gốc: Khóa sửa đổi" : "Đơn hàng đã kết thúc: Khóa tiến trình 1 chiều"}
+                >
+                  <span>{statusMeta.label}</span>
+                  <Lock className="w-3 h-3 text-stone-400 shrink-0" />
+                </div>
+
+                {!isInspectingRefer && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenOverride(ord)}
+                    className="p-1.5 text-stone-400 hover:text-amber-700 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+                    title="Đính chính lại trạng thái (Khi nhân viên bấm nhầm)"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <select
+                disabled={isProcessing}
+                value={currentStatusCode}
+                onChange={(e) => onSelectStatus(ord, e.target.value)}
+                className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
+              >
+                <option value={currentStatusCode}>
+                  {statusMeta.label}
+                </option>
+                {allowedNextStatuses.map((nextStatusCode) => {
+                  if (isFullPrepaid && nextStatusCode === ORDER_STATUS.BOMBED) return null;
+                  const nextMeta = ORDER_STATUS_MAP[nextStatusCode];
+                  return (
+                    <option key={nextStatusCode} value={nextStatusCode}>
+                      ➔ {nextMeta?.label || nextStatusCode}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+
+            {!isInspectingRefer && (
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={() => onDeleteOrder(ord.code)}
+                className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                title="Xóa đơn hàng"
+              >
+                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin text-amber-600" /> : <Trash2 className="w-4 h-4" />}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {(hasRisk || isPardoned) && primaryRefer && (
+        <div className={`p-2.5 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+          isBombedRisk 
+            ? 'bg-white border-red-200 text-red-950' 
+            : isPardoned
+              ? 'bg-white border-emerald-200 text-emerald-950'
+              : 'bg-white border-amber-200 text-amber-950'
+        }`}>
+          <div className="space-y-1 flex-1">
+            <div className="flex items-center gap-1.5 font-bold">
+              <History className={`w-3.5 h-3.5 ${isBombedRisk ? 'text-red-600' : isPardoned ? 'text-emerald-600' : 'text-amber-600'}`} />
+              <span>Tham chiếu đơn cũ:</span>
+              <button
+                type="button"
+                onClick={() => onInspectRefer(primaryRefer.orderCode)}
+                className="font-mono font-black text-amber-900 bg-amber-100 hover:bg-amber-200 px-1.5 py-0.2 rounded underline inline-flex items-center gap-0.5 cursor-pointer"
+                title="Bấm để xem ngay đơn gốc này"
+              >
+                <span>{primaryRefer.orderCode}</span>
+                <ArrowUpRight className="w-3 h-3" />
+              </button>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
+                primaryRefer.statusLabel === 'Bom hàng' ? 'bg-red-600 text-white' : 'bg-amber-100 text-amber-900'
+              }`}>
+                {primaryRefer.statusLabel}
+              </span>
+            </div>
+
+            <p className="text-[11px] leading-relaxed text-stone-600">
+              📌 <strong>Lý do đơn cũ:</strong>{' '}
+              <span className="italic text-stone-800">
+                "{primaryRefer.reason || 'Không có ghi chú chi tiết'}"
+              </span>
+            </p>
+          </div>
+
+          <div className={`p-2 rounded-lg text-[10.5px] leading-tight font-medium max-w-sm shrink-0 border ${
+            isBombedRisk 
+              ? 'bg-rose-50 border-rose-200 text-rose-900' 
+              : isPardoned
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                : 'bg-amber-50 border-amber-200 text-amber-900'
+          }`}>
+            <div className="flex items-center gap-1 font-bold mb-0.5 uppercase tracking-wide">
+              <Info className="w-3 h-3" />
+              <span>Cơ chế ứng xử đề xuất:</span>
+            </div>
+            {isBombedRisk ? (
+              <span>
+                Đơn gần nhất bị bom. <strong>Tuyệt đối không gửi COD</strong>. Chỉ bấm duyệt chuyển Kho khi khách đã <strong>Chuyển khoản 100%</strong>.
+              </span>
+            ) : isPardoned ? (
+              <span>
+                Khách từng có đơn cũ bị sự cố nhưng <strong>đơn gần nhất đã nhận hàng thành công</strong>. Uy tín đã khôi phục, chăm sóc chu đáo như khách quen.
+              </span>
+            ) : (
+              <span>
+                Khách từng báo hủy trước đó. Vẫn hỗ trợ chu đáo, <strong>gọi điện chốt kỹ điểm đón và giờ xe</strong> trước khi bấm duyệt.
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// COMPONENT CHÍNH DASHBOARD TAB
+// =========================================================================
 export default function DashboardTab({
   orders = [],
   isLoading = false,
@@ -59,35 +406,22 @@ export default function DashboardTab({
   const [dateFilterType, setDateFilterType] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(ORDER_STATUS.PENDING);
 
-  // Chuẩn hóa parse ngày đa định dạng
-  const parseOrderDate = (dateStr) => {
-    if (!dateStr) return null;
-    if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
-    
-    let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
+  const [pendingStatusModal, setPendingStatusModal] = useState(null);
+  const [statusReason, setStatusReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
 
-    if (str.includes('/')) {
-      const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-      if (match) {
-        const [, d, m, y] = match;
-        const parsed = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00`);
-        return isNaN(parsed.getTime()) ? null : parsed;
-      }
-    }
-
-    const d = new Date(str);
-    return isNaN(d.getTime()) ? null : d;
-  };
+  const [overrideModal, setOverrideModal] = useState(null);
+  const [overrideTargetStatus, setOverrideTargetStatus] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
 
   const handleStartDateChange = (val) => {
     setStartDate(val);
     if (val && endDate) {
       const diffDays = Math.ceil((new Date(endDate) - new Date(val)) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) {
-        setEndDate(val);
-      } else if (diffDays > 30) {
+      if (diffDays < 0) setEndDate(val);
+      else if (diffDays > 30) {
         const maxEnd = new Date(val);
         maxEnd.setDate(maxEnd.getDate() + 30);
         setEndDate(maxEnd.toISOString().split('T')[0]);
@@ -97,16 +431,10 @@ export default function DashboardTab({
   };
 
   const handleEndDateChange = (val) => {
-    if (!startDate && val) {
-      setEndDate(val);
-      return;
-    }
+    if (!startDate && val) { setEndDate(val); return; }
     if (startDate && val) {
       const diffDays = Math.ceil((new Date(val) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-      if (diffDays < 0) {
-        if (onShowAlert) onShowAlert('Ngày kết thúc không được nhỏ hơn ngày bắt đầu.');
-        return;
-      }
+      if (diffDays < 0) { if (onShowAlert) onShowAlert('Ngày kết thúc không được nhỏ hơn ngày bắt đầu.'); return; }
       if (diffDays > 30) {
         const maxEnd = new Date(startDate);
         maxEnd.setDate(maxEnd.getDate() + 30);
@@ -118,6 +446,81 @@ export default function DashboardTab({
     setEndDate(val);
   };
 
+  const customerProfileByPhone = useMemo(() => {
+    const map = new Map();
+    orders.forEach((ord) => {
+      const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
+      if (cleanP.length >= 8) {
+        const key = cleanP.slice(-9);
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(ord);
+      }
+    });
+
+    const profileMap = new Map();
+    map.forEach((orderList, key) => {
+      const sorted = [...orderList].sort((a, b) => parseOrderTimestamp(b.createdAt) - parseOrderTimestamp(a.createdAt));
+      const latestOrder = sorted[0];
+      const isLatestSuccess = latestOrder && !isBadStatus(latestOrder.status);
+
+      const bombedOrders = sorted.filter(ord => {
+        const norm = normalizeOrderStatus(ord.status);
+        const raw = String(ord.status || '').toLowerCase();
+        const isPrepaid100 = String(ord.paymentMethod || '').toLowerCase().includes('100%') || ord.paymentMethod === 'full_qr';
+        return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
+      });
+
+      const cancelledOrders = sorted.filter(ord => {
+        const norm = normalizeOrderStatus(ord.status);
+        const raw = String(ord.status || '').toLowerCase();
+        return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
+      });
+
+      const validOrders = sorted.filter(ord => !isBadStatus(ord.status));
+      const isPardoned = isLatestSuccess && validOrders.length > 0 && (bombedOrders.length > 0 || cancelledOrders.length > 0);
+      const primaryBadOrder = bombedOrders[0] || cancelledOrders[0] || null;
+
+      let reason = '';
+      if (primaryBadOrder) {
+        let rawReason = primaryBadOrder.cancelReason || primaryBadOrder.reason || '';
+        if (!rawReason && primaryBadOrder.note) {
+          const matchNote = String(primaryBadOrder.note).match(/\[(BOM HÀNG\vert{}LÝ DO HỦY):\s*([^\]]+)\]/i);
+          rawReason = matchNote ? matchNote[2] : primaryBadOrder.note;
+        }
+        reason = rawReason || (primaryBadOrder.status === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');
+      }
+
+      profileMap.set(key, {
+        isPardoned,
+        hasActiveBombedRisk: !isPardoned && bombedOrders.length > 0,
+        hasActiveCancelledRisk: !isPardoned && cancelledOrders.length >= 2,
+        primaryBadOrder,
+        badOrderReason: reason
+      });
+    });
+
+    return profileMap;
+  }, [orders]);
+
+  const getRiskTraceDetails = (currentOrder) => {
+    const currentP = String(currentOrder.phone || currentOrder.customer?.phone || '').replace(/\D/g, '');
+    if (currentP.length < 8) return { hasRisk: false, isPardoned: false };
+    const profile = customerProfileByPhone.get(currentP.slice(-9));
+    if (!profile) return { hasRisk: false, isPardoned: false };
+
+    return {
+      hasRisk: profile.hasActiveBombedRisk || profile.hasActiveCancelledRisk,
+      isPardoned: profile.isPardoned,
+      isBombedRisk: profile.hasActiveBombedRisk,
+      isCancelledRisk: profile.hasActiveCancelledRisk,
+      primaryRefer: profile.primaryBadOrder ? {
+        orderCode: profile.primaryBadOrder.code,
+        statusLabel: normalizeOrderStatus(profile.primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Bom hàng' : 'Đã hủy',
+        reason: profile.badOrderReason
+      } : null
+    };
+  };
+
   const filteredOrders = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -127,7 +530,7 @@ export default function DashboardTab({
       const rawPhone = String(order.phone || '').replace(/\D/g, '');
       const rawName = String(order.name || '').toLowerCase();
       const rawCode = String(order.code || '').toLowerCase();
-      const currentStatus = order.status || 'Chờ xác nhận';
+      const currentStatusCode = normalizeOrderStatus(order.status);
 
       const search = searchQuery.trim().toLowerCase();
       const searchPhone = search.replace(/\D/g, '');
@@ -139,14 +542,13 @@ export default function DashboardTab({
         (searchPhone && rawPhone.includes(searchPhone));
 
       if (!matchSearch) return false;
-      if (statusFilter !== 'all' && currentStatus !== statusFilter) return false;
+      if (statusFilter !== 'all' && currentStatusCode !== statusFilter) return false;
       if (dateFilterType === 'all') return true;
 
       const orderDate = parseOrderDate(order.createdAt);
       if (!orderDate) return true;
 
       const orderTime = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()).getTime();
-
       if (dateFilterType === 'today') return orderTime === todayStart;
       if (dateFilterType === 'yesterday') return orderTime === yesterdayStart;
       if (dateFilterType === '7days') return orderTime >= todayStart - 7 * 86400000 && orderTime <= todayStart;
@@ -163,35 +565,51 @@ export default function DashboardTab({
   }, [orders, searchQuery, statusFilter, dateFilterType, startDate, endDate]);
 
   const metrics = useMemo(() => {
-    const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
+    const validOrders = filteredOrders.filter((o) => {
+      const st = normalizeOrderStatus(o.status);
+      return st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
+    });
+    const cancelledOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
+    const bombedOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.BOMBED);
+
     const totalRevenue = validOrders.reduce((sum, o) => sum + parseCleanMoney(o.total), 0);
     const totalOrders = validOrders.length;
     const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
-    // Tiền thực nhận chuẩn hóa
     const realReceivedMoney = validOrders.reduce((sum, o) => {
-      const st = String(o.status || '').toLowerCase();
-      const isConfirmed = st.includes('xác nhận') || st.includes('giao') || st.includes('hoàn thành');
+      const st = normalizeOrderStatus(o.status);
+      const isConfirmed = st === ORDER_STATUS.CONFIRMED || st === ORDER_STATUS.SHIPPING || st === ORDER_STATUS.COMPLETED;
       if (!isConfirmed) return sum;
-
       const method = String(o.paymentMethod || '').toLowerCase();
       const numTotal = parseCleanMoney(o.total);
-
-      if (method.includes('100%') || method.includes('full') || st.includes('hoàn thành')) {
-        return sum + numTotal;
-      }
-      if (method.includes('cọc') || method.includes('deposit')) {
-        return sum + (Number(depositAmount) || 50000);
-      }
+      if (method.includes('100%') || method.includes('full') || st === ORDER_STATUS.COMPLETED) return sum + numTotal;
+      if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
       return sum;
     }, 0);
 
-    return { totalRevenue, totalOrders, avgOrderValue, realReceivedMoney };
+    const retainedDepositFromBombed = bombedOrders.reduce((sum, o) => {
+      const method = String(o.paymentMethod || '').toLowerCase();
+      if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
+      return sum;
+    }, 0);
+
+    const grandTotalOrders = filteredOrders.length;
+    const badOrderCount = cancelledOrders.length + bombedOrders.length;
+    const lossRate = grandTotalOrders > 0 ? Math.round((badOrderCount / grandTotalOrders) * 100) : 0;
+
+    return { 
+      totalRevenue, totalOrders, avgOrderValue, realReceivedMoney,
+      cancelledCount: cancelledOrders.length, bombedCount: bombedOrders.length,
+      retainedDeposit: retainedDepositFromBombed, lossRate
+    };
   }, [filteredOrders, depositAmount]);
 
   const topProducts = useMemo(() => {
     const productStats = {};
-    const validOrders = filteredOrders.filter(o => o.status !== 'Đã hủy');
+    const validOrders = filteredOrders.filter((o) => {
+      const st = normalizeOrderStatus(o.status);
+      return st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
+    });
 
     validOrders.forEach((order) => {
       if (Array.isArray(order.cart) && order.cart.length > 0) {
@@ -215,6 +633,40 @@ export default function DashboardTab({
 
     return Object.values(productStats).sort((a, b) => b.quantity - a.quantity);
   }, [filteredOrders]);
+
+  const handleInspectReferOrder = (code) => {
+    setSearchQuery(code);
+    setStatusFilter('all');
+    setDateFilterType('all');
+  };
+
+  const isInspectingRefer = Boolean(
+    searchQuery.trim().toUpperCase().startsWith('XNG') && statusFilter === 'all'
+  );
+
+  const handleSelectStatus = (order, targetStatus) => {
+    const normalizedTarget = normalizeOrderStatus(targetStatus);
+    const isFullPrepaid = 
+      String(order.paymentMethod || '').toLowerCase().includes('100%') || 
+      order.paymentMethod === 'full_qr';
+
+    if (isFullPrepaid && normalizedTarget === ORDER_STATUS.BOMBED) {
+      const msg = 'Đơn hàng này đã thanh toán chuyển khoản 100%, không thể đánh dấu Bom hàng!';
+      if (onShowAlert) onShowAlert(msg);
+      else alert(msg);
+      return;
+    }
+
+    if (normalizedTarget === ORDER_STATUS.CANCELLED || normalizedTarget === ORDER_STATUS.BOMBED) {
+      const isBombed = normalizedTarget === ORDER_STATUS.BOMBED;
+      setPendingStatusModal({ order, targetStatus: isBombed ? 'Bom hàng' : 'Đã hủy', isBombed });
+      setStatusReason(isBombed ? 'Thuê bao không liên lạc được / Chặn số' : 'Khách báo bận / Đổi ý trước khi cắt giàn');
+      setCustomReason('');
+      return;
+    }
+
+    onUpdateStatus(order.code, targetStatus);
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans">
@@ -242,14 +694,14 @@ export default function DashboardTab({
         </button>
       </div>
 
-      {/* 4 Chỉ số KPI */}
+      {/* 4 Chỉ số KPI Chuẩn */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
           <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
             {metrics.totalRevenue.toLocaleString('vi-VN')}đ
           </p>
-          <span className="text-[10px] text-stone-400 block pt-0.5">Tổng giá trị đơn gửi</span>
+          <span className="text-[10px] text-stone-400 block pt-0.5">Không tính đơn hủy/bom</span>
         </div>
 
         <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
@@ -265,7 +717,7 @@ export default function DashboardTab({
           <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
             {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
           </p>
-          <span className="text-[10px] text-stone-400 block pt-0.5">Chưa tính đơn hủy</span>
+          <span className="text-[10px] text-stone-400 block pt-0.5">Chưa tính đơn hủy / bom</span>
         </div>
 
         <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
@@ -274,6 +726,41 @@ export default function DashboardTab({
             {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
           </p>
           <span className="text-[10px] text-stone-400 block pt-0.5">Bình quân mỗi đơn</span>
+        </div>
+      </div>
+
+      {/* THANH THỐNG KÊ ĐƠN HỦY / BOM HÀNG & TIỀN CỌC THU HỒI */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs animate-fadeIn">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-5">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+            <span className="text-stone-600 font-medium">
+              Đơn Hủy: <strong className="text-stone-900 font-mono text-sm">{metrics.cancelledCount}</strong> đơn
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-700 animate-pulse"></span>
+            <span className="text-stone-600 font-medium">
+              Bom Hàng: <strong className="text-red-700 font-mono text-sm">{metrics.bombedCount}</strong> đơn
+            </span>
+          </div>
+
+          <span className="hidden sm:inline text-stone-300">|</span>
+
+          <div className="flex items-center gap-1.5 text-stone-700 font-medium">
+            <span>Tiền cọc giữ lại từ đơn bom:</span>
+            <strong className="text-emerald-700 font-mono font-bold text-sm bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+              +{metrics.retainedDeposit.toLocaleString('vi-VN')}đ
+            </strong>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200/80">
+          <span className="text-stone-500 text-[11px] font-semibold">Tỷ lệ hủy / bom:</span>
+          <span className={`font-mono font-black text-xs ${metrics.lossRate > 15 ? 'text-rose-600' : 'text-stone-800'}`}>
+            {metrics.lossRate}%
+          </span>
         </div>
       </div>
 
@@ -317,7 +804,7 @@ export default function DashboardTab({
               </span>
             </h3>
             <p className="text-[11px] text-stone-500 mt-0.5">
-              Kiểm tra tài khoản ngân hàng hoặc xác nhận với khách rồi bấm <strong>Đã xác nhận</strong> để chuyển sang Kho
+              Quy trình khóa trạng thái 1 chiều theo chuẩn bến xe. Đơn lịch sử và đơn kết thúc được khóa chống chỉnh sửa nhầm.
             </p>
           </div>
         </div>
@@ -363,14 +850,14 @@ export default function DashboardTab({
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer"
+                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer ring-1 ring-amber-300"
               >
                 <option value="all">⚡ Tất cả trạng thái</option>
-                <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
-                <option value="Đã xác nhận">✅ Đã xác nhận (Chờ đóng)</option>
-                <option value="Đang giao">🚚 Đang giao</option>
-                <option value="Hoàn thành">🎉 Hoàn thành</option>
-                <option value="Đã hủy">❌ Đã hủy</option>
+                {Object.entries(ORDER_STATUS_MAP).map(([statusCode, info]) => (
+                  <option key={statusCode} value={statusCode}>
+                    {statusCode === ORDER_STATUS.PENDING ? `⏳ ${info.label} (Mặc định lọc duyệt)` : info.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -400,101 +887,254 @@ export default function DashboardTab({
           )}
         </div>
 
-        {/* Danh sách đơn */}
+        {/* BANNER KHI ĐANG SOI ĐƠN GỐC */}
+        {isInspectingRefer && (
+          <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fadeIn">
+            <div className="flex items-center gap-2 text-amber-950 font-medium">
+              <History className="w-4 h-4 text-amber-700 shrink-0" />
+              <span>
+                Đang xem chi tiết đơn gốc: <strong className="font-mono font-black text-amber-900">{searchQuery}</strong> (Đã khóa trạng thái để đối chiếu an toàn)
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); setStatusFilter(ORDER_STATUS.PENDING); }}
+              className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Quay lại duyệt đơn</span>
+            </button>
+          </div>
+        )}
+
+        {/* Danh sách từng dòng đơn */}
         <div className="divide-y divide-stone-100 space-y-3 pt-1">
           {filteredOrders.length === 0 ? (
             <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-              <p className="text-xs font-bold text-stone-600">Không tìm thấy đơn hàng nào khớp bộ lọc</p>
+              <p className="text-xs font-bold text-stone-600">
+                {statusFilter === ORDER_STATUS.PENDING 
+                  ? 'Hiện không có đơn hàng nào đang ở trạng thái "Chờ xác nhận"' 
+                  : 'Không tìm thấy đơn hàng nào khớp bộ lọc'}
+              </p>
             </div>
           ) : (
-            filteredOrders.map((ord) => {
-              const isProcessing = actionLoadingCode === ord.code;
-              const currentStatus = ord.status || 'Chờ xác nhận';
-              const statusMeta = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['Chờ xác nhận'];
-              const displayPayment = PAYMENT_LABELS[ord.paymentMethod] || ord.paymentMethod || 'Chưa chọn';
-
-              const cleanTotalNum = parseCleanMoney(ord.total);
-              const formattedCreatedAt = formatDateTime(ord.createdAt, 'Vừa xong');
-
-              return (
-                <div key={ord.code} className="pt-3 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
-                        {ord.code}
-                      </span>
-                      <strong className="text-stone-900 text-sm">{ord.name}</strong>
-                      
-                      {ord.phone && (
-                        <a
-                          href={`tel:${ord.phone}`}
-                          className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-lg transition-colors"
-                        >
-                          <PhoneCall className="w-3 h-3 text-amber-600" />
-                          <span>{ord.phone}</span>
-                        </a>
-                      )}
-
-                      <span className="text-[10.5px] text-stone-400 font-mono inline-flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-stone-400" />
-                        <span>({formattedCreatedAt})</span>
-                      </span>
-                    </div>
-
-                    {ord.address && (
-                      <p className="text-stone-600 text-[11px] line-clamp-1">
-                        📍 <strong>Giao đến:</strong> {ord.address}
-                      </p>
-                    )}
-
-                    {ord.itemsSummary && (
-                      <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
-                        🛍️ {ord.itemsSummary}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0">
-                    <div className="text-left md:text-right">
-                      <span className="font-mono font-black text-stone-900 text-sm block">
-                        {cleanTotalNum.toLocaleString('vi-VN')}đ
-                      </span>
-                      <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                        {displayPayment}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <select
-                        disabled={isProcessing}
-                        value={currentStatus}
-                        onChange={(e) => onUpdateStatus(ord.code, e.target.value)}
-                        className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
-                      >
-                        <option value="Chờ xác nhận">⏳ Chờ xác nhận</option>
-                        <option value="Đã xác nhận">✅ Đã xác nhận</option>
-                        <option value="Đang giao">🚚 Đang giao</option>
-                        <option value="Hoàn thành">🎉 Hoàn thành</option>
-                        <option value="Đã hủy">❌ Đã hủy</option>
-                      </select>
-
-                      <button
-                        type="button"
-                        disabled={isProcessing}
-                        onClick={() => onDeleteOrder(ord.code)}
-                        className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
-                        title="Xóa đơn hàng"
-                      >
-                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin text-amber-600" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            filteredOrders.map((ord) => (
+              <DashboardOrderRow
+                key={ord.code}
+                ord={ord}
+                riskTrace={getRiskTraceDetails(ord)}
+                isInspectingRefer={isInspectingRefer}
+                isProcessing={actionLoadingCode === ord.code}
+                onSelectStatus={handleSelectStatus}
+                onInspectRefer={handleInspectReferOrder}
+                onOpenOverride={(targetOrd) => {
+                  setOverrideModal(targetOrd);
+                  setOverrideTargetStatus(normalizeOrderStatus(targetOrd.status));
+                  setOverrideReason('');
+                }}
+                onDeleteOrder={onDeleteOrder}
+              />
+            ))
           )}
         </div>
       </div>
+
+      {/* MODAL BẮT BUỘC CHỌN / NHẬP LÝ DO KHI HỦY HOẶC BOM THÔNG THƯỜNG */}
+      {pendingStatusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2">
+                {pendingStatusModal.isBombed ? (
+                  <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center">
+                    <ShieldAlert className="w-4 h-4" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4" />
+                  </div>
+                )}
+                <div>
+                  <h4 className="font-black text-sm text-stone-900">
+                    {pendingStatusModal.isBombed ? 'Xác Nhận Đánh Dấu BOM HÀNG' : 'Xác Nhận HỦY ĐƠN HÀNG'}
+                  </h4>
+                  <p className="text-[11px] text-stone-500 font-mono">Mã đơn: {pendingStatusModal.order.code}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingStatusModal(null)}
+                className="text-stone-400 hover:text-stone-600 text-sm font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  Chọn lý do chính *:
+                </label>
+                <select
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 font-medium text-stone-800 focus:bg-white focus:outline-none focus:border-amber-600 cursor-pointer"
+                >
+                  {pendingStatusModal.isBombed ? (
+                    <>
+                      <option value="Thuê bao không liên lạc được / Chặn số">Thuê bao không liên lạc được / Chặn số</option>
+                      <option value="Xe tới điểm hẹn nhưng khách không ra nhận">Xe tới điểm hẹn nhưng khách không ra nhận</option>
+                      <option value="Khách từ chối nhận hàng không có lý do chính đáng">Khách từ chối nhận hàng không có lý do chính đáng</option>
+                      <option value="Cố tình cho sai địa chỉ / SĐT ảo">Cố tình cho sai địa chỉ / SĐT ảo</option>
+                      <option value="Lý do khác">Lý do khác</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Khách báo bận / Đổi ý trước khi cắt giàn">Khách báo bận / Đổi ý trước khi cắt giàn</option>
+                      <option value="Đặt nhầm món / Muốn tạo lại đơn khác">Đặt nhầm món / Muốn tạo lại đơn khác</option>
+                      <option value="Trùng đơn hàng trước đó">Trùng đơn hàng trước đó</option>
+                      <option value="Không đón được khung giờ xe khách chạy">Không đón được khung giờ xe khách chạy</option>
+                      <option value="Hết hàng tại vườn">Hết hàng tại vườn</option>
+                      <option value="Lý do khác">Lý do khác</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  Ghi chú chi tiết (nếu có):
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: Gọi 3 cuộc nhà xe báo khách tắt máy..."
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingStatusModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 hover:bg-stone-100 font-bold text-xs text-stone-600 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!pendingStatusModal) return;
+                  const finalReason = customReason.trim() ? `${statusReason} - ${customReason.trim()}` : statusReason;
+                  onUpdateStatus(pendingStatusModal.order.code, pendingStatusModal.targetStatus, finalReason);
+                  setPendingStatusModal(null);
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-xs ${
+                  pendingStatusModal.isBombed 
+                    ? 'bg-rose-600 hover:bg-rose-700' 
+                    : 'bg-stone-900 hover:bg-amber-700'
+                }`}
+              >
+                Lưu trạng thái & Ghi chú
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ĐÍNH CHÍNH TRẠNG THÁI (KHI NHÂN VIÊN BẤM NHẦM ĐƠN ĐÃ ĐÓNG) */}
+      {overrideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-amber-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-stone-900">
+                    Đính Chính Trạng Thái Đơn Hàng
+                  </h4>
+                  <p className="text-[11px] text-stone-500 font-mono">Mã đơn: {overrideModal.code}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOverrideModal(null)}
+                className="text-stone-400 hover:text-stone-600 text-sm font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-950 space-y-1">
+              <strong className="block font-bold">⚠️ Cảnh báo can thiệp đơn đã đóng:</strong>
+              <p className="text-[11px] leading-relaxed text-amber-900">
+                Đơn hàng này đang ở trạng thái đã kết thúc. Chỉ thực hiện đính chính khi có sự cố thao tác nhầm lẫn để đảm bảo không làm lệch số liệu thống kê.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  Chọn trạng thái cần đính chính lại *:
+                </label>
+                <select
+                  value={overrideTargetStatus}
+                  onChange={(e) => setOverrideTargetStatus(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 cursor-pointer"
+                >
+                  {Object.entries(ORDER_STATUS_MAP).map(([statusCode, info]) => (
+                    <option key={statusCode} value={statusCode}>
+                      {info.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  Lý do đính chính (để ghi log) *:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Bấm nhầm nút khi khách vừa chuyển khoản..."
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setOverrideModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 hover:bg-stone-100 font-bold text-xs text-stone-600 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!overrideModal || !overrideTargetStatus) return;
+                  const reasonText = overrideReason.trim() ? `[Admin đính chính]: ${overrideReason.trim()}` : '[Admin đính chính trạng thái]';
+                  onUpdateStatus(overrideModal.code, overrideTargetStatus, reasonText);
+                  setOverrideModal(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs cursor-pointer shadow-xs"
+              >
+                Xác nhận đính chính
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
