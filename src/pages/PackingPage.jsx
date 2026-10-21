@@ -1,3 +1,4 @@
+// src/pages/PackingPage.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   PackageCheck, RefreshCw, Printer, 
@@ -8,16 +9,6 @@ import {
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 
 const POLLING_INTERVAL_SECONDS = 20;
-
-// Hàm làm sạch ghi chú: lọc bỏ log hệ thống [Mã ko hợp lệ: ...], chỉ giữ lại lời dặn của khách
-function formatCustomerNote(rawNote) {
-  if (!rawNote) return '';
-  return String(rawNote)
-    .replace(/\|\s*Mã ko hợp lệ:[^\]]*/gi, '')
-    .replace(/\[Mã ko hợp lệ:[^\]]*\]\s*/gi, '')
-    .replace(/\[\s*\]/g, '')
-    .trim();
-}
 
 export default function PackingPage({ 
   orders = [], 
@@ -40,6 +31,29 @@ export default function PackingPage({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBackgroundPolling, setIsBackgroundPolling] = useState(false);
   const [countdown, setCountdown] = useState(POLLING_INTERVAL_SECONDS);
+
+  // Tạo map tra cứu mã quà -> tên quà tiếng Việt từ catalog quà tặng (Fallback)
+  const giftCatalogMap = useMemo(() => {
+    const map = new Map();
+    const giftsList = [
+      ...(Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : []),
+      ...(Array.isArray(shopConfig?.paymentGifts) ? shopConfig.paymentGifts : [])
+    ];
+    giftsList.forEach((g) => {
+      if (g && g.id) {
+        map.set(String(g.id).trim(), String(g.title || g.name || g.id).trim());
+      }
+    });
+    return map;
+  }, [shopConfig?.giftsCatalog, shopConfig?.paymentGifts]);
+
+  // Hàm chuyển đổi chuỗi mã quà raw thành tên tiếng Việt (Fallback nếu có đơn cũ sót lại)
+  const resolveGiftString = (str) => {
+    if (!str) return '';
+    return str.replace(/(gift_[a-zA-Z0-9_]+)/g, (matchedId) => {
+      return giftCatalogMap.get(matchedId) || matchedId;
+    });
+  };
 
   const effectiveOrders = useMemo(() => {
     if (Array.isArray(orders) && orders.length > 0) {
@@ -175,7 +189,9 @@ export default function PackingPage({
     const method = String(order.paymentMethod || '').toLowerCase();
     const rawTotal = typeof order.total === 'number' 
       ? order.total 
-      : (Number(String(order.total || '').replace(/[^0-9]/g, '')) || 0);
+      : (typeof order.totalAmount === 'number'
+          ? order.totalAmount
+          : (Number(String(order.total || order.totalAmount || '').replace(/[^0-9]/g, '')) || 0));
 
     if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
@@ -212,7 +228,7 @@ export default function PackingPage({
     };
   };
 
-  // Lọc đơn hợp lệ vào kho
+  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói)
   const packableOrders = useMemo(() => {
     return effectiveOrders.filter((o) => {
       const statusCode = normalizeOrderStatus(o.status);
@@ -220,16 +236,32 @@ export default function PackingPage({
     });
   }, [effectiveOrders]);
 
+  // PARSE VÀ MAP TÊN QUÀ TẶNG CHUẨN XÁC
   const parseOrderItems = (order) => {
     let items = [];
 
     if (Array.isArray(order.cart) && order.cart.length > 0) {
-      items = order.cart.map((c) => ({
-        name: c.name,
-        spec: c.weightLabel || c.unit || 'Tiêu chuẩn',
-        quantity: Number(c.quantity) || 1,
-        isGift: false
-      }));
+      // 1. Thêm các món chính
+      order.cart.forEach((c) => {
+        items.push({
+          name: c.name,
+          spec: c.weightLabel || c.unit || 'Tiêu chuẩn',
+          quantity: Number(c.quantity) || 1,
+          isGift: false
+        });
+
+        // 2. Bóc tách quà combo từ item trong cart
+        const giftId = c.campaign_gift;
+        if (giftId) {
+          const resolvedTitle = c.campaign_gift_title || giftCatalogMap.get(giftId) || giftId;
+          items.push({
+            name: `[QUÀ TẶNG] ${resolvedTitle}`,
+            spec: 'Quà quê tặng kèm',
+            quantity: Number(c.quantity) || 1,
+            isGift: true
+          });
+        }
+      });
     } else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
       const parts = order.itemsSummary.split(',');
       parts.forEach((str) => {
@@ -259,23 +291,27 @@ export default function PackingPage({
       });
     }
 
+    // Quà tặng thanh toán
     const giftTitle = order.giftTitle || order.paymentGift;
     if (giftTitle && giftTitle !== 'Không áp dụng (COD)' && giftTitle.trim() !== '') {
+      const resolvedPaymentGift = giftCatalogMap.get(giftTitle) || giftTitle;
       items.push({
-        name: `[QUÀ TẶNG] ${giftTitle}`,
+        name: `[QUÀ TẶNG] ${resolvedPaymentGift}`,
         spec: 'Tặng kèm chuyển khoản',
         quantity: 1,
         isGift: true
       });
     }
 
-    if (order.campaignGifts && typeof order.campaignGifts === 'string') {
+    // Quà combo nếu đọc từ chuỗi campaignGifts trên Sheet
+    if ((!Array.isArray(order.cart) || order.cart.length === 0) && order.campaignGifts && typeof order.campaignGifts === 'string') {
       const campGifts = order.campaignGifts.split('|');
       campGifts.forEach((gStr) => {
         const trimmedG = gStr.trim();
         if (trimmedG && !trimmedG.includes('Không áp dụng')) {
+          const resolvedG = resolveGiftString(trimmedG);
           items.push({
-            name: `[QUÀ COMBO] ${trimmedG}`,
+            name: resolvedG.startsWith('[QUÀ') ? resolvedG : `[QUÀ TẶNG] ${resolvedG}`,
             spec: 'Quà quê tặng kèm',
             quantity: 1,
             isGift: true
@@ -306,20 +342,21 @@ export default function PackingPage({
       });
     });
     return Object.values(summary).sort((a, b) => b.quantity - a.quantity);
-  }, [packableOrders]);
+  }, [packableOrders, giftCatalogMap]);
 
   const completedPickingCount = useMemo(() => {
     return pickingSummary.filter((it) => pickedItems[it.key]).length;
   }, [pickingSummary, pickedItems]);
 
   const renderSingleShippingLabelHtml = (order) => {
+    const orderCode = order.code || order.orderId;
     const collectInfo = getCollectInfo(order);
     const allItems = parseOrderItems(order);
 
     const MAX_ITEMS = 6;
     const visibleItems = allItems.slice(0, MAX_ITEMS);
     const hasMoreItems = allItems.length > MAX_ITEMS;
-    const cleanNote = formatCustomerNote(order.note);
+    const cleanNote = String(order.note || '').trim();
 
     const itemsRowsHtml = visibleItems.map((it, idx) => `
       <tr style="${it.isGift ? 'background: #fffbeb;' : ''}">
@@ -343,7 +380,7 @@ export default function PackingPage({
               <div class="shop-sub">Đặc sản Phan Rang gửi xe</div>
             </div>
             <div class="code-box">
-              <div class="order-code">${order.code}</div>
+              <div class="order-code">${orderCode}</div>
               <div class="barcode-line">|||||||||||||||</div>
             </div>
           </div>
@@ -357,11 +394,11 @@ export default function PackingPage({
             <div class="recipient-box">
               <div style="font-size: 9.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
               <div class="recipient-name-phone">
-                <span class="recipient-name">${order.name}</span>
-                <span class="recipient-phone">${order.phone}</span>
+                <span class="recipient-name">${order.name || order.customerName || ''}</span>
+                <span class="recipient-phone">${order.phone || ''}</span>
               </div>
               <div class="recipient-address">
-                <strong>Điểm giao / Bến xe:</strong> ${order.address}
+                <strong>Điểm giao / Bến xe:</strong> ${order.address || ''}
               </div>
             </div>
           </div>
@@ -889,15 +926,16 @@ export default function PackingPage({
             </div>
           ) : (
             packableOrders.map((ord) => {
+              const orderCode = ord.code || ord.orderId;
               const currentStatusCode = normalizeOrderStatus(ord.status);
               const isPackingNow = currentStatusCode === ORDER_STATUS.PACKING;
               const collectInfo = getCollectInfo(ord);
               const items = parseOrderItems(ord);
-              const cleanNote = formatCustomerNote(ord.note);
+              const cleanNote = String(ord.note || '').trim();
 
               return (
                 <div 
-                  key={ord.code} 
+                  key={orderCode} 
                   className={`bg-white rounded-3xl border shadow-xs p-5 sm:p-6 space-y-4 transition-all ${
                     isPackingNow 
                       ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10' 
@@ -908,9 +946,9 @@ export default function PackingPage({
                     <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md text-xs">
-                          {ord.code}
+                          {orderCode}
                         </span>
-                        <strong className="text-stone-900 text-sm">{ord.name}</strong>
+                        <strong className="text-stone-900 text-sm">{ord.name || ord.customerName || ''}</strong>
                         {ord.phone && (
                           <span className="text-xs font-mono font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-lg">
                             {ord.phone}
@@ -951,7 +989,7 @@ export default function PackingPage({
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => executeFastPrint([ord], `Tem_${ord.code}`)}
+                        onClick={() => executeFastPrint([ord], `Tem_${orderCode}`)}
                         className="px-3.5 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Printer className="w-3.5 h-3.5 text-stone-500" />
@@ -961,7 +999,7 @@ export default function PackingPage({
                       {!isPackingNow ? (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(ord.code, 'Đang đóng gói')}
+                          onClick={() => onUpdateStatus(orderCode, 'Đang đóng gói')}
                           className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <Package className="w-4 h-4" />
@@ -970,7 +1008,7 @@ export default function PackingPage({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(ord.code, 'Đang giao')}
+                          onClick={() => onUpdateStatus(orderCode, 'Đang giao')}
                           className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />
@@ -986,13 +1024,13 @@ export default function PackingPage({
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                       {items.map((it, idx) => {
-                        const boxKey = `${ord.code}_${idx}`;
+                        const boxKey = `${orderCode}_${idx}`;
                         const isBoxChecked = !!checkedBoxItems[boxKey];
 
                         return (
                           <div 
                             key={idx} 
-                            onClick={() => toggleBoxItem(ord.code, idx)}
+                            onClick={() => toggleBoxItem(orderCode, idx)}
                             className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-2xs cursor-pointer select-none transition-colors ${
                               isBoxChecked
                                 ? 'bg-emerald-50/80 border-emerald-300'

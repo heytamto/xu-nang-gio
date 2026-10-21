@@ -1,24 +1,39 @@
 // src/components/checkout/VietQrBox.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Download, Copy, Check, ExternalLink } from 'lucide-react';
+import { getBankByBin } from '../../constants/vietqrBanks';
 
 export default function VietQrBox({
   paymentMethod,
   depositAmount = 50000,
   finalTotalAmount,
-  bankBin,
+  bankBin = '970422',
   bankName,
-  accountNo,
-  accountName,
+  accountNo = '0848957345',
+  accountName = 'TO THANH TAM',
   cleanPhone
 }) {
   const [copiedField, setCopiedField] = useState("");
 
   const qrTransferAmount = paymentMethod === "full_qr" ? finalTotalAmount : depositAmount;
-  const rawTransferMemo = `XNG ${cleanPhone || "DATNHO"}`;
+  const rawTransferMemo = `XNG ${cleanPhone ? cleanPhone.slice(-6) : "DATNHO"}`;
   const transferMemo = encodeURIComponent(rawTransferMemo);
+  
+  // Chuẩn hóa số tài khoản dạng String và bù số 0 nếu vô tình bị rụng
+  let safeAccountNo = String(accountNo || '').trim();
+  if (safeAccountNo.length === 9 && !safeAccountNo.startsWith('0')) {
+    safeAccountNo = `0${safeAccountNo}`;
+  }
 
-  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${accountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(accountName)}`;
+  // Khớp tên ngân hàng hiển thị
+  const matchedBank = useMemo(() => getBankByBin(bankBin), [bankBin]);
+  const currentBankName = bankName || matchedBank?.shortName || 'MBBank';
+
+  // 1. Link ảnh mã QR VietQR (quét bằng mọi app ngân hàng)
+  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${safeAccountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(accountName)}`;
+
+  // 2. Link thanh toán mở đa ngân hàng (khách dùng app nào cũng chọn được)
+  const payUniversalUrl = `https://vietqr.me/@${safeAccountNo}?bank=${bankBin}&amount=${qrTransferAmount}&memo=${transferMemo}`;
 
   const handleCopy = (text, fieldName) => {
     navigator.clipboard.writeText(text);
@@ -34,7 +49,7 @@ export default function VietQrBox({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `VietQR-${accountNo}-${rawTransferMemo}.png`;
+      a.download = `VietQR-${safeAccountNo}-${rawTransferMemo}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -67,7 +82,7 @@ export default function VietQrBox({
 
       <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto w-full">
         <a
-          href={`https://dl.vietqr.io/pay?app=&ba=${bankBin}&acc=${accountNo}&am=${qrTransferAmount}&des=${transferMemo}`}
+          href={payUniversalUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="py-1.5 px-2 bg-stone-900 hover:bg-amber-600 text-white rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 transition-colors shadow-2xs"
@@ -87,17 +102,17 @@ export default function VietQrBox({
 
       <div className="bg-stone-50/90 p-2.5 rounded-xl border border-stone-200/80 space-y-1 text-[11px] text-left">
         <div className="flex items-center justify-between">
-          <span className="text-stone-500">Ngân hàng:</span>
-          <strong className="text-stone-800">{bankName}</strong>
+          <span className="text-stone-500">Ngân hàng thụ hưởng:</span>
+          <strong className="text-stone-800">{currentBankName}</strong>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-stone-500">Số tài khoản:</span>
           <button
             type="button"
-            onClick={() => handleCopy(accountNo, "stk")}
+            onClick={() => handleCopy(safeAccountNo, "stk")}
             className="flex items-center gap-1 font-mono font-bold text-stone-900 hover:text-amber-700 bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs cursor-pointer"
           >
-            <span>{accountNo}</span>
+            <span>{safeAccountNo}</span>
             {copiedField === "stk" ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-stone-400" />}
           </button>
         </div>

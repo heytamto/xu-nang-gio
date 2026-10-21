@@ -6,7 +6,6 @@ export default function Navbar({
   onNavigate, 
   cartCount = 0, 
   cartTotal = 0,
-  onOpenCart,
   onOpenLookup,
   isCartBouncing = false,
   forceVisible = false
@@ -22,18 +21,15 @@ export default function Navbar({
     { id: 'blog', label: 'Cẩm Nang' },
   ];
 
-  // Nếu có tín hiệu thêm món (forceVisible), lập tức hiện Navbar
   useEffect(() => {
     if (forceVisible) {
       setIsVisible(true);
     }
   }, [forceVisible]);
 
-  // Logic kiểm soát cuộn trang
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-
       if (isMobileMenuOpen) return;
 
       if (currentScrollY < 20) {
@@ -43,7 +39,6 @@ export default function Navbar({
       } else if (currentScrollY > lastScrollY && currentScrollY > 80) {
         setIsVisible(false);
       }
-
       setLastScrollY(currentScrollY);
     };
 
@@ -53,9 +48,7 @@ export default function Navbar({
 
   const handleCartClick = () => {
     setIsMobileMenuOpen(false);
-    if (onOpenCart) {
-      onOpenCart();
-    } else if (onNavigate) {
+    if (onNavigate) {
       onNavigate('checkout');
     }
   };
@@ -69,7 +62,9 @@ export default function Navbar({
 
   const handleNavClick = (id) => {
     setIsMobileMenuOpen(false);
-    onNavigate(id);
+    if (onNavigate) {
+      onNavigate(id);
+    }
   };
 
   return (
@@ -78,7 +73,6 @@ export default function Navbar({
         isVisible ? 'translate-y-0 shadow-lg' : '-translate-y-full shadow-none'
       }`}
     >
-      {/* ĐÃ SỬA: Đổi max-w-6xl thành max-w-7xl và padding px-4 sm:px-6 lg:px-8 để thẳng hàng 100% với nội dung trang */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Logo Vườn */}
         <button
@@ -115,7 +109,7 @@ export default function Navbar({
 
         {/* Cụm Nút Tra Cứu, Giỏ Hàng & Menu Mobile */}
         <div className="flex items-center gap-2">
-          {/* Nút Tra Cứu Đơn Hàng (Desktop & Tablet) */}
+          {/* Nút Tra Cứu Đơn (Desktop & Tablet) */}
           <button
             type="button"
             onClick={handleLookupClick}
@@ -126,7 +120,7 @@ export default function Navbar({
             <span>Tra cứu đơn</span>
           </button>
 
-          {/* Icon kính lúp dạng tròn cho màn hình điện thoại siêu nhỏ */}
+          {/* Kính lúp mobile */}
           <button
             type="button"
             onClick={handleLookupClick}
@@ -136,7 +130,7 @@ export default function Navbar({
             <Search className="w-4 h-4" />
           </button>
 
-          {/* Nút Giỏ Hàng */}
+          {/* Nút Giỏ Hàng trỏ thẳng sang Checkout */}
           <button
             type="button"
             onClick={handleCartClick}
@@ -145,7 +139,7 @@ export default function Navbar({
                 ? 'animate-cart-pop bg-amber-500 border-amber-300 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.6)]' 
                 : 'bg-stone-900 hover:bg-stone-800 text-stone-200 border-stone-800 hover:border-amber-500/40'
             }`}
-            title="Xem giỏ hàng"
+            title="Xem đơn hàng & Thanh toán"
           >
             <div className="relative flex items-center justify-center">
               <ShoppingBag 
@@ -167,7 +161,6 @@ export default function Navbar({
               )}
             </div>
 
-            {/* Hiển thị số tiền nếu có hàng trong giỏ */}
             {cartCount > 0 && cartTotal > 0 && (
               <>
                 <div className={`h-3.5 w-px ${isCartBouncing ? 'bg-stone-950/30' : 'bg-stone-700/80'}`} />
@@ -180,7 +173,7 @@ export default function Navbar({
             )}
           </button>
 
-          {/* Toggle Menu Mobile */}
+          {/* Nút Toggle Menu Mobile */}
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -192,7 +185,7 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Drawer Dropdown Mobile (Cũng đồng bộ padding theo max-w-7xl) */}
+      {/* Menu thả xuống trên Mobile */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-stone-900 border-b border-stone-800 px-4 sm:px-6 py-3 space-y-1 animate-fadeIn">
           {navItems.map((item) => (
@@ -211,7 +204,6 @@ export default function Navbar({
             </button>
           ))}
 
-          {/* Mục Tra Cứu Đơn riêng trong menu Mobile */}
           <button
             type="button"
             onClick={handleLookupClick}

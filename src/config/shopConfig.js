@@ -1,4 +1,5 @@
-import { VIETQR_BANKS } from '../data/banks';
+// src/config/shopConfig.js
+import { VIETQR_BANKS } from '../constants/vietqrBanks';
 
 // Trích xuất số điện thoại sạch (chỉ giữ lại số) để gắn link gọi điện
 const rawHotline = import.meta.env.VITE_HOTLINE || '0848.957.345';
@@ -9,9 +10,9 @@ export { VIETQR_BANKS };
 
 export const DEFAULT_SHOP_CONFIG = {
   // 1. Tài khoản ngân hàng VietQR
-  bankBin: import.meta.env.VITE_BANK_BIN || '970422',
+  bankBin: String(import.meta.env.VITE_BANK_BIN || '970422'),
   bankName: import.meta.env.VITE_BANK_NAME || 'MBBank',
-  accountNo: import.meta.env.VITE_ACCOUNT_NO || '0848957345',
+  accountNo: String(import.meta.env.VITE_ACCOUNT_NO || '0848957345'),
   accountName: import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM',
   depositAmount: 50000,
   loyaltyDiscountPercent: 10,
@@ -66,8 +67,8 @@ export function getShopConfig() {
     if (saved) {
       const parsed = JSON.parse(saved);
 
-      const validAccountNo = (parsed.accountNo && parsed.accountNo !== '0987654321')
-        ? parsed.accountNo 
+      const validAccountNo = (parsed.accountNo && String(parsed.accountNo) !== '0987654321')
+        ? String(parsed.accountNo) 
         : DEFAULT_SHOP_CONFIG.accountNo;
 
       const currentVouchers = Array.isArray(parsed.vouchers) ? parsed.vouchers : [];
@@ -84,7 +85,7 @@ export function getShopConfig() {
         ...parsed,
         accountNo: validAccountNo,
         accountName: parsed.accountName || DEFAULT_SHOP_CONFIG.accountName,
-        bankBin: parsed.bankBin || DEFAULT_SHOP_CONFIG.bankBin,
+        bankBin: String(parsed.bankBin || DEFAULT_SHOP_CONFIG.bankBin),
         bankName: parsed.bankName || DEFAULT_SHOP_CONFIG.bankName,
         depositAmount: Number(parsed.depositAmount) || DEFAULT_SHOP_CONFIG.depositAmount,
         loyaltyDiscountPercent: Number(parsed.loyaltyDiscountPercent) || DEFAULT_SHOP_CONFIG.loyaltyDiscountPercent,

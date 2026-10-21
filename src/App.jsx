@@ -1,9 +1,9 @@
+// src/App.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ShoppingBag, Loader2 } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import CartDrawer from './components/CartDrawer';
 import OrderSuccessModal from './components/OrderSuccessModal';
 import OrderLookupModal from './components/OrderLookupModal';
 
@@ -95,7 +95,6 @@ export default function App() {
   const bounceTimerRef = useRef(null);
   const cartUpdateTimerRef = useRef(null);
 
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [successOrderInfo, setSuccessOrderInfo] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
@@ -163,14 +162,14 @@ export default function App() {
           localStorage.setItem('shop_stories', JSON.stringify(data.stories));
         }
 
-        // 5. CẬP NHẬT ĐƠN HÀNG: GHI ĐÈ THEO SHEET
+        // 5. CẬP NHẬT ĐƠN HÀNG
         const incomingOrders = Array.isArray(data.orders) 
           ? data.orders 
           : (Array.isArray(data.data) ? data.data : null);
 
         if (incomingOrders !== null) {
           const validSheetOrders = incomingOrders.filter(
-            (o) => o && o.code && String(o.code).trim() !== ''
+            (o) => o && (o.code || o.orderId) && String(o.code || o.orderId).trim() !== ''
           );
           setOrders(validSheetOrders);
           localStorage.setItem('shop_orders', JSON.stringify(validSheetOrders));
@@ -215,7 +214,7 @@ export default function App() {
 
   const handleUpdateOrderStatus = async (orderCode, newStatus) => {
     setOrders((prev) => {
-      const updated = prev.map((ord) => (ord.code === orderCode ? { ...ord, status: newStatus } : ord));
+      const updated = prev.map((ord) => ((ord.code === orderCode || ord.orderId === orderCode) ? { ...ord, status: newStatus } : ord));
       try {
         localStorage.setItem('shop_orders', JSON.stringify(updated));
       } catch (e) { console.error(e); }
@@ -240,7 +239,7 @@ export default function App() {
     }
   };
 
-  // XỬ LÝ THÊM MÓN & TÍNH TỔNG SỐ LƯỢNG MÓN ĐANG CÓ TRONG GIỎ
+  // THÊM MÓN & HIỂN THỊ ANIMATION NẢY GIỎ HÀNG
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -254,7 +253,7 @@ export default function App() {
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
     const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
 
-    const existingItem = cart.find((item) => item.id === cartItemId);
+    const existingItem = cart.find((item) => item.id === cartItemId || item.cartItemId === cartItemId);
     const currentQtyInCart = existingItem ? existingItem.quantity : 0;
     const newTotalQuantity = currentQtyInCart + quantity;
 
@@ -270,16 +269,19 @@ export default function App() {
     setIsCartBouncing(false);
 
     setCart((prevCart) => {
-      const existing = prevCart.find((item) => item.id === cartItemId);
+      const existing = prevCart.find((item) => item.id === cartItemId || item.cartItemId === cartItemId);
       if (existing) {
         return prevCart.map((item) =>
-          item.id === cartItemId ? { ...item, quantity: item.quantity + quantity } : item
+          (item.id === cartItemId || item.cartItemId === cartItemId)
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
         );
       }
       return [
         ...prevCart,
         {
           id: cartItemId,
+          cartItemId: cartItemId,
           productId: product.id,
           weightId: weightObj?.id || 'std',
           name: product.name,
@@ -288,6 +290,7 @@ export default function App() {
           weightLabel: weightObj?.label || product.unit || 'Tiêu chuẩn',
           image: product.image,
           campaign_gift: product.campaign_gift || null,
+          campaign_gift_title: product.campaign_gift_title || null,
           resolved_campaign_gifts: product.resolved_campaign_gifts || [],
           quantity: quantity
         }
@@ -310,12 +313,20 @@ export default function App() {
     }, 1800);
   };
 
-  const handleUpdateQuantity = (id, delta) => {
+  // Cập nhật số lượng linh hoạt
+  const handleUpdateQuantity = (target, delta) => {
+    const targetId = typeof target === 'object' ? (target.id || target.cartItemId || target.productId) : target;
+    const targetWeightId = typeof target === 'object' ? (target.weightId || null) : null;
+
     setCart((prevCart) =>
       prevCart
         .map((item) => {
-          if (item.id === id) {
-            const nextQty = item.quantity + delta;
+          const isMatch = (item.id === targetId) || 
+                          (item.cartItemId === targetId) ||
+                          (item.productId === targetId && (!targetWeightId || item.weightId === targetWeightId));
+
+          if (isMatch) {
+            const nextQty = (Number(item.quantity) || 1) + delta;
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
           }
           return item;
@@ -324,49 +335,79 @@ export default function App() {
     );
   };
 
-  const handleRemoveCartItem = (id) => {
-    setCart((prevCart) => prevCart.filter((item) => item.id !== id));
+  // Xóa món linh hoạt
+  const handleRemoveCartItem = (target, weightId = null) => {
+    const targetId = typeof target === 'object' ? (target.id || target.cartItemId || target.productId) : target;
+    const targetWeightId = typeof target === 'object' ? (target.weightId || null) : weightId;
+
+    setCart((prevCart) => 
+      prevCart.filter((item) => {
+        if (item.id === targetId || item.cartItemId === targetId) return false;
+        if (item.productId === targetId) {
+          if (!targetWeightId || item.weightId === targetWeightId) return false;
+        }
+        return true;
+      })
+    );
   };
 
+  // XỬ LÝ ĐẶT HÀNG: ĐÃ BỔ SUNG HMAC SIGNATURE & SUBTOTAL ĐỐI SOÁT GOOGLE APPS SCRIPT
   const handleProcessOrder = async (orderData) => {
     const orderCode = 'XNG' + Math.floor(100000 + Math.random() * 900000);
-    const totalAmount = orderData.total || cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
+    const finalTotalAmount = Number(orderData.total !== undefined ? orderData.total : orderData.finalTotal) || 0;
+    const subtotalAmount = Number(orderData.subtotal || orderData.rawTotal) || finalTotalAmount;
 
     const orderPayload = {
+      orderId: orderCode,
       code: orderCode,
       createdAt: new Date().toISOString(),
       customer: {
         name: orderData.customer?.name || orderData.name || '',
         phone: orderData.customer?.phone || orderData.phone || '',
-        note: orderData.customer?.note || orderData.note || ''
+        note: (orderData.customer?.note || orderData.note || '').trim()
       },
-      name: orderData.customer?.name || orderData.name || '',
-      phone: orderData.customer?.phone || orderData.phone || '',
-      email: orderData.email || '',
-      note: orderData.customer?.note || orderData.note || '',
-      address: orderData.address || '',
+      name: (orderData.customer?.name || orderData.name || '').trim(),
+      phone: (orderData.customer?.phone || orderData.phone || '').trim(),
+      email: (orderData.email || '').trim(),
+      note: (orderData.customer?.note || orderData.note || '').trim(),
+      address: (orderData.address || '').trim(),
       paymentMethod: orderData.paymentMethod || 'deposit',
       giftTitle: orderData.giftTitle || '',
-      total: totalAmount,
-      rawTotal: orderData.rawTotal || totalAmount,
-      discount: orderData.discount || 0,
+      paymentGift: orderData.giftTitle || '',
+
+      // CÁC THÔNG SỐ ĐỐI SOÁT CHỮ KÝ HMAC QUAN TRỌNG:
+      subtotal: subtotalAmount,
+      finalTotal: finalTotalAmount,
+      edgeSignature: orderData.edgeSignature || '', // <-- Truyền trực tiếp chữ ký của Cloudflare Worker sang
+
+      total: finalTotalAmount,
+      totalAmount: finalTotalAmount,
+      rawTotal: subtotalAmount,
+      discount: Number(orderData.discount) || 0,
       voucherCode: orderData.voucherCode || '',
+      voucher: orderData.voucherCode || '',
+      usedPreviousOrderCode: orderData.usedPreviousOrderCode || '',
       status: 'Chờ xác nhận',
-      cart: cart.map((item) => ({
-        productId: item.productId,
+      cart: sourceCart.map((item) => ({
+        productId: item.productId || item.id,
+        id: item.productId || item.id,
         weightId: item.weightId || 'std',
         name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        weightLabel: item.weightLabel,
+        price: Number(item.price) || 0,
+        quantity: Number(item.quantity) || 1,
+        weightLabel: item.weightLabel || '',
         campaign_gift: item.campaign_gift || null,
+        campaign_gift_title: item.campaign_gift_title || null,
         resolved_campaign_gifts: item.resolved_campaign_gifts || []
       }))
     };
 
+    // Đẩy vào hàng đợi offline / background sync
     enqueueOrder(orderPayload);
     processOrderQueue();
 
+    // Cập nhật State & LocalStorage tức thì
     setOrders((prev) => {
       const nextOrders = [orderPayload, ...prev];
       try {
@@ -375,10 +416,9 @@ export default function App() {
       return nextOrders;
     });
 
-    setSuccessOrderInfo({ code: orderCode, total: totalAmount });
+    setSuccessOrderInfo({ code: orderCode, total: finalTotalAmount });
     setIsSuccessModalOpen(true);
     setCart([]);
-    setIsCartOpen(false);
   };
 
   const handleSaveConfig = (newCfg) => {
@@ -422,8 +462,8 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const totalCartCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
-  const totalCartAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalCartCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const totalCartAmount = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
 
   if (isLoadingMasterData) {
     return (
@@ -441,7 +481,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
-      {/* Ẩn Navbar ở trang Admin và Kho */}
       {currentPage !== 'admin' && currentPage !== 'packing' && (
         <Navbar
           currentPage={currentPage}
@@ -451,7 +490,6 @@ export default function App() {
           }}
           cartCount={totalCartCount}
           cartTotal={totalCartAmount}
-          onOpenCart={() => setIsCartOpen(true)}
           onOpenLookup={() => setIsLookupModalOpen(true)}
           isCartBouncing={isCartBouncing}
           forceVisible={forceNavVisible}
@@ -494,6 +532,8 @@ export default function App() {
             onSubmitOrder={handleProcessOrder}
             onNavigate={navigateTo}
             shopConfig={shopConfig}
+            onUpdateQuantity={handleUpdateQuantity}
+            onRemoveItem={handleRemoveCartItem}
           />
         )}
 
@@ -545,20 +585,6 @@ export default function App() {
         )}
       </main>
 
-      {isCartOpen && (
-        <CartDrawer
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          cart={cart}
-          onUpdateQuantity={handleUpdateQuantity}
-          onRemoveItem={handleRemoveCartItem}
-          onProceedCheckout={() => {
-            setIsCartOpen(false);
-            navigateTo('checkout');
-          }}
-        />
-      )}
-
       <OrderSuccessModal
         isOpen={isSuccessModalOpen}
         orderInfo={successOrderInfo}
@@ -574,7 +600,6 @@ export default function App() {
         shopConfig={shopConfig}
       />
 
-      {/* Chỉ hiển thị Footer khi ở trang khách */}
       {currentPage !== 'packing' && currentPage !== 'admin' && (
         <Footer 
           config={shopConfig}
@@ -584,7 +609,6 @@ export default function App() {
         />
       )}
 
-      {/* POPUP ANIMATION THÊM GIỎ HÀNG: HIỂN THỊ TỔNG SỐ LƯỢNG MÓN ĐANG CÓ */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 
@@ -604,7 +628,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* Huy hiệu hiển thị tổng số lượng món đó đang có trong giỏ */}
               <span className="absolute -top-2.5 -right-2.5 bg-amber-500 text-stone-950 font-black text-sm px-2.5 py-0.5 rounded-full border-2 border-stone-900 shadow-md font-mono">
                 x{centerSplash.totalQuantity}
               </span>
