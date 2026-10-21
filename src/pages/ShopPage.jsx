@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+// src/pages/ShopPage.jsx
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
   Sparkles, 
@@ -13,12 +14,14 @@ import {
   Leaf,
   Heart,
   SlidersHorizontal,
-  RotateCcw,
-  CheckCircle2
+  CheckCircle2,
+  TrendingUp,
+  X,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
-// Ánh xạ linh hoạt theo tên icon khai báo trên Google Sheet
 const ICON_MAP = {
   Apple,
   Sparkles,
@@ -30,6 +33,15 @@ const ICON_MAP = {
   Leaf,
   Heart
 };
+
+const SORT_OPTIONS = [
+  { value: 'default', label: 'Mặc định' },
+  { value: 'price-asc', label: 'Giá: Thấp → Cao' },
+  { value: 'price-desc', label: 'Giá: Cao → Thấp' },
+  { value: 'name', label: 'Tên: A → Z' },
+];
+
+const POPULAR_SEARCHES = ['Táo gió', 'Nho đỏ', 'Nho xanh', 'Rượu nho', 'Mực một nắng', 'Tỏi Phan Rang'];
 
 export default function ShopPage({ 
   products = [], 
@@ -45,10 +57,37 @@ export default function ShopPage({
     return [];
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('default'); // default | price-asc | price-desc | name
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [sortBy, setSortBy] = useState('default');
 
-  // Cập nhật lại bộ lọc nếu initialCategory từ ngoài truyền vào thay đổi
+  const searchBoxRef = useRef(null);
+  const sortRef = useRef(null);
+
+  // Debounce tìm kiếm 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setIsSearchFocused(false);
+      }
+      if (sortRef.current && !sortRef.current.contains(e.target)) {
+        setIsSortOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     if (initialCategory && initialCategory !== 'all') {
       setSelectedCategories([initialCategory]);
@@ -57,7 +96,6 @@ export default function ShopPage({
     }
   }, [initialCategory]);
 
-  // Toggle chọn / bỏ chọn danh mục (Multi-select)
   const handleToggleCategory = (catId) => {
     setSelectedCategories((prev) => {
       if (prev.includes(catId)) {
@@ -72,13 +110,23 @@ export default function ShopPage({
     setSelectedCategories([]);
   };
 
-  // Lọc sản phẩm theo danh mục và từ khóa tìm kiếm, sau đó sắp xếp
+  const searchSuggestions = useMemo(() => {
+    if (!searchInput.trim()) return [];
+    const q = searchInput.toLowerCase().trim();
+    const matches = new Set();
+    products.forEach((p) => {
+      if (p.name && p.name.toLowerCase().includes(q)) matches.add(p.name);
+      if (p.source && p.source.toLowerCase().includes(q)) matches.add(p.source);
+    });
+    return Array.from(matches).slice(0, 5);
+  }, [products, searchInput]);
+
   const filteredProducts = useMemo(() => {
     let result = products.filter((p) => {
       const matchCat =
         selectedCategories.length === 0 || selectedCategories.includes(p.category);
 
-      const query = searchQuery.toLowerCase().trim();
+      const query = debouncedQuery.toLowerCase();
       const matchSearch =
         !query ||
         p.name?.toLowerCase().includes(query) ||
@@ -97,13 +145,12 @@ export default function ShopPage({
     }
 
     return result;
-  }, [products, selectedCategories, searchQuery, sortBy]);
+  }, [products, selectedCategories, debouncedQuery, sortBy]);
 
   const displayCategories = useMemo(() => {
     return categories.filter((c) => c.id !== 'all');
   }, [categories]);
 
-  // Đếm số lượng sản phẩm của từng danh mục
   const categoryCounts = useMemo(() => {
     const counts = {};
     products.forEach((p) => {
@@ -112,21 +159,22 @@ export default function ShopPage({
     return counts;
   }, [products]);
 
-  return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
-      
-      {/* ================= 1. BANNER TIÊU ĐỀ TRANG ================= */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-8 sm:p-12 shadow-xl border border-stone-800">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+  const currentSortLabel = useMemo(() => {
+    return SORT_OPTIONS.find((s) => s.value === sortBy)?.label || 'Mặc định';
+  }, [sortBy]);
 
-        <div className="relative z-10 max-w-3xl space-y-3.5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-xs font-bold border border-amber-400/20 shadow-2xs">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+  return (
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
+      
+      {/* ================= 1. BANNER TIÊU ĐỀ ================= */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-5 sm:p-10 shadow-xl border border-stone-800">
+        <div className="relative z-10 max-w-3xl space-y-2.5">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-[11px] font-bold border border-amber-400/20 shadow-2xs">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>Nông Sản Tươi Hái Mỗi Sáng • Đóng Thùng Xốp Gửi Xe</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
             Gian Hàng Đặc Sản <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
               Chính Gốc Xứ Nắng Gió
@@ -134,89 +182,150 @@ export default function ShopPage({
           </h1>
 
           <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light max-w-2xl">
-            Tất cả táo gió, nho mộc, rượu nho và hải sản phơi ráo đều được chuẩn bị kỹ lưỡng tại Phan Rang, bảo quản giữ trọn độ tươi giòn gửi vào bến xe TP.HCM và các tỉnh toàn quốc.
+            Tất cả táo gió, nho mộc, rượu nho và hải sản phơi ráo đều được chuẩn bị kỹ lưỡng tại Phan Rang, gửi xe khách trong đêm vào TP.HCM và các tỉnh toàn quốc.
           </p>
-
-          <div className="flex flex-wrap items-center gap-5 pt-2 text-[11px] text-stone-400 font-medium">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Hút chân không & bọc chống sốc
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Đổi trả 100% nếu dập hỏng
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" /> Tặng quà quê khi chuyển khoản
-            </span>
-          </div>
         </div>
       </section>
 
-      {/* ================= 2. BỘ LỌC TÌM KIẾM & DANH MỤC TRÊN 1 HÀNG ================= */}
-      <section className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-xs space-y-4">
+      {/* ================= 2. BỘ LỌC TỐI ƯU GỌN GÀNG TRÊN 1 HÀNG ================= */}
+      <section className="bg-white rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs space-y-2.5">
         
-        {/* Hàng 1: Ô tìm kiếm + Sắp xếp */}
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-3.5 pointer-events-none" />
+        {/* HÀNG 1: Ô TÌM KIẾM MỞ RỘNG TỐI ĐA + NÚT LỌC CUSTOM */}
+        <div className="flex items-center gap-2">
+          
+          {/* Ô TÌM KIẾM CHIẾM TRỌN DIỆN TÍCH */}
+          <div ref={searchBoxRef} className="relative flex-1">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm kiếm táo giòn, nho đỏ, rượu ủ, mực một nắng, tỏi Phan Rang..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-xs pl-10 pr-9 py-3 rounded-2xl border border-stone-200 bg-stone-50/80 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 transition-all shadow-2xs"
+              placeholder="Tìm táo gió, nho mộc, bánh tráng..."
+              value={searchInput}
+              onFocus={() => setIsSearchFocused(true)}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full text-xs pl-9 pr-8 py-2.5 rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 transition-all shadow-2xs"
             />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-3 text-stone-400 hover:text-stone-700 text-xs px-1 cursor-pointer"
-                title="Xóa tìm kiếm"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Sắp xếp giá & tên */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="relative flex items-center">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-stone-400 absolute left-3 pointer-events-none" />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="text-xs pl-8 pr-7 py-3 rounded-2xl border border-stone-200 bg-stone-50/80 hover:bg-white text-stone-700 font-bold focus:outline-none focus:border-amber-600 cursor-pointer transition-all"
-              >
-                <option value="default">Mặc định</option>
-                <option value="price-asc">Giá: Thấp → Cao</option>
-                <option value="price-desc">Giá: Cao → Thấp</option>
-                <option value="name">Tên: A → Z</option>
-              </select>
-            </div>
-
-            {(selectedCategories.length > 0 || searchQuery || sortBy !== 'default') && (
+            {searchInput && (
               <button
                 type="button"
                 onClick={() => {
-                  setSelectedCategories([]);
-                  setSearchQuery('');
-                  setSortBy('default');
+                  setSearchInput('');
+                  setDebouncedQuery('');
                 }}
-                className="p-3 rounded-2xl border border-stone-200 hover:bg-stone-100 text-stone-600 transition-colors cursor-pointer"
-                title="Đặt lại bộ lọc"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <X className="w-3.5 h-3.5" />
               </button>
+            )}
+
+            {/* DROPDOWN GỢI Ý */}
+            {isSearchFocused && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-stone-200 shadow-xl p-3 z-30 animate-fadeIn space-y-2 text-xs">
+                {searchInput.trim() ? (
+                  searchSuggestions.length > 0 ? (
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-1 pb-1">Gợi ý món phù hợp:</span>
+                      <div className="space-y-0.5">
+                        {searchSuggestions.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onMouseDown={() => {
+                              setSearchInput(item);
+                              setDebouncedQuery(item);
+                              setIsSearchFocused(false);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl hover:bg-amber-50 text-stone-700 hover:text-amber-900 cursor-pointer flex items-center justify-between"
+                          >
+                            <span className="font-medium">{item}</span>
+                            <ArrowRight className="w-3 h-3 text-stone-300" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2 text-center text-stone-400 text-xs">
+                      Không có gợi ý trùng khớp
+                    </div>
+                  )
+                ) : (
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1 px-1 pb-1">
+                      <TrendingUp className="w-3 h-3 text-amber-600" />
+                      <span>Được tìm kiếm nhiều:</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {POPULAR_SEARCHES.map((tag, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onMouseDown={() => {
+                            setSearchInput(tag);
+                            setDebouncedQuery(tag);
+                            setIsSearchFocused(false);
+                          }}
+                          className="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 rounded-lg text-[11px] font-medium"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* NÚT SẮP XẾP CUSTOM UI (KHÔNG DÙNG THẺ SELECT GỐC XẤU CỦA HỆ ĐIỀU HÀNH) */}
+          <div ref={sortRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsSortOpen((prev) => !prev)}
+              className={`h-9 px-2.5 sm:px-3 rounded-2xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 ${
+                sortBy !== 'default'
+                  ? 'bg-amber-100/80 border-amber-400 text-amber-900'
+                  : 'bg-stone-50/90 border-stone-200 text-stone-700 hover:bg-white'
+              }`}
+              title="Sắp xếp sản phẩm"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden sm:inline">{currentSortLabel}</span>
+              <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* MENU POPUP SẮP XẾP TINH TẾ */}
+            {isSortOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
+                  Sắp xếp theo:
+                </span>
+                {SORT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setSortBy(opt.value);
+                      setIsSortOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between cursor-pointer transition-colors ${
+                      sortBy === opt.value
+                        ? 'bg-amber-50 text-amber-900 font-bold'
+                        : 'text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {sortBy === opt.value && <Check className="w-3.5 h-3.5 text-amber-700" />}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Hàng 2: DANH MỤC TRÊN 1 HÀNG DUY NHẤT (CÓ CUỘN NGANG ẨN THANH CUỘN) */}
-        <div className="pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
-          {/* Nút Xem tất cả */}
+        {/* HÀNG 2: THANH CUỘN DANH MỤC TRỰC QUAN */}
+        <div className="pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             type="button"
             onClick={handleSelectAllCategories}
-            className={`shrink-0 py-2 px-3.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
+            className={`shrink-0 py-1.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
               selectedCategories.length === 0
                 ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
                 : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border-stone-200'
@@ -231,7 +340,6 @@ export default function ShopPage({
             </span>
           </button>
 
-          {/* Các danh mục từ Google Sheet */}
           {displayCategories.map((cat) => {
             const IconComponent = ICON_MAP[cat.icon] || Sparkles;
             const isCatActive = selectedCategories.includes(cat.id);
@@ -242,7 +350,7 @@ export default function ShopPage({
                 key={cat.id}
                 type="button"
                 onClick={() => handleToggleCategory(cat.id)}
-                className={`shrink-0 py-2 px-3.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border whitespace-nowrap ${
+                className={`shrink-0 py-1.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border whitespace-nowrap ${
                   isCatActive
                     ? 'bg-amber-800 text-white border-amber-800 shadow-xs ring-1 ring-amber-800'
                     : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
@@ -263,27 +371,28 @@ export default function ShopPage({
 
       {/* ================= 3. LƯỚI SẢN PHẨM ================= */}
       {filteredProducts.length === 0 ? (
-        <section className="bg-white rounded-3xl p-12 sm:p-16 text-center border border-dashed border-stone-300 space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
-            <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
+        <section className="bg-white rounded-3xl p-8 sm:p-14 text-center border border-dashed border-stone-300 space-y-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
+            <ShoppingBag className="w-6 h-6 stroke-[1.5]" />
           </div>
 
           <div className="space-y-1">
-            <h3 className="font-bold text-stone-800 text-base">Không tìm thấy món phù hợp</h3>
+            <h3 className="font-bold text-stone-800 text-sm sm:text-base">Không tìm thấy món phù hợp</h3>
             <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
-              Không có sản phẩm nào khớp với bộ lọc hoặc từ khóa "{searchQuery}". Bạn thử tìm với từ khóa khác như: <span className="text-amber-800 font-semibold">táo gió, nho đỏ, rượu ủ, mủ trôm, mực một nắng...</span>
+              Không có sản phẩm nào khớp với từ khóa "{searchInput}". Bạn thử chọn lại từ khóa gợi ý phía trên nhé!
             </p>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="button"
               onClick={() => {
                 setSelectedCategories([]);
-                setSearchQuery('');
+                setSearchInput('');
+                setDebouncedQuery('');
                 setSortBy('default');
               }}
-              className="px-5 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
             >
               <span>Xem lại toàn bộ kệ hàng</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -291,13 +400,13 @@ export default function ShopPage({
           </div>
         </section>
       ) : (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div className="flex items-center justify-between text-xs text-stone-500 px-1">
             <span>Hiển thị <strong className="text-stone-900 font-mono font-bold">{filteredProducts.length}</strong> sản phẩm</span>
-            <span className="text-amber-800 font-medium">Bấm chọn quy cách & xem quà tặng kèm</span>
+            <span className="text-amber-800 font-medium">Hái tươi & đóng thùng trong ngày</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
@@ -309,15 +418,15 @@ export default function ShopPage({
         </section>
       )}
 
-      {/* ================= 4. BANNER CAM KẾT VẬN CHUYỂN CUỐI TRANG ================= */}
-      <section className="bg-amber-50/80 rounded-3xl p-6 sm:p-8 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="space-y-1.5 text-center sm:text-left">
-          <h4 className="font-bold text-sm sm:text-base text-amber-950 flex items-center justify-center sm:justify-start gap-2">
+      {/* ================= 4. CAM KẾT VẬN CHUYỂN ================= */}
+      <section className="bg-amber-50/80 rounded-3xl p-5 sm:p-7 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="space-y-1 text-center sm:text-left">
+          <h4 className="font-bold text-sm text-amber-950 flex items-center justify-center sm:justify-start gap-1.5">
             <Sparkles className="w-4 h-4 text-amber-700" />
             <span>Đơn Hàng Gửi Xe Vào Sài Gòn & Các Tỉnh</span>
           </h4>
           <p className="text-xs text-amber-900/80 leading-relaxed font-light max-w-2xl">
-            Nông sản tươi được chèn giấy rơm và bọc thùng xốp chuyên dụng, gửi xe khách trong đêm để sáng sớm hôm sau tới nơi vẫn giữ nguyên cuống xanh và vị ngọt giòn.
+            Nông sản tươi được chèn giấy rơm và bọc thùng xốp chuyên dụng, gửi xe khách trong đêm để sáng sớm hôm sau tới nơi vẫn giữ nguyên độ tươi giòn.
           </p>
         </div>
 
@@ -325,7 +434,7 @@ export default function ShopPage({
           <button
             type="button"
             onClick={() => onNavigate('story')}
-            className="px-5 py-3 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
           >
             <span>Đọc chuyện mùa vụ</span>
             <ArrowRight className="w-3.5 h-3.5" />

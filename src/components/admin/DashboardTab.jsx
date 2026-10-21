@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+// src/components/admin/DashboardTab.jsx
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   FileSpreadsheet, Loader2, RefreshCw, Search, X, 
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
-  Lock, Edit3, CheckCircle2
+  Lock, Edit3, CheckCircle2, ChevronDown, Check, Filter
 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -17,7 +18,15 @@ const PAYMENT_LABELS = {
   cod: 'COD (Trả sau)'
 };
 
-// MA TRẬN TIẾN TRÌNH TRẠNG THÁI 1 CHIỀU (FORWARD-ONLY)
+const DATE_OPTIONS = [
+  { value: 'all', label: 'Tất cả thời gian' },
+  { value: 'today', label: 'Hôm nay' },
+  { value: 'yesterday', label: 'Hôm qua' },
+  { value: '7days', label: '7 ngày gần nhất' },
+  { value: '30days', label: '30 ngày gần nhất' },
+  { value: 'custom', label: 'Khoảng ngày tùy chọn...' },
+];
+
 const FORWARD_STATUS_MAP = {
   [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
   [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PACKING, ORDER_STATUS.CANCELLED],
@@ -29,7 +38,79 @@ const FORWARD_STATUS_MAP = {
 };
 
 // =========================================================================
-// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG: HIỆN NGAY KÈM ĐỒNG HỒ ĐẾM NGƯỢC 30P
+// SUB-COMPONENT: DROPDOWN CHỌN TRẠNG THÁI TÙY CHỈNH (THAY THẾ SELECT HỆ ĐIỀU HÀNH)
+// =========================================================================
+function StatusSelectDropdown({ 
+  ord, 
+  currentStatusCode, 
+  statusMeta, 
+  allowedNextStatuses, 
+  isFullPrepaid, 
+  isProcessing, 
+  onSelectStatus 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={dropdownRef} className="relative inline-block text-left">
+      <button
+        type="button"
+        disabled={isProcessing}
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 ${statusMeta.bg}`}
+      >
+        <span>{statusMeta.label}</span>
+        <ChevronDown className={`w-3 h-3 text-stone-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
+          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
+            Chuyển trạng thái:
+          </span>
+
+          <div className="w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between bg-stone-100/70 text-stone-700 text-[11px] font-bold">
+            <span>{statusMeta.label}</span>
+            <Check className="w-3 h-3 text-stone-500" />
+          </div>
+
+          {allowedNextStatuses.map((nextStatusCode) => {
+            if (isFullPrepaid && nextStatusCode === ORDER_STATUS.BOMBED) return null;
+            const nextMeta = ORDER_STATUS_MAP[nextStatusCode];
+
+            return (
+              <button
+                key={nextStatusCode}
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onSelectStatus(ord, nextStatusCode);
+                }}
+                className="w-full px-2.5 py-1.5 rounded-xl text-left flex items-center justify-between text-[11px] font-semibold text-stone-700 hover:bg-amber-50 hover:text-amber-900 transition-colors cursor-pointer"
+              >
+                <span>➔ {nextMeta?.label || nextStatusCode}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =========================================================================
+// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG
 // =========================================================================
 function DashboardOrderRow({
   ord,
@@ -84,9 +165,9 @@ function DashboardOrderRow({
               : 'bg-white border-transparent'
       }`}
     >
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="space-y-1.5 flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
               {ord.code}
             </span>
@@ -172,7 +253,7 @@ function DashboardOrderRow({
           )}
         </div>
 
-        <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 shrink-0">
+        <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
           <div className="text-left md:text-right">
             <span className="font-mono font-black text-stone-900 text-sm block">
               {cleanTotalNum.toLocaleString('vi-VN')}đ
@@ -205,25 +286,15 @@ function DashboardOrderRow({
                 )}
               </div>
             ) : (
-              <select
-                disabled={isProcessing}
-                value={currentStatusCode}
-                onChange={(e) => onSelectStatus(ord, e.target.value)}
-                className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border cursor-pointer focus:outline-none transition-colors ${statusMeta.bg}`}
-              >
-                <option value={currentStatusCode}>
-                  {statusMeta.label}
-                </option>
-                {allowedNextStatuses.map((nextStatusCode) => {
-                  if (isFullPrepaid && nextStatusCode === ORDER_STATUS.BOMBED) return null;
-                  const nextMeta = ORDER_STATUS_MAP[nextStatusCode];
-                  return (
-                    <option key={nextStatusCode} value={nextStatusCode}>
-                      ➔ {nextMeta?.label || nextStatusCode}
-                    </option>
-                  );
-                })}
-              </select>
+              <StatusSelectDropdown
+                ord={ord}
+                currentStatusCode={currentStatusCode}
+                statusMeta={statusMeta}
+                allowedNextStatuses={allowedNextStatuses}
+                isFullPrepaid={isFullPrepaid}
+                isProcessing={isProcessing}
+                onSelectStatus={onSelectStatus}
+              />
             )}
 
             {!isInspectingRefer && (
@@ -286,7 +357,7 @@ function DashboardOrderRow({
           }`}>
             <div className="flex items-center gap-1 font-bold mb-0.5 uppercase tracking-wide">
               <Info className="w-3 h-3" />
-              <span>Cơ chế ứng xử đề xuất:</span>
+              <span>Cơ chế ứng xử:</span>
             </div>
             {isBombedRisk ? (
               <span>
@@ -343,8 +414,32 @@ export default function DashboardTab({
   const [overrideTargetStatus, setOverrideTargetStatus] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
 
-  // State điều khiển ConfirmModal giao diện chuẩn
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+  const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+  const dateDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target)) {
+        setIsDateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: orders.length };
+    orders.forEach((o) => {
+      const code = normalizeOrderStatus(o.status);
+      counts[code] = (counts[code] || 0) + 1;
+    });
+    return counts;
+  }, [orders]);
+
+  const currentDateLabel = useMemo(() => {
+    return DATE_OPTIONS.find((d) => d.value === dateFilterType)?.label || 'Tất cả thời gian';
+  }, [dateFilterType]);
 
   const handleInspectReferOrder = (code) => {
     setSearchQuery(code);
@@ -411,7 +506,7 @@ export default function DashboardTab({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn font-sans">
+    <div className="space-y-5 animate-fadeIn font-sans">
       {/* Top Banner Thống Kê */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
         <div className="space-y-0.5">
@@ -437,223 +532,257 @@ export default function DashboardTab({
       </div>
 
       {/* 4 Chỉ số KPI Chuẩn */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
-          <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
+          <p className="text-base sm:text-lg font-black text-stone-900 font-mono">
             {metrics.totalRevenue.toLocaleString('vi-VN')}đ
           </p>
-          <span className="text-[10px] text-stone-400 block pt-0.5">Không tính đơn hủy/bom</span>
+          <span className="text-[10px] text-stone-400 block">Không tính đơn hủy/bom</span>
         </div>
 
-        <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
+        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-emerald-700 block">Tiền Thực Nhận (Đã CK)</span>
-          <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono">
+          <p className="text-base sm:text-lg font-black text-emerald-700 font-mono">
             {metrics.realReceivedMoney.toLocaleString('vi-VN')}đ
           </p>
-          <span className="text-[10px] text-emerald-600 block pt-0.5">Tiền cọc & full của đơn đã duyệt</span>
+          <span className="text-[10px] text-emerald-600 block">Đơn đã duyệt thanh toán</span>
         </div>
 
-        <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
+        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-stone-500 block">Số Đơn Hàng</span>
-          <p className="text-lg sm:text-xl font-black text-stone-900 font-mono">
+          <p className="text-base sm:text-lg font-black text-stone-900 font-mono">
             {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
           </p>
-          <span className="text-[10px] text-stone-400 block pt-0.5">Chưa tính đơn hủy / bom</span>
+          <span className="text-[10px] text-stone-400 block">Chưa tính đơn hủy/bom</span>
         </div>
 
-        <div className="bg-white p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
+        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
           <span className="text-[11px] font-semibold text-stone-500 block">Giá Trị TB / Đơn (AOV)</span>
-          <p className="text-lg sm:text-xl font-black text-amber-800 font-mono">
+          <p className="text-base sm:text-lg font-black text-amber-800 font-mono">
             {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
           </p>
-          <span className="text-[10px] text-stone-400 block pt-0.5">Bình quân mỗi đơn</span>
+          <span className="text-[10px] text-stone-400 block">Bình quân mỗi đơn</span>
         </div>
       </div>
 
-      {/* THANH THỐNG KÊ ĐƠN HỦY / BOM HÀNG & TIỀN CỌC THU HỒI */}
-      <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs animate-fadeIn">
-        <div className="flex flex-wrap items-center gap-3 sm:gap-5">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-            <span className="text-stone-600 font-medium">
-              Đơn Hủy: <strong className="text-stone-900 font-mono text-sm">{metrics.cancelledCount}</strong> đơn
+      {/* THANH THỐNG KÊ ĐƠN HỦY / BOM */}
+      <div className="bg-white p-3 rounded-2xl border border-stone-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span className="text-stone-600">
+              Đơn Hủy: <strong className="text-stone-900 font-mono">{metrics.cancelledCount}</strong>
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-700 animate-pulse"></span>
-            <span className="text-stone-600 font-medium">
-              Bom Hàng: <strong className="text-red-700 font-mono text-sm">{metrics.bombedCount}</strong> đơn
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-red-700 animate-pulse"></span>
+            <span className="text-stone-600">
+              Bom Hàng: <strong className="text-red-700 font-mono">{metrics.bombedCount}</strong>
             </span>
           </div>
 
           <span className="hidden sm:inline text-stone-300">|</span>
 
-          <div className="flex items-center gap-1.5 text-stone-700 font-medium">
-            <span>Tiền cọc giữ lại từ đơn bom:</span>
-            <strong className="text-emerald-700 font-mono font-bold text-sm bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+          <div className="flex items-center gap-1 text-stone-700">
+            <span>Tiền cọc giữ lại:</span>
+            <strong className="text-emerald-700 font-mono font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
               +{metrics.retainedDeposit.toLocaleString('vi-VN')}đ
             </strong>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200/80">
-          <span className="text-stone-500 text-[11px] font-semibold">Tỷ lệ hủy / bom:</span>
-          <span className={`font-mono font-black text-xs ${metrics.lossRate > 15 ? 'text-rose-600' : 'text-stone-800'}`}>
+        <div className="flex items-center gap-1.5 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200/80">
+          <span className="text-stone-500 text-[10.5px]">Tỷ lệ hủy/bom:</span>
+          <span className={`font-mono font-bold text-xs ${metrics.lossRate > 15 ? 'text-rose-600' : 'text-stone-800'}`}>
             {metrics.lossRate}%
           </span>
         </div>
       </div>
 
-      {/* Đặc sản bán chạy */}
-      <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-        <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wide">
-          Đặc Sản Hút Khách Nhất (Bán Chạy)
-        </h3>
-
-        {topProducts.length === 0 ? (
-          <p className="text-xs text-stone-400 italic py-4 text-center">
-            Chưa có dữ liệu sản phẩm trong giai đoạn lọc này.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {topProducts.slice(0, 6).map((item, idx) => (
-              <div key={item.name} className="p-3 rounded-2xl bg-stone-50 border border-stone-200/70 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 truncate pr-2">
-                  <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-bold flex items-center justify-center shrink-0">
-                    {idx + 1}
-                  </span>
-                  <div className="truncate">
-                    <span className="font-bold text-stone-800 truncate block">{item.name}</span>
-                    <span className="text-[10px] text-stone-500">Đã bán: <strong>{item.quantity}</strong> phần</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Chi tiết đơn hàng & Bộ lọc */}
-      <div className="bg-white p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
-          <div>
-            <h3 className="text-sm font-black text-stone-900 uppercase tracking-wide flex items-center gap-2">
-              <span>Chi Tiết Đơn Hàng</span>
-              <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900">
-                {filteredOrders.length} / {orders.length} đơn
-              </span>
-            </h3>
-            <p className="text-[11px] text-stone-500 mt-0.5">
-              Quy trình khóa trạng thái 1 chiều theo chuẩn bến xe. Đơn lịch sử và đơn kết thúc được khóa chống chỉnh sửa nhầm.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3 bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200/80">
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-            <div className="sm:col-span-5 relative">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm theo số điện thoại, tên khách, mã XNG..."
-                className="w-full pl-9 pr-8 py-2 rounded-xl bg-white border border-stone-200 text-xs font-medium focus:border-amber-600 focus:outline-none"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div className="sm:col-span-4">
-              <select
-                value={dateFilterType}
-                onChange={(e) => setDateFilterType(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer"
+      {/* =========================================================================
+          KHU VỰC QUẢN LÝ ĐƠN HÀNG: GIAO DIỆN BỘ LỌC TỐI ƯU MOBILE & DESKTOP
+         ========================================================================= */}
+      <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-3.5">
+        
+        {/* HÀNG 1: TÌM KIẾM MỞ RỘNG TỐI ĐA + BỘ CHỌN THỜI GIAN CUSTOM */}
+        <div className="flex items-center gap-2">
+          
+          {/* Ô Tìm Kiếm */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm số điện thoại, tên, mã XNG..."
+              className="w-full pl-9 pr-7 py-2 rounded-xl bg-stone-50/90 hover:bg-white focus:bg-white border border-stone-200 text-xs font-medium focus:border-amber-600 focus:outline-none transition-all shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 cursor-pointer"
               >
-                <option value="all">📅 Tất cả thời gian</option>
-                <option value="today">Hôm nay</option>
-                <option value="yesterday">Hôm qua</option>
-                <option value="7days">7 ngày gần nhất</option>
-                <option value="30days">30 ngày gần nhất</option>
-                <option value="custom">Tùy chọn khoảng ngày (tối đa 30 ngày)...</option>
-              </select>
-            </div>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
-            <div className="sm:col-span-3">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full py-2 px-3 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 focus:border-amber-600 focus:outline-none cursor-pointer ring-1 ring-amber-300"
-              >
-                <option value="all">⚡ Tất cả trạng thái</option>
-                {Object.entries(ORDER_STATUS_MAP).map(([statusCode, info]) => (
-                  <option key={statusCode} value={statusCode}>
-                    {statusCode === ORDER_STATUS.PENDING ? `⏳ ${info.label} (Mặc định lọc duyệt)` : info.label}
-                  </option>
+          {/* Bộ chọn Ngày Popup Custom */}
+          <div ref={dateDropdownRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsDateDropdownOpen((prev) => !prev)}
+              className={`h-8.5 px-2.5 sm:px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 ${
+                dateFilterType !== 'all'
+                  ? 'bg-amber-100/80 border-amber-400 text-amber-900'
+                  : 'bg-stone-50/90 border-stone-200 text-stone-700 hover:bg-white'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden sm:inline">{currentDateLabel}</span>
+              <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isDateDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isDateDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
+                  Khoảng thời gian:
+                </span>
+                {DATE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setDateFilterType(opt.value);
+                      setIsDateDropdownOpen(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 rounded-lg text-left flex items-center justify-between cursor-pointer transition-colors ${
+                      dateFilterType === opt.value
+                        ? 'bg-amber-50 text-amber-900 font-bold'
+                        : 'text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {dateFilterType === opt.value && <Check className="w-3.5 h-3.5 text-amber-700" />}
+                  </button>
                 ))}
-              </select>
-            </div>
+              </div>
+            )}
           </div>
 
-          {dateFilterType === 'custom' && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="text-stone-500 font-semibold">Từ ngày:</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => handleStartDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
-                  className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span className="text-stone-500 font-semibold">Đến ngày:</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => handleEndDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
-                  className="py-1.5 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
-                />
-              </div>
-            </div>
+          {/* Nút Reset Bộ Lọc */}
+          {(statusFilter !== ORDER_STATUS.PENDING || dateFilterType !== 'all' || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(ORDER_STATUS.PENDING);
+                setDateFilterType('all');
+                setSearchQuery('');
+              }}
+              className="h-8.5 px-2 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-xl border border-stone-200 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+              title="Đặt lại về mặc định"
+            >
+              <RefreshCw className="w-3 h-3" />
+            </button>
           )}
         </div>
 
+        {/* HÀNG 2: THANH TAB TRẠNG THÁI TRƯỢT NGANG */}
+        <div className="pt-2 border-t border-stone-100 flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className={`shrink-0 py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
+              statusFilter === 'all'
+                ? 'bg-stone-900 text-white border-stone-900 shadow-2xs'
+                : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border-stone-200'
+            }`}
+          >
+            <span>Tất cả</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+              statusFilter === 'all' ? 'bg-stone-800 text-stone-200' : 'bg-stone-200 text-stone-600'
+            }`}>
+              {statusCounts.all || 0}
+            </span>
+          </button>
+
+          {Object.entries(ORDER_STATUS_MAP).map(([statusCode, info]) => {
+            const isActive = statusFilter === statusCode;
+            const count = statusCounts[statusCode] || 0;
+            return (
+              <button
+                key={statusCode}
+                type="button"
+                onClick={() => setStatusFilter(statusCode)}
+                className={`shrink-0 py-1.5 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border whitespace-nowrap ${
+                  isActive
+                    ? 'bg-amber-800 text-white border-amber-800 shadow-2xs ring-1 ring-amber-800'
+                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                }`}
+              >
+                <span>{statusCode === ORDER_STATUS.PENDING ? '⏳ ' + info.label : info.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  isActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Khung nhập khoảng ngày tùy chọn */}
+        {dateFilterType === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-stone-500 font-semibold">Từ ngày:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => handleStartDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
+                className="py-1 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-stone-500 font-semibold">Đến ngày:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => handleEndDateChange(e.target.value, (msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg }))}
+                className="py-1 px-2.5 rounded-xl bg-white border border-stone-200 text-xs font-mono font-bold"
+              />
+            </div>
+          </div>
+        )}
+
         {/* BANNER KHI ĐANG SOI ĐƠN GỐC */}
         {isInspectingRefer && (
-          <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fadeIn">
+          <div className="p-2.5 bg-amber-500/10 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fadeIn">
             <div className="flex items-center gap-2 text-amber-950 font-medium">
               <History className="w-4 h-4 text-amber-700 shrink-0" />
               <span>
-                Đang xem chi tiết đơn gốc: <strong className="font-mono font-black text-amber-900">{searchQuery}</strong> (Đã khóa trạng thái để đối chiếu an toàn)
+                Đang xem đơn gốc: <strong className="font-mono font-black text-amber-900">{searchQuery}</strong>
               </span>
             </div>
 
             <button
               type="button"
               onClick={() => { setSearchQuery(''); setStatusFilter(ORDER_STATUS.PENDING); }}
-              className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0 active:scale-95"
+              className="px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer shrink-0"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Quay lại duyệt đơn</span>
+              <ArrowLeft className="w-3 h-3" />
+              <span>Quay lại</span>
             </button>
           </div>
         )}
 
         {/* Danh sách từng dòng đơn */}
-        <div className="divide-y divide-stone-100 space-y-3 pt-1">
+        <div className="divide-y divide-stone-100 space-y-2.5 pt-1">
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-10 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+            <div className="text-center py-8 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
               <p className="text-xs font-bold text-stone-600">
                 {statusFilter === ORDER_STATUS.PENDING 
                   ? 'Hiện không có đơn hàng nào đang ở trạng thái "Chờ xác nhận"' 
@@ -682,7 +811,7 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* MODAL BẮT BUỘC CHỌN / NHẬP LÝ DO KHI HỦY HOẶC BOM THÔNG THƯỜNG */}
+      {/* MODAL BẮT BUỘC CHỌN LÝ DO HỦY / BOM */}
       {pendingStatusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
@@ -787,7 +916,7 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* MODAL ĐÍNH CHÍNH TRẠNG THÁI (KHI NHÂN VIÊN BẤM NHẦM ĐƠN ĐÃ ĐÓNG) */}
+      {/* MODAL ĐÍNH CHÍNH TRẠNG THÁI */}
       {overrideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-amber-200 shadow-2xl space-y-4">
@@ -877,7 +1006,7 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* CONFIRM MODAL ĐỒNG BỘ GIAO DIỆN CHUẨN */}
+      {/* CONFIRM MODAL ĐỒNG BỘ */}
       <ConfirmModal 
         modalConfig={confirmModalConfig} 
         onClose={() => setConfirmModalConfig(null)} 
