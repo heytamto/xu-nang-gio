@@ -1,6 +1,6 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ArrowLeft, ShoppingBag, ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, ArrowRight } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { useServerReconcile } from '../hooks/useServerReconcile';
 
@@ -60,7 +60,6 @@ export default function CheckoutPage({
   onUpdateQuantity,
   onRemoveItem,
 }) {
-  // Tự động tải thông tin khách hàng từ localStorage nếu có lưu trước đó
   const [customer, setCustomer] = useState(() => {
     try {
       const saved = localStorage.getItem('shop_last_customer');
@@ -109,7 +108,6 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
-  // Tra cứu lịch sử khách hàng và trích xuất previousInfo (name, address, email) cho Banner gợi ý
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
@@ -166,7 +164,6 @@ export default function CheckoutPage({
           isRiskCustomer: activeBombedRisk || activeFrequentCanceller,
           latestOrderCode: latestSuccessOrder ? (latestSuccessOrder.code || latestSuccessOrder.orderId) : null,
           canUseOldCode: hasUnusedOldCode,
-          // Trích xuất đầy đủ Họ tên, Địa chỉ và Email từ đơn cũ gần nhất:
           previousInfo: latestSuccessOrder ? {
             name: String(latestSuccessOrder.customerName || latestSuccessOrder.name || latestSuccessOrder.customer?.name || ''),
             address: String(latestSuccessOrder.address || latestSuccessOrder.customer?.address || ''),
@@ -191,7 +188,8 @@ export default function CheckoutPage({
     };
   }, [cleanPhone, isPhoneValid, shopConfig?.orders]);
 
-  const { serverState, isReconciling: isValidating, reconcileError } = useServerReconcile({
+  // Đối soát giá và chữ ký bảo mật âm thầm từ Edge Worker Proxy
+  const { serverState } = useServerReconcile({
     cart,
     cleanPhone: isPhoneValid ? cleanPhone : '',
     voucherCode: voucherCodeString,
@@ -279,11 +277,6 @@ export default function CheckoutPage({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (isValidating) {
-      alert('Hệ thống đang kiểm tra lại giá từ vườn, vui lòng chờ trong giây lát!');
-      return;
-    }
-
     const nameErr = validateName(customer.name);
     const phoneErr = validatePhone(customer.phone);
     const emailErr = validateEmail(customer.email);
@@ -311,7 +304,6 @@ export default function CheckoutPage({
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
     const previousOrderCodeUsed = appliedVouchers.find((v) => v.code.startsWith('XNG'))?.code || '';
 
-    // Lưu thông tin vào localStorage để tối ưu UX cho lần sau
     try {
       localStorage.setItem('shop_last_customer', JSON.stringify(customer));
       localStorage.setItem('shop_last_address', shippingAddress);
@@ -425,23 +417,7 @@ export default function CheckoutPage({
               <p className="text-xs text-stone-400">Nông sản thu hái tại giàn, bao ăn từng trái</p>
             </div>
           </div>
-
-          {isValidating && (
-            <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-stone-800 px-3 py-1 rounded-full border border-stone-700 animate-pulse">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Đang đối soát giá vườn...</span>
-            </div>
-          )}
         </div>
-
-        {serverState?.diffReport && serverState.diffReport.length > 0 && (
-          <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 flex items-center gap-2 text-xs text-amber-900">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              Giá nông sản đã được cập nhật đồng bộ chính xác theo giá niêm yết tại giàn.
-            </span>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           <div className="lg:col-span-7 flex flex-col justify-between gap-5 h-full">
@@ -487,7 +463,7 @@ export default function CheckoutPage({
                 appliedVouchers={appliedVouchers}
                 calculatedVouchers={serverState?.appliedVouchers || appliedVouchers}
                 voucherError={voucherError || (serverState?.rejectedVouchers?.length ? `Mã không áp dụng được: ${serverState.rejectedVouchers.join(', ')}` : '')}
-                isValidating={isValidating}
+                isValidating={false}
                 onApplyVoucher={() => applySpecificCode(voucherInput)}
                 onRemoveVoucher={handleRemoveVoucher}
               />
@@ -518,7 +494,7 @@ export default function CheckoutPage({
               finalTotalAmount={activeFinalTotal}
               paymentMethod={paymentMethod}
               depositAmount={depositAmount}
-              isSubmitting={isSubmitting || isValidating}
+              isSubmitting={isSubmitting}
             />
           </div>
         </form>

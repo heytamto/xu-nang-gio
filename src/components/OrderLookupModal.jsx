@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// src/components/OrderLookupModal.jsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Search, PackageCheck, Clock, X, Copy, Check, 
   Gift, PhoneCall, MessageCircle, Headphones, AlertCircle, Ban, Loader2 
@@ -20,7 +21,12 @@ function parseOrderTimestamp(dateStr) {
   return isNaN(t) ? 0 : t;
 }
 
-export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
+export default function OrderLookupModal({ 
+  isOpen, 
+  onClose, 
+  shopConfig = {}, 
+  initialCode = '' 
+}) {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState(null);
@@ -41,8 +47,6 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
     }, 1000);
     return () => clearInterval(interval);
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const hotline = shopConfig?.hotline || '0848.957.345';
   const cleanHotline = String(hotline).replace(/[^0-9]/g, '');
@@ -105,11 +109,10 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
   };
 
   // Tra cứu thông tin: Ưu tiên dữ liệu Google Sheet đè lên LocalStorage
-  const handleLookup = async (e) => {
-    if (e) e.preventDefault();
+  const performLookup = useCallback(async (queryValue) => {
     setErrorMessage('');
     setCancelSuccessNote('');
-    const rawVal = searchTerm.trim();
+    const rawVal = String(queryValue || '').trim();
 
     if (!rawVal) {
       setErrorMessage("Vui lòng nhập số điện thoại hoặc mã đơn hàng!");
@@ -151,13 +154,10 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
         
         if (data.status === 'success' && Array.isArray(data.orders)) {
           const orderMap = new Map();
-          // Đưa local vào trước
           matchedList.forEach(o => { if (o && o.code) orderMap.set(o.code, o); });
-          // Đưa dữ liệu Sheet vào sau để ghi đè trạng thái mới nhất từ server
           data.orders.forEach(o => { if (o && o.code) orderMap.set(o.code, o); });
           
           matchedList = Array.from(orderMap.values());
-          // Đồng bộ ngược lại LocalStorage để lần sau không bị lệch
           try {
             const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
             const localUpdated = local.map(loc => {
@@ -177,7 +177,25 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
         setErrorMessage("Không tìm thấy đơn hàng nào khớp với thông tin bạn nhập.");
       }
     }
+  }, []);
+
+  const handleLookup = (e) => {
+    if (e) e.preventDefault();
+    performLookup(searchTerm);
   };
+
+  // TỰ ĐỘNG ĐIỀN MÃ VÀ TRA CỨU KHI ĐƯỢC TRUYỀN INITIAL CODE TỪ LINK EMAIL
+  useEffect(() => {
+    if (isOpen) {
+      if (initialCode) {
+        setSearchTerm(initialCode);
+        performLookup(initialCode);
+      } else if (!searchTerm) {
+        setOrders(null);
+        setErrorMessage('');
+      }
+    }
+  }, [isOpen, initialCode, performLookup]);
 
   // Xử lý gửi yêu cầu hủy đơn an toàn không bị CORS
   const handleConfirmCancelOrder = async () => {
@@ -212,7 +230,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
       console.error(e);
     }
 
-    // 3. Gửi Webhook dạng GET hoặc URL param để tránh triệt để lỗi CORS của Google Apps Script
+    // 3. Gửi Webhook
     const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
     if (webhookUrl) {
       try {
@@ -234,6 +252,8 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
       setCancelSuccessNote(`Đơn hàng ${orderCode} đã được hủy thành công.`);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn font-sans">
@@ -468,7 +488,7 @@ export default function OrderLookupModal({ isOpen, onClose, shopConfig = {} }) {
                         }}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-all active:scale-95 cursor-pointer shadow-2xs"
                       >
-                        <Ban className="w-3 1-3" />
+                        <Ban className="w-3 h-3" />
                         <span>Hủy đơn</span>
                       </button>
                     </div>

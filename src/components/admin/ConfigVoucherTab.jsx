@@ -1,9 +1,114 @@
-import React, { useState, useEffect } from 'react';
-import { QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck } from 'lucide-react';
+// src/components/admin/ConfigVoucherTab.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
+  Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp
+} from 'lucide-react';
 import { VIETQR_BANKS } from '../../config/shopConfig';
+
+const GSHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
+
+const DEFAULT_CONFIRM_BODY = `<div style="margin: 0; padding: 24px 12px; background-color: #fdfbf7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 24px; border: 1px solid #fed7aa; overflow: hidden; box-shadow: 0 4px 16px rgba(180, 83, 9, 0.06);">
+    <div style="background: linear-gradient(135deg, #78350f, #b45309); padding: 28px 24px; text-align: center;">
+      <span style="font-size: 28px; display: inline-block; margin-bottom: 8px;">&#127815;</span>
+      <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">Xứ Nắng Gió</h1>
+      <p style="margin: 6px 0 0; color: #fed7aa; font-size: 13px; font-weight: 500;">Nông sản tươi cắt cành • Đặc sản Phan Rang</p>
+    </div>
+    <div style="padding: 28px 24px;">
+      <h2 style="margin: 0 0 12px; color: #292524; font-size: 18px; font-weight: 700;">Chào {{CUSTOMER_NAME}},</h2>
+      <p style="margin: 0 0 20px; color: #57534e; font-size: 15px; line-height: 1.6;">
+        Nhà vườn đã nhận được yêu cầu cho đơn hàng <strong style="color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 6px;">#{{ORDER_CODE}}</strong> của bạn và đang chuẩn bị những thức quà tươi ngon nhất.
+      </p>
+      <div style="background-color: #fffbeb; border: 1.5px dashed #fcd34d; border-radius: 18px; padding: 18px 20px; margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 800; text-transform: uppercase; color: #92400e; letter-spacing: 0.5px; margin-bottom: 12px;">Chi tiết kiện hàng</div>
+        <div style="font-size: 15px; color: #292524; line-height: 1.8; margin-bottom: 14px; font-weight: 500;">
+          {{ITEMS_SUMMARY}}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #fde68a;">
+          <tr>
+            <td style="padding: 12px 0 6px 0; font-size: 14px; color: #78716c; text-align: left; vertical-align: middle;">Tổng thanh toán:</td>
+            <td style="padding: 12px 0 6px 0; font-size: 20px; font-weight: 900; color: #b45309; text-align: right; vertical-align: middle;">{{TOTAL}}đ</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; font-size: 13px; color: #78716c; text-align: left;">Hình thức:</td>
+            <td style="padding: 4px 0; font-size: 13px; font-weight: 600; color: #44403c; text-align: right;">{{PAYMENT_METHOD}}</td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 0; font-size: 13px; color: #78716c; text-align: left; vertical-align: top; white-space: nowrap;">Giao đến:</td>
+            <td style="padding: 4px 0; font-size: 13px; font-weight: 500; color: #44403c; text-align: right; vertical-align: top;">{{ADDRESS}}</td>
+          </tr>
+        </table>
+      </div>
+      <div style="text-align: center; margin: 24px 0 20px;">
+        <a href="https://www.xunanggio.com/?order={{ORDER_CODE}}" style="display: inline-block; background-color: #b45309; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 12px 28px; border-radius: 9999px; box-shadow: 0 2px 8px rgba(180, 83, 9, 0.25);">Theo Dõi Kiện Hàng Trực Tiếp &rarr;</a>
+      </div>
+      <div style="background: #f5f5f4; border-radius: 14px; padding: 14px 16px; margin-bottom: 24px;">
+        <p style="margin: 0; color: #44403c; font-size: 14px; line-height: 1.5;">&#127807; <strong>Lời hứa nhà vườn:</strong> Trái cây được cắt hái vào sáng sớm tinh mơ, chèn giấy rơm xốp và gửi xe lạnh trong đêm để đảm bảo độ giòn ngọt nguyên vẹn khi tới tay bạn.</p>
+      </div>
+      <div style="border-top: 1px solid #f5f5f4; padding-top: 18px;">
+        <p style="margin: 0 0 4px; font-size: 14px; color: #78716c;">Thương mến,</p>
+        <p style="margin: 0; font-size: 15px; font-weight: 800; color: #78350f;">Đội ngũ Xứ Nắng Gió • Nông Sản Phan Rang</p>
+      </div>
+    </div>
+    <div style="background: #fafaf9; border-top: 1px solid #f5f5f4; padding: 16px 24px; text-align: center;">
+      <p style="margin: 0; font-size: 12px; color: #a8a29e; line-height: 1.5;">Cần hỗ trợ gấp về kiện hàng? Liên hệ hotline/Zalo: <strong style="color: #78350f;">0848.957.345</strong></p>
+    </div>
+  </div>
+</div>`;
+
+const DEFAULT_CAMPAIGN_BODY = `<div style="margin: 0; padding: 24px 12px; background-color: #fdfbf7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 24px; border: 1px solid #fed7aa; overflow: hidden; box-shadow: 0 4px 16px rgba(180, 83, 9, 0.06);">
+    <div style="background: linear-gradient(135deg, #78350f, #b45309); padding: 28px 24px; text-align: center;">
+      <span style="font-size: 32px; display: inline-block; margin-bottom: 8px;">&#127815;</span>
+      <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800;">Mùa Nào Thức Nấy • Xứ Nắng Gió</h1>
+      <p style="margin: 6px 0 0; color: #fed7aa; font-size: 13px;">Gửi gắm chút nắng gió Ninh Thuận ngọt lành tới bạn</p>
+    </div>
+    <div style="padding: 28px 24px;">
+      <h2 style="margin: 0 0 12px; color: #292524; font-size: 18px; font-weight: 700;">Thương gửi {{CUSTOMER_NAME}},</h2>
+      <p style="margin: 0 0 16px; color: #57534e; font-size: 15px; line-height: 1.6;">
+        Vườn nho Thái An tuần này vừa bước vào kỳ cắt cành sai trĩu quả. Nhà vườn vừa lên kệ đặc sản mới: <strong>{{CAMPAIGN_PRODUCT_NAME}}</strong> – trái giòn tan, ngọt thanh đậm vị nắng.
+      </p>
+      <div style="background: #fffbeb; border: 2px dashed #f59e0b; border-radius: 20px; padding: 20px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 12px; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">Quà quê tri ân khách quen</span>
+        <div style="margin: 10px 0; font-family: monospace; font-size: 24px; font-weight: 900; color: #78350f; background: #fef3c7; display: inline-block; padding: 6px 20px; border-radius: 12px; border: 1px solid #fde68a;">
+          {{VOUCHER_CODE}}
+        </div>
+        <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: 600;">{{VOUCHER_DESC}}</p>
+      </div>
+      <div style="text-align: center; margin: 26px 0 20px;">
+        <a href="https://www.xunanggio.com/?voucher={{VOUCHER_CODE}}" style="display: inline-block; background-color: #b45309; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">Ghé Vườn Thưởng Thức Món Mới &rarr;</a>
+      </div>
+      <p style="margin: 20px 0 0; color: #78716c; font-size: 13px; line-height: 1.6; border-top: 1px solid #f5f5f4; padding-top: 16px;">
+        &#127807; Trái cây chỉ cắt tỉa vào sáng sớm tinh mơ khi có đơn đặt và chuyển xe lạnh trong đêm để giữ vẹn nguyên hương vị đầu cành.
+      </p>
+    </div>
+    <div style="background: #fafaf9; border-top: 1px solid #f5f5f4; padding: 16px 24px; text-align: center;">
+      <p style="margin: 0; font-size: 12px; color: #a8a29e;">Hotline/Zalo nhà vườn: <strong style="color: #78350f;">0848.957.345</strong> • Ninh Phước, Ninh Thuận</p>
+    </div>
+  </div>
+</div>`;
+
+const INITIAL_TEMPLATES = [
+  {
+    id: 'order_confirmation',
+    name: 'Xác nhận đơn hàng mới',
+    subject: 'Cảm ơn bạn đã đặt đặc sản tại Xứ Nắng Gió • Đơn #{{ORDER_CODE}}',
+    body: DEFAULT_CONFIRM_BODY,
+    isActive: true
+  },
+  {
+    id: 'campaign_new_product',
+    name: 'Món mới vào mùa & Voucher',
+    subject: 'Đặc sản đầu vụ vào mùa • Gửi tặng {{CUSTOMER_NAME}} món quà quê ngọt lành',
+    body: DEFAULT_CAMPAIGN_BODY,
+    isActive: true
+  }
+];
 
 export default function ConfigVoucherTab({
   config = {},
+  emailTemplates = [],
   onSaveConfig,
   onShowAlert
 }) {
@@ -18,6 +123,7 @@ export default function ConfigVoucherTab({
     warehousePin: config.warehousePin || '1234',
     loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
     loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
+    autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
     vouchers: (config.vouchers || []).map(v => ({
       ...v,
       canStack: v.canStack ?? true,
@@ -27,7 +133,32 @@ export default function ConfigVoucherTab({
     }))
   }));
 
+  const [templates, setTemplates] = useState(() => {
+    if (Array.isArray(emailTemplates) && emailTemplates.length > 0) {
+      return emailTemplates;
+    }
+    return INITIAL_TEMPLATES;
+  });
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState('order_confirmation');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
   const [editingVoucher, setEditingVoucher] = useState(null);
+  const [testEmailInput, setTestEmailInput] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Đóng popover menu khi nhấp chuột ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (config) {
@@ -42,6 +173,7 @@ export default function ConfigVoucherTab({
         warehousePin: config.warehousePin || '1234',
         loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
         loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
+        autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
         vouchers: (config.vouchers || []).map(v => ({
           ...v,
           canStack: v.canStack ?? true,
@@ -52,6 +184,18 @@ export default function ConfigVoucherTab({
       });
     }
   }, [config]);
+
+  useEffect(() => {
+    if (Array.isArray(emailTemplates) && emailTemplates.length > 0) {
+      setTemplates(emailTemplates);
+    }
+  }, [emailTemplates]);
+
+  const activeTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0] || INITIAL_TEMPLATES[0];
+
+  const handleUpdateActiveTemplate = (field, value) => {
+    setTemplates(prev => prev.map(t => t.id === activeTemplate.id ? { ...t, [field]: value } : t));
+  };
 
   const handleSelectBank = (e) => {
     const selectedBin = e.target.value;
@@ -150,6 +294,67 @@ export default function ConfigVoucherTab({
     }));
 
     setEditingVoucher(null);
+  };
+
+  const handleSendTestEmail = async () => {
+    const targetEmail = testEmailInput.trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      onShowAlert?.('Vui lòng nhập địa chỉ email hợp lệ để nhận thử nghiệm!');
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      const res = await fetch(GSHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'send_test_email',
+          toEmail: targetEmail,
+          subject: activeTemplate.subject,
+          body: activeTemplate.body
+        })
+      });
+      const json = await res.json();
+      if (json.status === 'success' || json.success === true) {
+        onShowAlert?.(`Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`);
+      } else {
+        onShowAlert?.(`Lỗi gửi mail: ${json.message || 'Không xác định'}`);
+      }
+    } catch (err) {
+      onShowAlert?.(`Lỗi kết nối khi gửi mail: ${err.message}`);
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    setIsSaving(true);
+    try {
+      if (onSaveConfig) {
+        onSaveConfig(cfg);
+      }
+
+      const res = await fetch(GSHEET_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'save_email_templates',
+          templates: templates
+        })
+      });
+      const json = await res.json();
+
+      if (json.status === 'success' || json.success === true) {
+        onShowAlert?.('Đã lưu thành công cấu hình và toàn bộ mẫu Email Templates lên Google Sheet!');
+      } else {
+        onShowAlert?.('Đã lưu cấu hình, nhưng có lỗi khi lưu templates: ' + json.message);
+      }
+    } catch (err) {
+      onShowAlert?.('Lỗi kết nối khi lưu: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -254,7 +459,174 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH VOUCHER */}
+      {/* 2. CẤU HÌNH MULTI-TEMPLATE EMAIL (TAB EMAIL_TEMPLATES) */}
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
+          <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+            <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+              <Mail className="w-4 h-4" />
+            </div>
+            <div>
+              <span>Hệ Thống Mẫu Email (EMAIL_TEMPLATES)</span>
+              <p className="text-[11px] font-normal text-stone-500">Quản lý và chuyển đổi chỉnh sửa các kịch bản thư gửi khách</p>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+            <input
+              type="checkbox"
+              checked={cfg.autoSendEmail}
+              onChange={(e) => setCfg({ ...cfg, autoSendEmail: e.target.checked })}
+              className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
+            />
+            <span>Bật tự động gửi Email khi có đơn</span>
+          </label>
+        </div>
+
+        {/* CUSTOM DROPDOWN POPOVER STYLE */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
+          
+          {/* Menu Dropdown tùy biến */}
+          <div className="relative" ref={dropdownRef}>
+            <label className="font-bold text-amber-900 block mb-1.5 flex items-center gap-1.5 text-xs">
+              <Mail className="w-3.5 h-3.5 text-amber-700" />
+              <span>Mẫu thư đang chỉnh sửa:</span>
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-stone-200 hover:border-amber-400 rounded-2xl text-stone-800 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span className="text-amber-800 font-bold">{activeTemplate.name}</span>
+                <span className="text-[11px] font-mono text-stone-400 font-normal">({activeTemplate.id})</span>
+              </div>
+              {isDropdownOpen ? (
+                <ChevronUp className="w-4 h-4 text-stone-500 shrink-0" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-stone-500 shrink-0" />
+              )}
+            </button>
+
+            {/* Popover danh sách mẫu */}
+            {isDropdownOpen && (
+              <div className="absolute left-0 top-full mt-2 w-full sm:w-80 bg-white border border-stone-200/80 rounded-3xl p-2.5 shadow-2xl z-30 space-y-1 animate-fadeIn">
+                <div className="px-3 py-1.5 text-[10px] font-black uppercase text-stone-400 tracking-wider">
+                  DANH SÁCH MẪU EMAIL:
+                </div>
+
+                {templates.map((tpl) => {
+                  const isSelected = tpl.id === activeTemplate.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTemplateId(tpl.id);
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-colors cursor-pointer text-left ${
+                        isSelected
+                          ? 'bg-[#fffbeb] text-amber-950 font-black'
+                          : 'text-stone-700 hover:bg-stone-50 font-medium'
+                      }`}
+                    >
+                      <div className="flex flex-col">
+                        <span>{tpl.name}</span>
+                        <span className="text-[10px] font-mono text-stone-400 font-normal">{tpl.id}</span>
+                      </div>
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-amber-800 stroke-[2.5]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Ô chỉnh sửa Tên gợi nhớ */}
+          <div>
+            <label className="font-bold text-stone-700 block mb-1.5 text-xs">
+              Tên gợi nhớ của mẫu:
+            </label>
+            <input
+              type="text"
+              value={activeTemplate.name || ''}
+              onChange={(e) => handleUpdateActiveTemplate('name', e.target.value)}
+              className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-800 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
+            />
+          </div>
+
+        </div>
+
+        {/* Bảng các biến tự động thay thế */}
+        <div className="p-3 bg-stone-50/80 rounded-2xl border border-stone-200/70 text-xs space-y-1.5">
+          <div className="flex items-center gap-1.5 font-bold text-stone-700 text-[11px]">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>Các biến tự động chèn dữ liệu vào mẫu này:</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
+            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}', '{{CAMPAIGN_PRODUCT_NAME}}'].map(tag => (
+              <span key={tag} className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <div>
+            <label className="font-bold text-stone-700 block mb-1">Tiêu đề thư gửi khách:</label>
+            <input
+              type="text"
+              value={activeTemplate.subject || ''}
+              onChange={(e) => handleUpdateActiveTemplate('subject', e.target.value)}
+              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="font-bold text-stone-700 block mb-1">
+              Nội dung thư (Hỗ trợ HTML định dạng chuẩn table):
+            </label>
+            <textarea
+              rows={12}
+              value={activeTemplate.body || ''}
+              onChange={(e) => handleUpdateActiveTemplate('body', e.target.value)}
+              className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-xs text-stone-800 focus:outline-none focus:border-amber-600 transition-colors leading-relaxed"
+            />
+          </div>
+
+          {/* Gửi email thử nghiệm */}
+          <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <span className="text-[11px] text-stone-500">
+              Kiểm tra hiển thị của mẫu <strong>{activeTemplate.name}</strong>:
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                placeholder="Nhập email của bạn để nhận thử..."
+                value={testEmailInput}
+                onChange={(e) => setTestEmailInput(e.target.value)}
+                className="w-full sm:w-64 p-2 rounded-xl border border-stone-200 text-xs focus:outline-none focus:border-amber-600 bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleSendTestEmail}
+                disabled={isSendingTest}
+                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isSendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" /> : <Send className="w-3.5 h-3.5 text-amber-700" />}
+                <span>{isSendingTest ? 'Đang gửi...' : 'Gửi Test'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. CẤU HÌNH VOUCHER */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -461,19 +833,20 @@ export default function ConfigVoucherTab({
         </form>
       </div>
 
-      {/* 3. NÚT LƯU CẤU HÌNH */}
+      {/* 4. NÚT LƯU CẤU HÌNH & TEMPLATES */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
-          onClick={() => onSaveConfig(cfg)}
-          className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+          disabled={isSaving}
+          onClick={handleSaveAll}
+          className="px-6 py-3 bg-amber-800 hover:bg-amber-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
         >
-          <Check className="w-4 h-4" />
-          <span>Lưu Cấu Hình Voucher</span>
+          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+          <span>{isSaving ? 'Đang lưu hệ thống...' : 'Lưu Toàn Bộ Cấu Hình & Templates'}</span>
         </button>
       </div>
 
-      {/* 4. MODAL CHỈNH SỬA VOUCHER */}
+      {/* 5. MODAL CHỈNH SỬA VOUCHER */}
       {editingVoucher && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">

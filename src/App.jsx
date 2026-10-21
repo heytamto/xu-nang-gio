@@ -97,7 +97,35 @@ export default function App() {
 
   const [successOrderInfo, setSuccessOrderInfo] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  
+  // State quản lý Tra cứu đơn hàng & Mã tra cứu truyền từ link email
   const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
+  const [initialLookupCode, setInitialLookupCode] = useState('');
+
+  // -------------------------------------------------------------
+  // XỬ LÝ ROUTE / LINK TRA CỨU TỪ EMAIL (?order=XNG... hoặc ?lookup=...)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const orderCodeFromUrl = urlParams.get('order') || urlParams.get('lookup') || urlParams.get('code');
+      const pageFromUrl = urlParams.get('page');
+
+      // 1. Nếu có mã đơn từ link email: Mở ngay modal tra cứu
+      if (orderCodeFromUrl) {
+        setInitialLookupCode(orderCodeFromUrl.trim().toUpperCase());
+        setIsLookupModalOpen(true);
+      }
+
+      // 2. Nếu có chỉ định trang trên URL (?page=shop / ?page=admin...)
+      if (pageFromUrl && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing'].includes(pageFromUrl)) {
+        setCurrentPage(pageFromUrl);
+        sessionStorage.setItem('shop_current_page', pageFromUrl);
+      }
+    } catch (e) {
+      console.error('Lỗi phân tích URL Params:', e);
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -187,8 +215,6 @@ export default function App() {
             if (data.config.depositAmount) nextConfig.depositAmount = Number(data.config.depositAmount);
             if (data.config.loyaltyDiscountPercent) nextConfig.loyaltyDiscountPercent = Number(data.config.loyaltyDiscountPercent);
             if (data.config.loyaltyMaxDiscount) nextConfig.loyaltyMaxDiscount = Number(data.config.loyaltyMaxDiscount);
-            if (data.config.mapEmbedUrl) nextConfig.mapEmbedUrl = String(data.config.mapEmbedUrl);
-            if (data.config.mapDirectionsUrl) nextConfig.mapDirectionsUrl = String(data.config.mapDirectionsUrl);
           }
 
           localStorage.setItem('shop_config', JSON.stringify(nextConfig));
@@ -322,7 +348,7 @@ export default function App() {
       prevCart
         .map((item) => {
           const isMatch = (item.id === targetId) || 
-                          (item.cartItemId === targetId) ||
+                          (item.cartItemId === targetId) || 
                           (item.productId === targetId && (!targetWeightId || item.weightId === targetWeightId));
 
           if (isMatch) {
@@ -351,7 +377,7 @@ export default function App() {
     );
   };
 
-  // XỬ LÝ ĐẶT HÀNG: ĐÃ BỔ SUNG HMAC SIGNATURE & SUBTOTAL ĐỐI SOÁT GOOGLE APPS SCRIPT
+  // XỬ LÝ ĐẶT HÀNG
   const handleProcessOrder = async (orderData) => {
     const orderCode = 'XNG' + Math.floor(100000 + Math.random() * 900000);
     const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
@@ -376,10 +402,9 @@ export default function App() {
       giftTitle: orderData.giftTitle || '',
       paymentGift: orderData.giftTitle || '',
 
-      // CÁC THÔNG SỐ ĐỐI SOÁT CHỮ KÝ HMAC QUAN TRỌNG:
       subtotal: subtotalAmount,
       finalTotal: finalTotalAmount,
-      edgeSignature: orderData.edgeSignature || '', // <-- Truyền trực tiếp chữ ký của Cloudflare Worker sang
+      edgeSignature: orderData.edgeSignature || '',
 
       total: finalTotalAmount,
       totalAmount: finalTotalAmount,
@@ -403,11 +428,9 @@ export default function App() {
       }))
     };
 
-    // Đẩy vào hàng đợi offline / background sync
     enqueueOrder(orderPayload);
     processOrderQueue();
 
-    // Cập nhật State & LocalStorage tức thì
     setOrders((prev) => {
       const nextOrders = [orderPayload, ...prev];
       try {
@@ -448,6 +471,9 @@ export default function App() {
     setCurrentPage(page);
     try {
       sessionStorage.setItem('shop_current_page', page);
+      // Cập nhật query param trên thanh địa chỉ nhưng không làm reload trang
+      const newUrl = page === 'home' ? window.location.pathname : `?page=${page}`;
+      window.history.pushState({ page }, '', newUrl);
     } catch (e) { console.error(e); }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -458,6 +484,7 @@ export default function App() {
     try {
       sessionStorage.setItem('shop_selected_category', catId);
       sessionStorage.setItem('shop_current_page', 'shop');
+      window.history.pushState({ page: 'shop', category: catId }, '', `?page=shop&cat=${catId}`);
     } catch (e) { console.error(e); }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -490,7 +517,10 @@ export default function App() {
           }}
           cartCount={totalCartCount}
           cartTotal={totalCartAmount}
-          onOpenLookup={() => setIsLookupModalOpen(true)}
+          onOpenLookup={() => {
+            setInitialLookupCode('');
+            setIsLookupModalOpen(true);
+          }}
           isCartBouncing={isCartBouncing}
           forceVisible={forceNavVisible}
         />
@@ -594,9 +624,18 @@ export default function App() {
         }}
       />
 
+      {/* MODAL TRA CỨU ĐƠN: ĐÃ TRUYỀN THÊM initialCode TỪ LINK EMAIL */}
       <OrderLookupModal
         isOpen={isLookupModalOpen}
-        onClose={() => setIsLookupModalOpen(false)}
+        initialCode={initialLookupCode}
+        onClose={() => {
+          setIsLookupModalOpen(false);
+          setInitialLookupCode('');
+          // Xóa query param trên URL sau khi khách đóng modal để URL sạch
+          if (window.location.search.includes('order=') || window.location.search.includes('lookup=')) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
+        }}
         shopConfig={shopConfig}
       />
 
@@ -605,7 +644,10 @@ export default function App() {
           config={shopConfig}
           onNavigateAdmin={() => navigateTo('admin')} 
           onNavigatePacking={() => navigateTo('packing')}
-          onOpenLookup={() => setIsLookupModalOpen(true)}
+          onOpenLookup={() => {
+            setInitialLookupCode('');
+            setIsLookupModalOpen(true);
+          }}
         />
       )}
 
