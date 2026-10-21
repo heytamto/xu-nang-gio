@@ -38,7 +38,56 @@ const FORWARD_STATUS_MAP = {
 };
 
 // =========================================================================
-// SUB-COMPONENT: DROPDOWN CHỌN TRẠNG THÁI TÙY CHỈNH (THAY THẾ SELECT HỆ ĐIỀU HÀNH)
+// HÀM TIỆN ÍCH BÓC TÁCH & HIỂN THỊ DANH SÁCH MÓN SẠCH SẼ (TRÁNH LỘ THẺ HTML)
+// =========================================================================
+function renderItemsSummary(raw) {
+  if (!raw) return <span className="text-stone-400 italic">Chi tiết trong đơn</span>;
+
+  // Nếu chứa thẻ HTML <div> hoặc mã bullet &#8226;
+  if (typeof raw === 'string' && (raw.includes('<div') || raw.includes('<br') || raw.includes('&#8226;'))) {
+    const cleanText = raw
+      .replace(/<div[^>]*>/gi, '')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/&#8226;/g, '•')
+      .replace(/&bull;/g, '•')
+      .trim();
+
+    const lines = cleanText.split('\n').map((l) => l.trim()).filter(Boolean);
+
+    return (
+      <div className="space-y-1">
+        {lines.map((line, idx) => {
+          const formattedLine = line.startsWith('•') ? line : `• ${line}`;
+          return (
+            <div key={idx} className="leading-snug text-stone-800 font-medium">
+              {formattedLine}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Nếu là dạng chuỗi phân cách bởi dấu phẩy
+  if (typeof raw === 'string' && raw.includes(',')) {
+    const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+    return (
+      <div className="space-y-1">
+        {parts.map((p, idx) => (
+          <div key={idx} className="leading-snug text-stone-800 font-medium">
+            • {p}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return <div className="leading-snug text-stone-800 font-medium">{raw}</div>;
+}
+
+// =========================================================================
+// SUB-COMPONENT: DROPDOWN CHỌN TRẠNG THÁI TÙY CHỈNH
 // =========================================================================
 function StatusSelectDropdown({ 
   ord, 
@@ -246,10 +295,14 @@ function DashboardOrderRow({
             </p>
           )}
 
+          {/* HIỂN THỊ SẢN PHẨM: ĐÃ BÓC TÁCH HTML RÕ RÀNG TỪNG DÒNG */}
           {ord.itemsSummary && (
-            <p className="text-stone-700 text-[11px] font-medium bg-stone-50 p-2 rounded-xl border border-stone-100 line-clamp-2">
-              🛍️ {ord.itemsSummary}
-            </p>
+            <div className="text-stone-700 text-[11px] bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+              <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
+                🛍️ Sản phẩm đặt mua:
+              </span>
+              {renderItemsSummary(ord.itemsSummary)}
+            </div>
           )}
         </div>
 
@@ -601,12 +654,10 @@ export default function DashboardTab({
         </div>
       </div>
 
-      {/* =========================================================================
-          KHU VỰC QUẢN LÝ ĐƠN HÀNG: GIAO DIỆN BỘ LỌC TỐI ƯU MOBILE & DESKTOP
-         ========================================================================= */}
+      {/* KHU VỰC QUẢN LÝ ĐƠN HÀNG */}
       <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-3.5">
         
-        {/* HÀNG 1: TÌM KIẾM MỞ RỘNG TỐI ĐA + BỘ CHỌN THỜI GIAN CUSTOM */}
+        {/* HÀNG 1: TÌM KIẾM MỞ RỘNG + CHỌN THỜI GIAN CUSTOM */}
         <div className="flex items-center gap-2">
           
           {/* Ô Tìm Kiếm */}
