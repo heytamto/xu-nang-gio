@@ -66,6 +66,12 @@ export default function ShopPage({
   const searchBoxRef = useRef(null);
   const sortRef = useRef(null);
 
+  // Ref và state phục vụ kéo rê danh mục chuột (Drag to Scroll)
+  const catScrollRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+
   // Debounce tìm kiếm 300ms
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -95,6 +101,32 @@ export default function ShopPage({
       setSelectedCategories([]);
     }
   }, [initialCategory]);
+
+  // Xử lý kéo rê chuột ngang cho danh mục
+  const handleMouseDown = (e) => {
+    if (!catScrollRef.current) return;
+    setIsDragging(true);
+    setStartX(e.pageX - catScrollRef.current.offsetLeft);
+    setScrollLeftState(catScrollRef.current.scrollLeft);
+  };
+
+  const handleMouseLeaveOrUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !catScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - catScrollRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5; // Hệ số cuộn
+    catScrollRef.current.scrollLeft = scrollLeftState - walk;
+  };
+
+  const handleWheel = (e) => {
+    if (e.deltaY !== 0 && catScrollRef.current) {
+      catScrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
 
   const handleToggleCategory = (catId) => {
     setSelectedCategories((prev) => {
@@ -190,10 +222,9 @@ export default function ShopPage({
       {/* ================= 2. BỘ LỌC TỐI ƯU GỌN GÀNG TRÊN 1 HÀNG ================= */}
       <section className="bg-white rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs space-y-2.5">
         
-        {/* HÀNG 1: Ô TÌM KIẾM MỞ RỘNG TỐI ĐA + NÚT LỌC CUSTOM */}
+        {/* HÀNG 1: Ô TÌM KIẾM CHIẾM TRỌN DIỆN TÍCH + NÚT LỌC CUSTOM */}
         <div className="flex items-center gap-2">
           
-          {/* Ô TÌM KIẾM CHIẾM TRỌN DIỆN TÍCH */}
           <div ref={searchBoxRef} className="relative flex-1">
             <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -217,7 +248,7 @@ export default function ShopPage({
               </button>
             )}
 
-            {/* DROPDOWN GỢI Ý */}
+            {/* DROPDOWN GỢI Ý TÌM KIẾM */}
             {isSearchFocused && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-stone-200 shadow-xl p-3 z-30 animate-fadeIn space-y-2 text-xs">
                 {searchInput.trim() ? (
@@ -274,7 +305,7 @@ export default function ShopPage({
             )}
           </div>
 
-          {/* NÚT SẮP XẾP CUSTOM UI (KHÔNG DÙNG THẺ SELECT GỐC XẤU CỦA HỆ ĐIỀU HÀNH) */}
+          {/* NÚT SẮP XẾP CUSTOM UI */}
           <div ref={sortRef} className="relative shrink-0">
             <button
               type="button"
@@ -291,7 +322,6 @@ export default function ShopPage({
               <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* MENU POPUP SẮP XẾP TINH TẾ */}
             {isSortOpen && (
               <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
@@ -320,8 +350,18 @@ export default function ShopPage({
           </div>
         </div>
 
-        {/* HÀNG 2: THANH CUỘN DANH MỤC TRỰC QUAN */}
-        <div className="pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none]">
+        {/* HÀNG 2: THANH CUỘN DANH MỤC (HỖ TRỢ LĂN CHUỘT + KÉO CHUỘT TRƯỢT NGANG MƯỢT MÀ) */}
+        <div
+          ref={catScrollRef}
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseLeave={handleMouseLeaveOrUp}
+          onMouseUp={handleMouseLeaveOrUp}
+          onMouseMove={handleMouseMove}
+          className={`pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-1 select-none [-ms-overflow-style:none] [scrollbar-width:none] ${
+            isDragging ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+        >
           <button
             type="button"
             onClick={handleSelectAllCategories}
