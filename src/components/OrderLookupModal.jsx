@@ -108,6 +108,53 @@ export default function OrderLookupModal({
     }
   };
 
+  // Hàm xử lý render danh sách sản phẩm đẹp mắt, bóc tách an toàn mã HTML
+  const renderItemsSummary = (raw) => {
+    if (!raw) return <span className="text-stone-400 italic">Chi tiết trong hóa đơn</span>;
+
+    // Trường hợp chuỗi có chứa thẻ HTML từ Google Sheet / Apps Script
+    if (typeof raw === 'string' && (raw.includes('<div') || raw.includes('<br') || raw.includes('&#8226;'))) {
+      const cleanText = raw
+        .replace(/<div[^>]*>/gi, '')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/&#8226;/g, '•')
+        .replace(/&bull;/g, '•')
+        .trim();
+
+      const lines = cleanText.split('\n').map(l => l.trim()).filter(Boolean);
+
+      return (
+        <div className="space-y-1">
+          {lines.map((line, idx) => {
+            const formattedLine = line.startsWith('•') ? line : `• ${line}`;
+            return (
+              <div key={idx} className="leading-snug text-stone-800 font-medium">
+                {formattedLine}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Trường hợp chuỗi phân tách bởi dấu phẩy thông thường
+    if (typeof raw === 'string' && raw.includes(',')) {
+      const parts = raw.split(',').map(p => p.trim()).filter(Boolean);
+      return (
+        <div className="space-y-1">
+          {parts.map((p, idx) => (
+            <div key={idx} className="leading-snug text-stone-800 font-medium">
+              • {p}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <div className="leading-snug text-stone-800 font-medium">{raw}</div>;
+  };
+
   // Tra cứu thông tin: Ưu tiên dữ liệu Google Sheet đè lên LocalStorage
   const performLookup = useCallback(async (queryValue) => {
     setErrorMessage('');
@@ -429,9 +476,10 @@ export default function OrderLookupModal({
                   <div className="truncate"><strong>Điểm giao:</strong> {ord.address}</div>
                 </div>
 
-                <div className="bg-white/80 p-2.5 rounded-xl border border-stone-200/70 text-xs text-stone-700 space-y-0.5">
+                {/* KHU VỰC SẢN PHẨM: ĐÃ SỬA RENDER BÓC TÁCH THẺ HTML ĐẸP MẮT */}
+                <div className="bg-white/80 p-2.5 rounded-xl border border-stone-200/70 text-xs text-stone-700 space-y-1">
                   <span className="font-bold text-stone-500 text-[10px] uppercase block">Sản phẩm:</span>
-                  <p className="line-clamp-2 leading-relaxed">{itemsSummary || 'Chi tiết trong hóa đơn'}</p>
+                  {renderItemsSummary(itemsSummary)}
                 </div>
 
                 {(hasPaymentGift || hasCampaignGifts) && (
