@@ -4,8 +4,8 @@ import { ShoppingBag, Loader2 } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import OrderSuccessModal from './components/OrderSuccessModal';
 import OrderLookupModal from './components/OrderLookupModal';
+import OrderSuccessModal from './components/checkout/OrderSuccessModal';
 
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
@@ -228,7 +228,6 @@ export default function App() {
           const raw = payload.new;
           if (!raw) return;
 
-          // Chuẩn hóa format đơn hàng đồng bộ
           const normalized = {
             ...raw,
             name: raw.customer_name || raw.name,
@@ -391,7 +390,9 @@ export default function App() {
     );
   };
 
-  // XỬ LÝ ĐẶT HÀNG THUẦN SUPABASE
+  // -------------------------------------------------------------
+  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION NGAY 0MS (OPTIMISTIC UI)
+  // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
     const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
@@ -414,6 +415,7 @@ export default function App() {
         address: (orderData.address || orderData.customer?.address || '').trim(),
         note: (orderData.customer?.note || orderData.note || '').trim()
       },
+      customer_name: (orderData.customer?.name || orderData.name || '').trim(),
       name: (orderData.customer?.name || orderData.name || '').trim(),
       phone: (orderData.customer?.phone || orderData.phone || '').trim(),
       email: (orderData.email || orderData.customer?.email || '').trim(),
@@ -430,11 +432,14 @@ export default function App() {
         campaign_gift_title: item.campaign_gift_title || null
       })),
       paymentMethod: orderData.paymentMethod || 'deposit',
+      payment_method: orderData.paymentMethod || 'deposit',
       paymentGift: orderData.giftTitle || orderData.paymentGift || '',
       campaignGifts: campaignGiftsList || '',
       subtotal: subtotalAmount,
       discount: Number(orderData.discount) || 0,
+      discountAmount: Number(orderData.discount) || 0,
       finalTotal: finalTotalAmount,
+      final_total: finalTotalAmount,
       total: finalTotalAmount,
       totalAmount: finalTotalAmount,
       rawTotal: subtotalAmount,
@@ -445,34 +450,37 @@ export default function App() {
       status: 'Chờ xác nhận'
     };
 
-    try {
-      // 1. Lưu nguyên tử vào PostgreSQL qua RPC
-      const res = await submitOrderToSupabase(orderPayload);
-      if (!res.success) {
-        throw new Error(res.error || 'Lỗi khi lưu đơn hàng vào hệ thống.');
-      }
+    // ⚡ BƯỚC 1: KÍCH HOẠT HIỆU ỨNG MÁY IN VÀ MODAL TỨC THÌ (0ms)
+    setSuccessOrderInfo(orderPayload);
+    setIsSuccessModalOpen(true);
 
-      // 2. Cập nhật state UI
-      setOrders((prev) => {
-        const nextOrders = [orderPayload, ...prev];
-        try {
-          localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
-        } catch (err) { console.error(err); }
-        return nextOrders;
-      });
-
-      // 3. Hiển thị modal hoàn tất & dọn dẹp giỏ hàng
-      setSuccessOrderInfo({ code: orderCode, total: finalTotalAmount });
-      setIsSuccessModalOpen(true);
-      setCart([]);
+    // Cập nhật state đơn hàng và dọn giỏ hàng ngay lập tức
+    setOrders((prev) => {
+      const nextOrders = [orderPayload, ...prev.filter((o) => o.code !== orderCode)];
       try {
-        localStorage.removeItem('shop_cart');
-      } catch (e) { console.error(e); }
+        localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
+      } catch (err) { console.error(err); }
+      return nextOrders;
+    });
 
+    setCart([]);
+    try {
+      localStorage.removeItem('shop_cart');
+    } catch (e) { console.error(e); }
+
+    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE CHẠY NGẦM SONG SONG TRONG LÚC MÁY IN ĐANG ĐÙN GIẤY
+    try {
+      submitOrderToSupabase(orderPayload)
+        .then((res) => {
+          if (!res?.success) {
+            console.warn('Lỗi ghi nhận Supabase ngầm:', res?.error);
+          }
+        })
+        .catch((err) => {
+          console.error('Lỗi network khi gửi đơn ngầm:', err);
+        });
     } catch (err) {
-      console.error('Lỗi quá trình tạo đơn hàng:', err);
-      alert(err.message || 'Hệ thống đang bận, vui lòng thử lại sau ít phút.');
-      throw err;
+      console.error('Lỗi khởi tạo đồng bộ đơn ngầm:', err);
     }
   };
 
@@ -642,6 +650,7 @@ export default function App() {
         )}
       </main>
 
+      {/* MODAL HÓA ĐƠN ĐẶT HÀNG THÀNH CÔNG */}
       <OrderSuccessModal
         isOpen={isSuccessModalOpen}
         orderInfo={successOrderInfo}

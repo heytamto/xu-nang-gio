@@ -7,7 +7,7 @@ import {
   validateName, 
   validatePhone, 
   validateEmail, 
-  validateAddress,
+  validateAddress, 
   isValidVietnamesePhone 
 } from '../utils/checkoutValidation';
 
@@ -20,7 +20,6 @@ import PaymentMethodSelector from '../components/checkout/PaymentMethodSelector'
 import CodTimeline from '../components/checkout/CodTimeline';
 import VietQrBox from '../components/checkout/VietQrBox';
 import OrderSummaryCard from '../components/checkout/OrderSummaryCard';
-import CheckoutReceiptModal from '../components/checkout/CheckoutReceiptModal';
 
 function isBadOrderStatus(statusStr) {
   const normalized = normalizeOrderStatus(statusStr);
@@ -51,6 +50,13 @@ function parseDateForSort(dateStr) {
   return isNaN(t) ? 0 : t;
 }
 
+// Sinh mã đơn hàng duy nhất cho phiên đặt hàng (VD: XNG261022-7F9B)
+function generateUniqueOrderCode() {
+  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `XNG${dateStr}-${randomChars}`;
+}
+
 export default function CheckoutPage({
   cart = [],
   onSubmitOrder,
@@ -59,6 +65,8 @@ export default function CheckoutPage({
   onUpdateQuantity,
   onRemoveItem,
 }) {
+  const [orderCode] = useState(() => generateUniqueOrderCode());
+
   const [customer, setCustomer] = useState(() => {
     try {
       const saved = localStorage.getItem('shop_last_customer');
@@ -78,8 +86,6 @@ export default function CheckoutPage({
 
   const [paymentMethod, setPaymentMethod] = useState('deposit');
   const [selectedGiftId, setSelectedGiftId] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [printStage, setPrintStage] = useState(1);
   const [isPromoDismissed, setIsPromoDismissed] = useState(false);
   const [formErrors, setFormErrors] = useState({ name: '', phone: '', email: '' });
   const [voucherInput, setVoucherInput] = useState('');
@@ -106,7 +112,7 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
-  // Phân tích hồ sơ khách hàng dựa trên danh sách đơn hàng đã có
+  // Phân tích lịch sử khách hàng
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
@@ -212,7 +218,6 @@ export default function CheckoutPage({
           }
         }
       } else if (v.isLoyalty) {
-        // Mã tri ân khách cũ
         const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
         const disc = Math.round((clientSubtotal * rate) / 100);
         const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
@@ -228,7 +233,7 @@ export default function CheckoutPage({
   const activeCart = cart;
 
   const paymentGifts = useMemo(() => Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : (shopConfig?.paymentGifts || []), [shopConfig]);
-  const depositAmount = Number(shopConfig?.depositAmount) || 50000;
+  const depositAmount = Number(shopConfig?.depositAmount || shopConfig?.deposit_amount) || 100000;
 
   // Ràng buộc thanh toán an toàn cho khách rủi ro
   useEffect(() => {
@@ -306,7 +311,8 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  const handleSubmit = async (e) => {
+  // Submit đơn hàng: Không chạy loading ở nút mà gửi dữ liệu mở Modal in ngay lập tức
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     const nameErr = validateName(customer.name);
@@ -328,13 +334,36 @@ export default function CheckoutPage({
       return;
     }
 
-    setIsSubmitting(true);
-    setPrintStage(1);
-    setTimeout(() => setPrintStage(2), 600);
-    setTimeout(() => setPrintStage(3), 1200);
-
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
     const previousOrderCodeUsed = appliedVouchers.find((v) => v.isLoyalty)?.code || '';
+
+    const orderPayload = {
+      code: orderCode,
+      orderCode: orderCode,
+      customer,
+      customer_name: customer.name.trim(),
+      name: customer.name.trim(),
+      phone: cleanPhone,
+      email: customer.email.trim(),
+      note: customer.note.trim(),
+      address: shippingAddress.trim(),
+      payment_method: paymentMethod,
+      paymentMethod,
+      giftTitle: paymentMethod !== 'cod' ? (chosenGiftObj?.title || '') : 'Không áp dụng (COD)',
+
+      subtotal: activeSubtotal,
+      final_total: activeFinalTotal,
+      finalTotal: activeFinalTotal,
+      total: activeFinalTotal,
+      rawTotal: activeSubtotal,
+      discount: activeDiscount,
+      discountAmount: activeDiscount,
+
+      voucherCode: appliedVouchers.map((v) => v.code).filter(Boolean).join(', '),
+      usedPreviousOrderCode: previousOrderCodeUsed,
+      appliedVouchers,
+      cart: activeCart,
+    };
 
     try {
       localStorage.setItem('shop_last_customer', JSON.stringify(customer));
@@ -343,33 +372,10 @@ export default function CheckoutPage({
       console.error(err);
     }
 
-    try {
-      await onSubmitOrder({
-        customer,
-        name: customer.name.trim(),
-        phone: customer.phone.trim(),
-        email: customer.email.trim(),
-        note: customer.note.trim(),
-        address: shippingAddress.trim(),
-        paymentMethod,
-        giftTitle: paymentMethod !== 'cod' ? (chosenGiftObj?.title || '') : 'Không áp dụng (COD)',
-
-        subtotal: activeSubtotal,
-        finalTotal: activeFinalTotal,
-        total: activeFinalTotal,
-        rawTotal: activeSubtotal,
-        discount: activeDiscount,
-
-        voucherCode: appliedVouchers.map((v) => v.code).filter(Boolean).join(', '),
-        usedPreviousOrderCode: previousOrderCodeUsed,
-        appliedVouchers,
-        cart: activeCart,
-      });
-    } catch (err) {
-      alert('Lỗi tạo đơn hàng! Vui lòng thử lại.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Kích hoạt ngay lập tức qua App.jsx mà không để nút quay chờ
+    onSubmitOrder(orderPayload).catch((err) => {
+      console.error('Lỗi khi gửi đơn ngầm:', err);
+    });
   };
 
   if (!cart.length) {
@@ -421,18 +427,6 @@ export default function CheckoutPage({
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 font-sans">
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl overflow-hidden relative">
-        {isSubmitting && (
-          <CheckoutReceiptModal
-            customer={customer}
-            paymentMethod={paymentMethod}
-            cart={activeCart}
-            discountAmount={activeDiscount}
-            finalTotalAmount={activeFinalTotal}
-            printStage={printStage}
-            hotline={shopConfig?.hotline}
-          />
-        )}
-
         <div className="bg-stone-900 text-white p-4 sm:p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button 
@@ -510,6 +504,7 @@ export default function CheckoutPage({
                   paymentMethod={paymentMethod}
                   depositAmount={depositAmount}
                   finalTotalAmount={activeFinalTotal}
+                  orderCode={orderCode}
                   bankBin={shopConfig?.bankBin || '970422'}
                   bankName={shopConfig?.bankName || 'MB'}
                   accountNo={shopConfig?.accountNo || '0848957345'}
@@ -524,7 +519,7 @@ export default function CheckoutPage({
               finalTotalAmount={activeFinalTotal}
               paymentMethod={paymentMethod}
               depositAmount={depositAmount}
-              isSubmitting={isSubmitting}
+              isSubmitting={false}
             />
           </div>
         </form>

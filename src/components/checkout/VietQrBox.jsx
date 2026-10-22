@@ -1,51 +1,70 @@
-// src/components/checkout/VietQrBox.jsx
 import React, { useState, useMemo } from 'react';
 import { Copy, Check, QrCode } from 'lucide-react';
 import { getBankByBin } from '../../constants/vietqrBanks';
 
 export default function VietQrBox({
   paymentMethod = 'deposit',
-  depositAmount = 50000,
+  depositAmount = 100000,
   finalTotalAmount = 0,
   bankBin = '970422',
   bankName,
   accountNo = '0848957345',
   accountName = 'TO THANH TAM',
-  cleanPhone = '',
   orderCode = ''
 }) {
   const [copiedField, setCopiedField] = useState("");
 
   const parsedTotal = Number(finalTotalAmount) || 0;
-  const parsedDeposit = Number(depositAmount) || 50000;
-  const qrTransferAmount = paymentMethod === "full_qr" ? parsedTotal : parsedDeposit;
+  const parsedDeposit = Number(depositAmount) || 100000;
 
+  // Tính số tiền cần thanh toán qua QR (nếu tổng đơn nhỏ hơn mức cọc thì lấy tổng đơn)
+  const qrTransferAmount = useMemo(() => {
+    if (paymentMethod === "full_qr") return parsedTotal;
+    return parsedTotal > 0 ? Math.min(parsedDeposit, parsedTotal) : parsedDeposit;
+  }, [paymentMethod, parsedTotal, parsedDeposit]);
+
+  // Nội dung chuyển khoản: Ưu tiên mã đơn hàng duy nhất đã sinh trước
   const rawTransferMemo = useMemo(() => {
-    if (orderCode && orderCode.trim()) {
-      return orderCode.trim().toUpperCase();
-    }
-    const cleanDigits = String(cleanPhone || '').replace(/\D/g, '');
-    return cleanDigits.length >= 6 ? `XNG ${cleanDigits.slice(-6)}` : "XNG DATNHO";
-  }, [orderCode, cleanPhone]);
+    return (orderCode || '').trim().toUpperCase() || 'XNG ORDER';
+  }, [orderCode]);
 
-  const transferMemo = encodeURIComponent(rawTransferMemo);
-  
-  let safeAccountNo = String(accountNo || '').trim();
-  if (safeAccountNo.length === 9 && !safeAccountNo.startsWith('0')) {
-    safeAccountNo = `0${safeAccountNo}`;
-  }
+  // Chuẩn hóa số tài khoản ngân hàng
+  const safeAccountNo = useMemo(() => {
+    let acc = String(accountNo || '').trim();
+    if (acc.length === 9 && !acc.startsWith('0')) {
+      acc = `0${acc}`;
+    }
+    return acc;
+  }, [accountNo]);
 
   const matchedBank = useMemo(() => getBankByBin(bankBin), [bankBin]);
   const currentBankName = bankName || matchedBank?.shortName || 'MBBank';
 
-  // Template 'qr_only': hiển thị khung mã QR thuần vuông vắn, không chữ thừa
-  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${safeAccountNo}-qr_only.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(accountName)}`;
+  // Memoize link ảnh VietQR để tránh re-render khi bấm nút Copy
+  const qrImageUrl = useMemo(() => {
+    const encodedMemo = encodeURIComponent(rawTransferMemo);
+    const encodedAccName = encodeURIComponent(accountName.trim());
+    return `https://img.vietqr.io/image/${bankBin}-${safeAccountNo}-qr_only.png?amount=${qrTransferAmount}&addInfo=${encodedMemo}&accountName=${encodedAccName}`;
+  }, [bankBin, safeAccountNo, qrTransferAmount, rawTransferMemo, accountName]);
 
-  const handleCopy = (text, fieldName) => {
+  const handleCopy = async (text, fieldName) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldName);
-    setTimeout(() => setCopiedField(""), 2000);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textArea);
+      }
+      setCopiedField(fieldName);
+      setTimeout(() => setCopiedField(""), 2000);
+    } catch (err) {
+      console.error("Sao chép thất bại:", err);
+    }
   };
 
   return (
@@ -61,16 +80,17 @@ export default function VietQrBox({
         </span>
       </div>
 
-      {/* KHUNG MÃ QR THUẦN TÚY */}
+      {/* Khung ảnh QR */}
       <div className="inline-flex p-3 bg-white rounded-2xl border border-stone-200 shadow-inner">
         <img
           src={qrImageUrl}
-          alt="Mã VietQR"
+          alt="Mã VietQR Chuyển Khoản"
+          loading="lazy"
           className="w-48 h-48 sm:w-52 sm:h-52 object-contain mx-auto rounded-xl"
         />
       </div>
 
-      {/* BẢNG THÔNG TIN TÀI KHOẢN KÈM NÚT SAO CHÉP */}
+      {/* Thông tin tài khoản kèm nút sao chép */}
       <div className="bg-stone-50/90 p-3 rounded-2xl border border-stone-200/80 space-y-2 text-xs text-left">
         <div className="flex items-center justify-between">
           <span className="text-stone-500 font-medium">Ngân hàng:</span>
@@ -91,7 +111,11 @@ export default function VietQrBox({
             title="Bấm để sao chép"
           >
             <span>{safeAccountNo}</span>
-            {copiedField === "stk" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+            {copiedField === "stk" ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 text-stone-400" />
+            )}
           </button>
         </div>
 
@@ -104,7 +128,11 @@ export default function VietQrBox({
             title="Bấm để sao chép"
           >
             <span>{rawTransferMemo}</span>
-            {copiedField === "memo" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-amber-600" />}
+            {copiedField === "memo" ? (
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 text-amber-600" />
+            )}
           </button>
         </div>
       </div>

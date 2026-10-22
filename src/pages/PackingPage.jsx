@@ -1,14 +1,13 @@
 // src/pages/PackingPage.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  PackageCheck, RefreshCw, Printer, 
+  PackageCheck, Printer, 
   CheckCircle2, Lock, ArrowLeft, Banknote, 
   ShieldCheck, AlertCircle, Gift, Check, RotateCcw,
-  Layers, Package
+  Layers, Package, Wifi, WifiOff
 } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
-
-const POLLING_INTERVAL_SECONDS = 20;
+import { supabase } from '../supabaseClient';
 
 export default function PackingPage({ 
   orders = [], 
@@ -28,9 +27,7 @@ export default function PackingPage({
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [activeTab, setActiveTab] = useState('picking');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBackgroundPolling, setIsBackgroundPolling] = useState(false);
-  const [countdown, setCountdown] = useState(POLLING_INTERVAL_SECONDS);
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
 
   // Map tra cứu quà tặng từ catalog (Fallback nếu đơn chỉ lưu ID quà)
   const giftCatalogMap = useMemo(() => {
@@ -98,40 +95,62 @@ export default function PackingPage({
   }, [checkedBoxItems]);
 
   const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
-  const depositConfigAmount = Number(shopConfig?.depositAmount) || 50000;
+  const depositConfigAmount = Number(shopConfig?.depositAmount) || 100000;
 
   const onRefreshRef = useRef(onRefresh);
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  useEffect(() => {
-    if (isAuthenticated && onRefresh) {
-      onRefresh();
-    }
-  }, [isAuthenticated, onRefresh]);
-
+  // SUPABASE REALTIME & AUTO-RECONNECT: Tự động bắt sự kiện DB và phục hồi khi có mạng lại
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (onRefreshRef.current) {
-            setIsBackgroundPolling(true);
-            Promise.resolve(onRefreshRef.current())
-              .catch((err) => console.warn('Lỗi polling ngầm:', err))
-              .finally(() => {
-                setTimeout(() => setIsBackgroundPolling(false), 800);
-              });
-          }
-          return POLLING_INTERVAL_SECONDS;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (onRefreshRef.current) {
+      onRefreshRef.current();
+    }
 
-    return () => clearInterval(timer);
+    const handleOnline = () => {
+      setIsOnline(true);
+      // Mạng vừa thông lại -> tự động kéo dữ liệu mới nhất ngay lập tức
+      if (onRefreshRef.current) {
+        onRefreshRef.current();
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const channel = supabase
+      .channel('warehouse-orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        () => {
+          if (onRefreshRef.current) {
+            onRefreshRef.current();
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED' && onRefreshRef.current) {
+          onRefreshRef.current();
+        }
+      });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      supabase.removeChannel(channel);
+    };
   }, [isAuthenticated]);
 
   const handlePinSubmit = (e) => {
@@ -147,21 +166,6 @@ export default function PackingPage({
     } else {
       setPinError(true);
       setPinInput('');
-    }
-  };
-
-  const handleManualRefresh = async () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-    setCountdown(POLLING_INTERVAL_SECONDS);
-    try {
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } finally {
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 600);
     }
   };
 
@@ -224,7 +228,7 @@ export default function PackingPage({
     };
   };
 
-  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói - tận dụng partial index Supabase)
+  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói)
   const packableOrders = useMemo(() => {
     return effectiveOrders.filter((o) => {
       const statusCode = normalizeOrderStatus(o.status);
@@ -232,11 +236,11 @@ export default function PackingPage({
     });
   }, [effectiveOrders]);
 
-  // PARSE DANH SÁCH MÓN: Hỗ trợ 3NF order_items từ Supabase, fallback cart/itemsSummary
+  // PARSE DANH SÁCH MÓN: Hỗ trợ 3NF order_items, mảng cart và chuỗi regex itemsSummary
   const parseOrderItems = (order) => {
     const items = [];
 
-    // 1. Ưu tiên mảng quan hệ 3NF order_items từ PostgreSQL Supabase
+    // 1. Ưu tiên mảng quan hệ 3NF order_items từ Supabase
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
       order.order_items.forEach((oi) => {
         items.push({
@@ -247,7 +251,7 @@ export default function PackingPage({
         });
       });
     }
-    // 2. Fallback sang mảng cart (khi vừa đặt hàng từ UI)
+    // 2. Fallback sang mảng cart
     else if (Array.isArray(order.cart) && order.cart.length > 0) {
       order.cart.forEach((c) => {
         items.push({
@@ -269,7 +273,7 @@ export default function PackingPage({
         }
       });
     }
-    // 3. Fallback sang chuỗi tổng hợp
+    // 3. Fallback sang chuỗi tổng hợp itemsSummary
     else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
       const parts = order.itemsSummary.split(',');
       parts.forEach((str) => {
@@ -746,8 +750,6 @@ export default function PackingPage({
     );
   }
 
-  const isScanning = isRefreshing || isBackgroundPolling;
-
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 font-sans animate-fadeIn">
       {/* Header & Tabs */}
@@ -773,35 +775,18 @@ export default function PackingPage({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {packableOrders.length > 0 && (
-              <button
-                type="button"
-                onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
-                title="In hàng loạt tất cả tem chờ đóng"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>In Hết ({packableOrders.length} Tem)</span>
-              </button>
-            )}
-
+          {/* Góc phải chỉ giữ lại nút In Hết nếu có đơn chờ đóng */}
+          {packableOrders.length > 0 && (
             <button
               type="button"
-              disabled={isRefreshing}
-              onClick={handleManualRefresh}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border text-xs font-bold transition-all select-none cursor-pointer ${
-                isScanning
-                  ? 'bg-amber-50 text-amber-900 border-amber-300 opacity-90'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border-transparent hover:border-stone-300 active:scale-95'
-              }`}
+              onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
+              title="In hàng loạt tất cả tem chờ đóng"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-amber-600' : 'text-stone-600'}`} />
-              <span>
-                {isScanning ? 'Đang cập nhật...' : `Làm mới (${countdown}s)`}
-              </span>
+              <Layers className="w-3.5 h-3.5" />
+              <span>In Hết ({packableOrders.length} Tem)</span>
             </button>
-          </div>
+          )}
         </div>
 
         {/* Tab chuyển đổi */}
@@ -874,10 +859,10 @@ export default function PackingPage({
                     key={item.key} 
                     onClick={() => togglePickedItem(item.key)}
                     className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-2xs cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
-                      isPicked
-                        ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300'
-                        : item.isGift
-                          ? 'bg-amber-50/70 border-amber-200 hover:border-amber-400'
+                      isPicked 
+                        ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300' 
+                        : item.isGift 
+                          ? 'bg-amber-50/70 border-amber-200 hover:border-amber-400' 
                           : 'bg-stone-50 border-stone-200/80 hover:border-stone-300'
                     }`}
                   >
@@ -1047,8 +1032,8 @@ export default function PackingPage({
                             key={idx} 
                             onClick={() => toggleBoxItem(orderCode, idx)}
                             className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-2xs cursor-pointer select-none transition-colors ${
-                              isBoxChecked
-                                ? 'bg-emerald-50/80 border-emerald-300'
+                              isBoxChecked 
+                                ? 'bg-emerald-50/80 border-emerald-300' 
                                 : it.isGift 
                                   ? 'bg-amber-50/90 border-amber-300 hover:border-amber-400' 
                                   : 'bg-white border-stone-200/80 hover:border-stone-300'
@@ -1081,8 +1066,8 @@ export default function PackingPage({
                             </div>
 
                             <span className={`font-mono font-black text-sm px-2.5 py-0.5 rounded-lg border shrink-0 ${
-                              isBoxChecked
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              isBoxChecked 
+                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
                                 : it.isGift 
                                   ? 'bg-amber-200 text-amber-950 border-amber-300' 
                                   : 'bg-amber-100 text-amber-900 border-amber-200'

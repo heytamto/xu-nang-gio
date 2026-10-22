@@ -1,37 +1,68 @@
 // src/components/admin/EditProductModal.jsx
-import React, { useState } from 'react';
-import { X, Check, Plus, Trash2, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Plus, Trash2, Star, Layers } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
+import { supabase } from '../../supabaseClient';
 
-const CATEGORY_OPTIONS = [
-  { value: 'fresh', label: 'Trái Cây Tươi Hái Giàn' },
-  { value: 'nem-cha', label: 'Nem Chua & Chả Truyền Thống' },
-  { value: 'seafood', label: 'Hải Sản & Đồ Khô Cà Ná' },
-  { value: 'condiments', label: 'Mật Nho, Rượu & Gia Vị' },
-  { value: 'dried', label: 'Đặc Sản Phơi Nắng & Sấy Dẻo' }
+// Danh mục chuẩn khớp 100% với Database Supabase
+const DEFAULT_CATEGORIES = [
+  { id: 'cat01', label: 'Combo Ưu Đãi' },
+  { id: 'cat02', label: 'Trái Cây Tươi Giàn' },
+  { id: 'cat03', label: 'Nem & Chả Đặc Sản' },
+  { id: 'cat04', label: 'Hải Sản Gió Biển' },
+  { id: 'cat05', label: 'Gia Vị Xứ Nắng' },
+  { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
 ];
 
 export default function EditProductModal({ product, onClose, onSave }) {
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+
+  // Load danh mục động từ bảng categories nếu có
+  useEffect(() => {
+    async function loadDbCategories() {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id, name, order')
+          .order('order', { ascending: true });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          setCategories(data.map((c) => ({ id: c.id, label: c.name })));
+        }
+      } catch (e) {
+        // Fallback dùng DEFAULT_CATEGORIES
+      }
+    }
+    loadDbCategories();
+  }, []);
+
   const [formData, setFormData] = useState(() => {
     const rawWeights = product?.product_weights || product?.weights;
     let initialWeights = [];
 
     if (Array.isArray(rawWeights) && rawWeights.length > 0) {
-      initialWeights = rawWeights.map((w, idx) => ({
-        id: w.id || `opt_${idx + 1}`,
-        weight_key: w.weight_key || w.key || `w_${idx + 1}`,
-        label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
-        multiplier: parseFloat(w.multiplier) || 1,
-        price_override: w.price_override ? Number(w.price_override) : null,
-        is_default: Boolean(w.is_default || idx === 0),
-        sort_order: w.sort_order ?? idx
-      }));
+      initialWeights = rawWeights.map((w, idx) => {
+        const hasPriceOverride = w.price_override !== null && w.price_override !== undefined && w.price_override !== '';
+        return {
+          id: w.id || `opt_${idx + 1}`,
+          weight_key: w.weight_key || w.key || `w_${idx + 1}`,
+          label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
+          calcType: hasPriceOverride ? 'fixed' : 'multiplier',
+          val: hasPriceOverride ? Number(w.price_override) : (parseFloat(w.multiplier) || 1),
+          multiplier: parseFloat(w.multiplier) || 1,
+          price_override: hasPriceOverride ? Number(w.price_override) : null,
+          is_default: Boolean(w.is_default || idx === 0),
+          sort_order: w.sort_order ?? idx
+        };
+      });
     } else {
       initialWeights = [
         {
           id: 'std',
-          weight_key: '1kg',
+          weight_key: 'std',
           label: `1 ${product?.unit || 'kg'}`,
+          calcType: 'multiplier',
+          val: 1,
           multiplier: 1,
           price_override: null,
           is_default: true,
@@ -40,14 +71,16 @@ export default function EditProductModal({ product, onClose, onSave }) {
       ];
     }
 
+    const currentCatId = product?.category_id || product?.category || 'cat02';
+
     return {
       ...product,
       name: product?.name || '',
-      category: product?.category || 'fresh',
-      unit: product?.unit || 'kg',
+      category: currentCatId,
+      unit: typeof product?.unit === 'object' ? (product?.unit?.label || 'kg') : (product?.unit || 'kg'),
       basePrice: Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0),
       badge: product?.badge || '',
-      source: product?.source || 'Vườn nhà Ninh Thuận',
+      source: product?.source || 'Vườn nhà Tâm (Phước Hậu)',
       image: product?.image_url || product?.image || '',
       desc: product?.desc || product?.description || '',
       inStock: product?.inStock ?? product?.in_stock ?? true,
@@ -55,21 +88,26 @@ export default function EditProductModal({ product, onClose, onSave }) {
     };
   });
 
-  const handleWeightChange = (index, field, value) => {
-    const updatedWeights = [...formData.weights];
-    let parsedVal = value;
+  const handleUpdateWeightRow = (index, field, value) => {
+    const updated = [...formData.weights];
+    const currentRow = { ...updated[index], [field]: value };
 
-    if (field === 'multiplier') {
-      parsedVal = parseFloat(value) || 0;
-    } else if (field === 'price_override') {
-      parsedVal = value === '' ? null : Number(value) || 0;
+    // Tự động đồng bộ trường multiplier & price_override theo calcType
+    if (field === 'calcType' || field === 'val') {
+      const type = field === 'calcType' ? value : currentRow.calcType;
+      const valNum = Number(field === 'val' ? value : currentRow.val) || 0;
+
+      if (type === 'fixed') {
+        currentRow.price_override = valNum;
+        currentRow.multiplier = 1;
+      } else {
+        currentRow.price_override = null;
+        currentRow.multiplier = valNum > 0 ? valNum : 1;
+      }
     }
 
-    updatedWeights[index] = {
-      ...updatedWeights[index],
-      [field]: parsedVal
-    };
-    setFormData({ ...formData, weights: updatedWeights });
+    updated[index] = currentRow;
+    setFormData({ ...formData, weights: updated });
   };
 
   const handleSetDefaultWeight = (index) => {
@@ -89,7 +127,9 @@ export default function EditProductModal({ product, onClose, onSave }) {
         {
           id: 'opt_' + Date.now(),
           weight_key: `opt_${nextIdx + 1}`,
-          label: 'Quy cách mới',
+          label: '',
+          calcType: 'multiplier',
+          val: 1,
           multiplier: 1,
           price_override: null,
           is_default: formData.weights.length === 0,
@@ -114,19 +154,30 @@ export default function EditProductModal({ product, onClose, onSave }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Chuẩn hóa payload sẵn sàng đồng bộ bảng products & product_weights
+    const formattedWeights = formData.weights
+      .filter((w) => w.label.trim())
+      .map((w, idx) => ({
+        id: w.id,
+        weight_key: w.weight_key || `opt_${idx + 1}`,
+        label: w.label.trim(),
+        multiplier: w.calcType === 'multiplier' ? (Number(w.val) || 1) : 1,
+        price_override: w.calcType === 'fixed' ? (Number(w.val) || 0) : null,
+        is_default: Boolean(w.is_default),
+        sort_order: idx
+      }));
+
     const payload = {
       ...formData,
+      name: formData.name.trim(),
+      category: formData.category,
+      category_id: formData.category,
       price: formData.basePrice,
       base_price: formData.basePrice,
       in_stock: formData.inStock,
       image_url: formData.image,
       description: formData.desc,
-      product_weights: formData.weights.map((w, idx) => ({
-        ...w,
-        sort_order: idx,
-        weight_key: w.weight_key || `w_${idx + 1}`
-      }))
+      product_weights: formattedWeights.length > 0 ? formattedWeights : formData.weights,
+      weights: formattedWeights.length > 0 ? formattedWeights : formData.weights
     };
 
     onSave(payload);
@@ -134,9 +185,12 @@ export default function EditProductModal({ product, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl p-6 max-w-xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-          <h3 className="text-sm font-black text-stone-900">Chỉnh Sửa Đặc Sản & Quy Cách</h3>
+          <div>
+            <h3 className="text-sm font-black text-stone-900">Chỉnh Sửa Đặc Sản & Quy Cách</h3>
+            <p className="text-[11px] text-stone-500">Mã: #{formData.id || 'N/A'}</p>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -146,7 +200,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
             <label className="font-semibold text-stone-600 block mb-1">Tên đặc sản *</label>
             <input
@@ -154,46 +208,47 @@ export default function EditProductModal({ product, onClose, onSave }) {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
+              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Danh mục</label>
+              <label className="font-semibold text-stone-600 block mb-1">Danh mục *</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 cursor-pointer"
+                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 cursor-pointer font-medium focus:outline-none focus:border-amber-600"
               >
-                {CATEGORY_OPTIONS.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label} ({cat.id})
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Giá bán cơ bản (VNĐ) *</label>
+              <label className="font-semibold text-stone-600 block mb-1">Giá chuẩn 1 đơn vị (VNĐ) *</label>
               <input
                 type="number"
                 required
                 min="0"
+                step="1000"
                 value={formData.basePrice}
                 onChange={(e) => setFormData({ ...formData, basePrice: Number(e.target.value) || 0 })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900"
+                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
               />
             </div>
 
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Đơn vị tính</label>
+              <label className="font-semibold text-stone-600 block mb-1">Đơn vị chuẩn</label>
               <input
                 type="text"
-                placeholder="VD: kg, hũ 500g, chai..."
+                placeholder="VD: kg, hộp, chai, đòn..."
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800"
+                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
@@ -206,18 +261,18 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 placeholder="VD: Vườn Phước Hậu, Làng chài Cà Ná..."
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800"
+                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Huy hiệu (Badge nổi bật)</label>
+              <label className="font-semibold text-stone-600 block mb-1">Huy hiệu (Badge)</label>
               <input
                 type="text"
                 placeholder="VD: BÁN CHẠY, HÁI SỚM, MỚI..."
                 value={formData.badge}
                 onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800"
+                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
@@ -230,26 +285,30 @@ export default function EditProductModal({ product, onClose, onSave }) {
             onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
           />
 
-          {/* Quy cách & Đóng gói (Bảng product_weights) */}
-          <div className="bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200/80 space-y-2.5">
+          {/* QUY CÁCH & ĐỊNH GIÁ ĐA DẠNG */}
+          <div className="bg-stone-50/90 p-4 rounded-2xl border border-stone-200/90 space-y-3">
             <div className="flex items-center justify-between">
-              <div>
-                <span className="font-bold text-stone-800 text-xs block">Quy cách & Giá bán (product_weights):</span>
-                <span className="text-[10px] text-stone-500">Bấm dấu sao để chọn quy cách mặc định khi mở xem</span>
+              <div className="flex items-center gap-1.5 font-bold text-stone-800 text-xs">
+                <Layers className="w-4 h-4 text-amber-700" />
+                <span>Quy cách đóng gói & Cơ chế định giá</span>
               </div>
               <button
                 type="button"
                 onClick={handleAddWeight}
-                className="text-amber-800 hover:text-amber-950 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg font-bold text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Thêm quy cách</span>
               </button>
             </div>
 
+            <p className="text-[11px] text-stone-500">
+              Bấm biểu tượng <strong>Sao vàng</strong> để chọn quy cách mở đầu. Hỗ trợ tính theo <strong>Hệ số x</strong> hoặc <strong>Giá chẵn trực tiếp</strong>.
+            </p>
+
             <div className="space-y-2">
               {formData.weights.map((w, index) => (
-                <div key={w.id || index} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-2xs">
+                <div key={w.id || index} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white p-2.5 rounded-xl border border-stone-200 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => handleSetDefaultWeight(index)}
@@ -258,47 +317,58 @@ export default function EditProductModal({ product, onClose, onSave }) {
                         ? 'bg-amber-100 text-amber-700'
                         : 'text-stone-300 hover:text-stone-500'
                     }`}
-                    title={w.is_default ? 'Quy cách mặc định' : 'Đặt làm mặc định'}
+                    title={w.is_default ? 'Quy cách mặc định' : 'Bấm để đặt làm mặc định'}
                   >
                     <Star className={`w-3.5 h-3.5 ${w.is_default ? 'fill-amber-600 text-amber-600' : ''}`} />
                   </button>
 
-                  <input
-                    type="text"
-                    placeholder="Tên quy cách (VD: Thùng 3kg)"
-                    value={w.label}
-                    onChange={(e) => handleWeightChange(index, 'label', e.target.value)}
-                    className="flex-1 p-1.5 rounded-lg border border-stone-200 text-xs text-stone-800"
-                  />
-
-                  <div className="flex items-center gap-1 w-20">
-                    <span className="text-[10px] text-stone-400">Hệ số:</span>
+                  <div className="flex-1 min-w-[130px]">
                     <input
-                      type="number"
-                      step="0.05"
-                      min="0.1"
-                      value={w.multiplier ?? 1}
-                      onChange={(e) => handleWeightChange(index, 'multiplier', e.target.value)}
-                      className="w-full p-1.5 rounded-lg border border-stone-200 text-xs font-mono font-bold text-center"
+                      type="text"
+                      placeholder="Tên quy cách (VD: Thùng 5kg)"
+                      value={w.label}
+                      onChange={(e) => handleUpdateWeightRow(index, 'label', e.target.value)}
+                      className="w-full p-2 rounded-lg border border-stone-200 text-xs font-semibold text-stone-800 focus:outline-none focus:border-amber-600"
                     />
                   </div>
 
-                  <div className="flex items-center gap-1 w-28">
-                    <span className="text-[10px] text-stone-400">Giá riêng:</span>
+                  <div className="w-32 shrink-0">
+                    <select
+                      value={w.calcType}
+                      onChange={(e) => handleUpdateWeightRow(index, 'calcType', e.target.value)}
+                      className="w-full p-2 rounded-lg border border-stone-200 text-xs font-medium text-stone-700 cursor-pointer focus:outline-none focus:border-amber-600 bg-stone-50"
+                    >
+                      <option value="multiplier">Nhân hệ số (x)</option>
+                      <option value="fixed">Giá cố định (VNĐ)</option>
+                    </select>
+                  </div>
+
+                  <div className="w-28 shrink-0">
                     <input
                       type="number"
-                      placeholder="Tự tính"
-                      value={w.price_override ?? ''}
-                      onChange={(e) => handleWeightChange(index, 'price_override', e.target.value)}
-                      className="w-full p-1.5 rounded-lg border border-stone-200 text-xs font-mono text-emerald-800 text-right"
+                      step={w.calcType === 'multiplier' ? '0.1' : '1000'}
+                      min="0"
+                      placeholder={w.calcType === 'multiplier' ? 'VD: 4.8' : 'VD: 299000'}
+                      value={w.val ?? ''}
+                      onChange={(e) => handleUpdateWeightRow(index, 'val', e.target.value)}
+                      className="w-full p-2 rounded-lg border border-stone-200 font-mono font-bold text-amber-900 text-xs focus:outline-none focus:border-amber-600 text-right"
                     />
+                  </div>
+
+                  <div className="text-[11px] text-stone-500 font-mono w-24 text-right hidden sm:block">
+                    {w.calcType === 'fixed' ? (
+                      <span className="text-emerald-700 font-bold">{Number(w.val || 0).toLocaleString('vi-VN')}đ</span>
+                    ) : (
+                      <span>= {((Number(formData.basePrice) || 0) * (Number(w.val) || 0)).toLocaleString('vi-VN')}đ</span>
+                    )}
                   </div>
 
                   {formData.weights.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveWeight(index)}
-                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg cursor-pointer transition-colors"
+                      title="Xóa quy cách này"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -315,7 +385,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
               placeholder="Giới thiệu hương vị, độ ngọt, độ giòn và cách dùng..."
               value={formData.desc}
               onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none"
+              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -325,7 +395,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 type="checkbox"
                 checked={formData.inStock}
                 onChange={(e) => setFormData({ ...formData, inStock: e.target.checked })}
-                className="w-4 h-4 rounded-md accent-amber-600"
+                className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
               />
               <span>Đang mở bán (Còn hàng trên kệ)</span>
             </label>

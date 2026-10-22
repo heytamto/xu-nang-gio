@@ -17,7 +17,7 @@ export default function ConfigVoucherTab({
     bankName: config.bankName || 'MBBank',
     accountNo: config.accountNo || '0848957345',
     accountName: config.accountName || 'TO THANH TAM',
-    depositAmount: config.depositAmount || 50000,
+    depositAmount: config.depositAmount || 100000,
     hotline: config.hotline || '0848.957.345',
     zaloPhone: config.zaloPhone || config.hotline || '0848957345',
     warehousePin: config.warehousePin || '1234',
@@ -27,7 +27,6 @@ export default function ConfigVoucherTab({
     vouchers: config.vouchers || []
   }));
 
-  // State nạp động từ bảng email_templates
   const [templates, setTemplates] = useState([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -39,7 +38,7 @@ export default function ConfigVoucherTab({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Đóng dropdown khi click ngoài
+  // Đóng dropdown khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -203,7 +202,7 @@ export default function ConfigVoucherTab({
     setEditingVoucher(null);
   };
 
-  // Gửi test email qua Supabase Edge Function
+  // Gửi test email qua Supabase Edge Function chuẩn (đã sửa gọi đúng tên 'send-order-email')
   const handleSendTestEmail = async () => {
     const targetEmail = testEmailInput.trim();
     if (!targetEmail || !targetEmail.includes('@')) {
@@ -213,26 +212,35 @@ export default function ConfigVoucherTab({
 
     setIsSendingTest(true);
     try {
-      const { error } = await supabase.functions.invoke('send-email', {
+      const sampleHtml = activeTemplate.body
+        .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
+        .replace(/{{ORDER_CODE}}/g, 'XNG-TEST')
+        .replace(/{{TOTAL}}/g, '250.000')
+        .replace(/{{ITEMS_SUMMARY}}/g, '• 2kg Táo Gió Ninh Thuận x1<br/>• 1 Chai Mật Nho x1')
+        .replace(/{{PAYMENT_METHOD}}/g, 'Chuyển khoản VietQR')
+        .replace(/{{ADDRESS}}/g, 'TP. Thủ Đức, TP. Hồ Chí Minh')
+        .replace(/{{VOUCHER_CODE}}/g, 'LAMQUEN')
+        .replace(/{{VOUCHER_DESC}}/g, 'Giảm 15.000đ');
+
+      const sampleSubject = activeTemplate.subject
+        .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
+        .replace(/{{ORDER_CODE}}/g, 'XNG-TEST');
+
+      // Gọi chính xác hàm 'send-order-email'
+      const { error } = await supabase.functions.invoke('send-order-email', {
         body: {
+          is_test: true,
           to: targetEmail,
-          subject: activeTemplate.subject.replace('{{CUSTOMER_NAME}}', 'Khách Quý').replace('{{ORDER_CODE}}', 'XNG_TEST'),
-          html: activeTemplate.body
-            .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
-            .replace(/{{ORDER_CODE}}/g, 'XNG_TEST')
-            .replace(/{{TOTAL}}/g, '250.000')
-            .replace(/{{ITEMS_SUMMARY}}/g, '2kg Táo Gió Ninh Thuận x1, 1 Chai Mật Nho x1')
-            .replace(/{{PAYMENT_METHOD}}/g, 'Chuyển khoản VietQR')
-            .replace(/{{ADDRESS}}/g, 'TP. Thủ Đức, TP. Hồ Chí Minh')
-            .replace(/{{VOUCHER_CODE}}/g, 'LAMQUEN')
-            .replace(/{{VOUCHER_DESC}}/g, 'Giảm 15.000đ')
+          subject: sampleSubject,
+          html: sampleHtml
         }
       });
 
       if (error) throw error;
       onShowAlert?.(`Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`);
     } catch (err) {
-      onShowAlert?.(`Thông báo: Mẫu email đã sẵn sàng. ${err.message || ''}`);
+      console.error('Lỗi test email:', err);
+      onShowAlert?.(`Lỗi gửi mail: ${err.message || 'Không thể kết nối Edge Function'}`);
     } finally {
       setIsSendingTest(false);
     }
@@ -268,7 +276,7 @@ export default function ConfigVoucherTab({
 
       if (cfgErr) throw cfgErr;
 
-      // Lưu từng template vào bảng email_templates
+      // Lưu bảng email_templates
       if (templates.length > 0) {
         const payloadTemplates = templates.map((t) => ({
           id: t.id,
@@ -297,7 +305,7 @@ export default function ConfigVoucherTab({
 
   return (
     <div className="space-y-6 font-sans animate-fadeIn">
-      {/* 1. CẤU HÌNH THANH TOÁN, VIETQR & LOYALTY */}
+      {/* 1. CẤU HÌNH THANH TOÁN & VIETQR */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
           <QrCode className="w-4 h-4 text-amber-600" />
@@ -397,7 +405,7 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH EMAIL TEMPLATES TỪ SUPABASE */}
+      {/* 2. CẤU HÌNH EMAIL TEMPLATES */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
