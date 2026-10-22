@@ -13,23 +13,29 @@ export default function VoucherSection({
   onRemoveVoucher,
 }) {
   const handleApply = () => {
-    if (!voucherInput.trim()) return;
+    const cleanCode = voucherInput.trim().toUpperCase();
+    if (!cleanCode) return;
+    if (setVoucherInput) setVoucherInput(cleanCode);
     onApplyVoucher?.();
   };
 
-  // Ưu tiên hiển thị: nếu calculatedVouchers rỗng thì dùng appliedVouchers
+  // Ưu tiên hiển thị mảng vouchers tính toán hoặc appliedVouchers
   const displayVouchers = (Array.isArray(calculatedVouchers) && calculatedVouchers.length > 0)
     ? calculatedVouchers
     : appliedVouchers;
 
   return (
-    <div className="bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs space-y-2.5">
-      {/* Tiêu đề gọn gàng, đã bỏ hoàn toàn biến đếm số lượng */}
+    <div className="bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs space-y-2.5 font-sans">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1.5">
           <Tag className="w-3.5 h-3.5 text-amber-600" />
           <span>Mã Ưu Đãi / Voucher</span>
         </span>
+        {appliedVouchers.length > 0 && (
+          <span className="text-[10px] text-stone-400 font-mono">
+            {appliedVouchers.length}/{maxVouchers} mã
+          </span>
+        )}
       </div>
 
       <div className="flex gap-1.5">
@@ -38,14 +44,14 @@ export default function VoucherSection({
           disabled={appliedVouchers.length >= maxVouchers}
           placeholder="Nhập mã ưu đãi..."
           value={voucherInput}
-          onChange={(e) => setVoucherInput(e.target.value)}
+          onChange={(e) => setVoucherInput?.(e.target.value.toUpperCase())}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
               handleApply();
             }
           }}
-          className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:border-amber-600 font-mono uppercase text-stone-800 disabled:opacity-60"
+          className="flex-1 text-xs px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:border-amber-600 font-mono uppercase text-stone-800 disabled:opacity-60 transition-colors"
         />
         <button
           type="button"
@@ -58,7 +64,7 @@ export default function VoucherSection({
       </div>
 
       {voucherError && (
-        <p className="text-[10.5px] text-red-600 font-medium leading-tight">{voucherError}</p>
+        <p className="text-[10.5px] text-rose-600 font-medium leading-tight">{voucherError}</p>
       )}
 
       {/* Danh sách các mã ưu đãi đang áp dụng */}
@@ -75,7 +81,7 @@ export default function VoucherSection({
                   <div className="truncate">
                     <span className="font-mono font-bold text-amber-900">{vCode}</span>
                     {discountVal > 0 && (
-                      <span className="text-[10.5px] text-amber-800 ml-1 font-medium">
+                      <span className="text-[10.5px] text-amber-800 ml-1 font-medium font-mono">
                         (-{discountVal.toLocaleString('vi-VN')}đ)
                       </span>
                     )}
@@ -83,8 +89,8 @@ export default function VoucherSection({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onRemoveVoucher(vCode)}
-                  className="text-stone-400 hover:text-red-500 p-1 cursor-pointer"
+                  onClick={() => onRemoveVoucher?.(vCode)}
+                  className="text-stone-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                   title="Gỡ mã này"
                 >
                   <X className="w-3.5 h-3.5" />

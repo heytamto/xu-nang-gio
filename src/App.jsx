@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { ShoppingBag, Loader2 } from 'lucide-react';
 
 import Navbar from './components/Navbar';
@@ -12,14 +12,18 @@ import ShopPage from './pages/ShopPage';
 import StoryPage from './pages/StoryPage';
 import BlogPage from './pages/BlogPage';
 import CheckoutPage from './pages/CheckoutPage';
-import AdminPage from './pages/AdminPage';
-import PackingPage from './pages/PackingPage';
+
+// Lazy loading cho các trang quản trị để tối ưu bundle size cho khách hàng
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const PackingPage = lazy(() => import('./pages/PackingPage'));
 
 import { getShopConfig, DEFAULT_SHOP_CONFIG } from './config/shopConfig';
-import { enqueueOrder, processOrderQueue, initQueueWorker } from './utils/orderQueue';
+import { submitOrderToSupabase, fetchActiveProcessingOrders } from './services/orderService';
+import { fetchAllMasterDataFromSupabase } from './services/masterDataService';
+import { supabase } from './supabaseClient';
 
 export default function App() {
-  // 1. Giữ nguyên trang hiện tại khi F5 bằng sessionStorage
+  // Giữ nguyên trang hiện tại khi F5 bằng sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
     try {
       return sessionStorage.getItem('shop_current_page') || 'home';
@@ -30,7 +34,7 @@ export default function App() {
 
   const [shopConfig, setShopConfig] = useState(() => getShopConfig());
 
-  // State lưu danh mục được chọn từ HomePage để truyền sang ShopPage lọc chuẩn xác
+  // Lưu danh mục được chọn từ HomePage để truyền sang ShopPage
   const [selectedShopCategory, setSelectedShopCategory] = useState(() => {
     try {
       return sessionStorage.getItem('shop_selected_category') || 'all';
@@ -39,7 +43,6 @@ export default function App() {
     }
   });
 
-  // Khởi tạo state ban đầu từ localStorage
   const [categories, setCategories] = useState(() => {
     try {
       const saved = localStorage.getItem('shop_categories');
@@ -103,7 +106,7 @@ export default function App() {
   const [initialLookupCode, setInitialLookupCode] = useState('');
 
   // -------------------------------------------------------------
-  // XỬ LÝ ROUTE / LINK TRA CỨU TỪ EMAIL (?order=XNG... hoặc ?lookup=...)
+  // 1. XỬ LÝ URL PARAMS & SỰ KIỆN POPSTATE (BACK/FORWARD TRÌNH DUYỆT)
   // -------------------------------------------------------------
   useEffect(() => {
     try {
@@ -111,13 +114,11 @@ export default function App() {
       const orderCodeFromUrl = urlParams.get('order') || urlParams.get('lookup') || urlParams.get('code');
       const pageFromUrl = urlParams.get('page');
 
-      // 1. Nếu có mã đơn từ link email: Mở ngay modal tra cứu
       if (orderCodeFromUrl) {
         setInitialLookupCode(orderCodeFromUrl.trim().toUpperCase());
         setIsLookupModalOpen(true);
       }
 
-      // 2. Nếu có chỉ định trang trên URL (?page=shop / ?page=admin...)
       if (pageFromUrl && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing'].includes(pageFromUrl)) {
         setCurrentPage(pageFromUrl);
         sessionStorage.setItem('shop_current_page', pageFromUrl);
@@ -125,18 +126,23 @@ export default function App() {
     } catch (e) {
       console.error('Lỗi phân tích URL Params:', e);
     }
+
+    const handlePopState = (event) => {
+      const targetPage = event.state?.page || 'home';
+      setCurrentPage(targetPage);
+      sessionStorage.setItem('shop_current_page', targetPage);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Đồng bộ giỏ hàng vào LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem('shop_cart', JSON.stringify(cart));
     } catch (e) { console.error(e); }
   }, [cart]);
-
-  useEffect(() => {
-    const cleanupWorker = initQueueWorker();
-    return cleanupWorker;
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -147,125 +153,136 @@ export default function App() {
     };
   }, []);
 
-  /**
-   * CƠ CHẾ FETCH DỮ LIỆU: ĐỒNG BỘ 1 CHIỀU CHÍNH XÁC VỚI GOOGLE SHEET
-   */
-  const fetchSheetData = useCallback(async () => {
-    const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
-    if (!webhookUrl) {
-      setIsLoadingMasterData(false);
-      return;
-    }
-
-    const timestamp = Date.now();
-    const freshUrl = `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}nocache=${timestamp}&_t=${timestamp}`;
-
+  // -------------------------------------------------------------
+  // 2. TẢI DỮ LIỆU MASTER DATA & ĐƠN HÀNG TỪ SUPABASE POSTGRESQL
+  // -------------------------------------------------------------
+  const loadSupabaseData = useCallback(async () => {
     try {
-      const res = await fetch(freshUrl);
-      const data = await res.json();
-
-      if (data && (data.status === 'success' || data.success === true)) {
-        // 1. CẬP NHẬT DANH MỤC
-        if (Array.isArray(data.categories)) {
-          const sortedCats = [...data.categories].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-          setCategories(sortedCats);
-          localStorage.setItem('shop_categories', JSON.stringify(sortedCats));
+      const masterData = await fetchAllMasterDataFromSupabase();
+      if (masterData) {
+        if (Array.isArray(masterData.categories) && masterData.categories.length > 0) {
+          setCategories(masterData.categories);
+          localStorage.setItem('shop_categories', JSON.stringify(masterData.categories));
         }
 
-        // 2. CẬP NHẬT SẢN PHẨM
-        if (Array.isArray(data.products)) {
-          setProducts(data.products);
-          localStorage.setItem('shop_products', JSON.stringify(data.products));
+        if (Array.isArray(masterData.products) && masterData.products.length > 0) {
+          setProducts(masterData.products);
+          localStorage.setItem('shop_products', JSON.stringify(masterData.products));
         }
 
-        // 3. CẬP NHẬT BÀI VIẾT CẨM NANG
-        if (Array.isArray(data.posts)) {
-          setPosts(data.posts);
-          localStorage.setItem('shop_posts', JSON.stringify(data.posts));
+        if (Array.isArray(masterData.posts)) {
+          setPosts(masterData.posts);
+          localStorage.setItem('shop_posts', JSON.stringify(masterData.posts));
         }
 
-        // 4. CẬP NHẬT CÂU CHUYỆN VƯỜN
-        if (Array.isArray(data.stories)) {
-          setStories(data.stories);
-          localStorage.setItem('shop_stories', JSON.stringify(data.stories));
+        if (Array.isArray(masterData.stories)) {
+          setStories(masterData.stories);
+          localStorage.setItem('shop_stories', JSON.stringify(masterData.stories));
         }
 
-        // 5. CẬP NHẬT ĐƠN HÀNG
-        const incomingOrders = Array.isArray(data.orders) 
-          ? data.orders 
-          : (Array.isArray(data.data) ? data.data : null);
-
-        if (incomingOrders !== null) {
-          const validSheetOrders = incomingOrders.filter(
-            (o) => o && (o.code || o.orderId) && String(o.code || o.orderId).trim() !== ''
-          );
-          setOrders(validSheetOrders);
-          localStorage.setItem('shop_orders', JSON.stringify(validSheetOrders));
-        }
-
-        // 6. CẬP NHẬT CẤU HÌNH, QUÀ TẶNG & VOUCHER
         setShopConfig((prev) => {
           const nextConfig = { ...prev };
-          if (Array.isArray(data.vouchers)) nextConfig.vouchers = data.vouchers;
-          if (Array.isArray(data.paymentGifts)) nextConfig.paymentGifts = data.paymentGifts;
-          if (Array.isArray(data.giftsCatalog)) nextConfig.giftsCatalog = data.giftsCatalog;
-
-          if (data.config && Object.keys(data.config).length > 0) {
-            Object.assign(nextConfig, data.config);
-            if (data.config.depositAmount) nextConfig.depositAmount = Number(data.config.depositAmount);
-            if (data.config.loyaltyDiscountPercent) nextConfig.loyaltyDiscountPercent = Number(data.config.loyaltyDiscountPercent);
-            if (data.config.loyaltyMaxDiscount) nextConfig.loyaltyMaxDiscount = Number(data.config.loyaltyMaxDiscount);
+          if (Array.isArray(masterData.vouchers)) nextConfig.vouchers = masterData.vouchers;
+          if (Array.isArray(masterData.giftsCatalog)) nextConfig.giftsCatalog = masterData.giftsCatalog;
+          if (masterData.config && Object.keys(masterData.config).length > 0) {
+            Object.assign(nextConfig, masterData.config);
           }
-
           localStorage.setItem('shop_config', JSON.stringify(nextConfig));
           return nextConfig;
         });
       }
+
+      // Tải các đơn hàng vận hành
+      const activeOrders = await fetchActiveProcessingOrders();
+      if (Array.isArray(activeOrders)) {
+        setOrders(activeOrders);
+        localStorage.setItem('shop_orders', JSON.stringify(activeOrders));
+      }
     } catch (err) {
-      console.warn('Lỗi kết nối tải dữ liệu mới từ Sheet:', err);
+      console.warn('Lỗi kết nối tải dữ liệu Supabase:', err);
     } finally {
       setIsLoadingMasterData(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchSheetData();
+    loadSupabaseData();
 
     const safetyTimer = setTimeout(() => {
       setIsLoadingMasterData(false);
-    }, 4000);
+    }, 3500);
 
     return () => clearTimeout(safetyTimer);
-  }, [fetchSheetData]);
+  }, [loadSupabaseData]);
 
+  // -------------------------------------------------------------
+  // 3. REALTIME: LẮNG NGHE SỰ KIỆN CẬP NHẬT ĐƠN HÀNG TỪ SUPABASE
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const channel = supabase
+      .channel('app:orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          const raw = payload.new;
+          if (!raw) return;
+
+          // Chuẩn hóa format đơn hàng đồng bộ
+          const normalized = {
+            ...raw,
+            name: raw.customer_name || raw.name,
+            total: raw.final_total ?? raw.total,
+            paymentMethod: raw.payment_method || raw.paymentMethod,
+            createdAt: raw.created_at || raw.createdAt
+          };
+
+          if (payload.eventType === 'INSERT') {
+            setOrders((prev) => [normalized, ...prev.filter((o) => o.code !== normalized.code)]);
+          } else if (payload.eventType === 'UPDATE') {
+            setOrders((prev) =>
+              prev.map((o) => (o.code === normalized.code ? { ...o, ...normalized } : o))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setOrders((prev) => prev.filter((o) => o.code !== payload.old?.code && o.id !== payload.old?.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG TRỰC TIẾP LÊN SUPABASE
   const handleUpdateOrderStatus = async (orderCode, newStatus) => {
     setOrders((prev) => {
-      const updated = prev.map((ord) => ((ord.code === orderCode || ord.orderId === orderCode) ? { ...ord, status: newStatus } : ord));
+      const updated = prev.map((ord) => 
+        ((ord.code === orderCode || ord.orderId === orderCode) ? { ...ord, status: newStatus } : ord)
+      );
       try {
         localStorage.setItem('shop_orders', JSON.stringify(updated));
       } catch (e) { console.error(e); }
       return updated;
     });
 
-    const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
-    if (webhookUrl) {
-      try {
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'update_status',
-            code: orderCode,
-            status: newStatus
-          })
-        });
-      } catch (err) {
-        console.error('Lỗi cập nhật trạng thái đơn lên Sheet:', err);
-      }
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('code', orderCode);
+
+      if (error) console.warn('Lỗi update trạng thái Supabase:', error);
+    } catch (err) {
+      console.error('Lỗi cập nhật trạng thái đơn hàng:', err);
     }
   };
 
-  // THÊM MÓN & HIỂN THỊ ANIMATION NẢY GIỎ HÀNG
+  // THÊM MÓN & ANIMATION NẢY GIỎ HÀNG
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -275,7 +292,7 @@ export default function App() {
     const multiplier = weightObj?.multiplier || 1;
     const bonus = weightObj?.priceBonus || 0;
     const base = Number(product.basePrice || product.price || 0);
-    const unitPrice = Math.round((base + bonus) * multiplier);
+    const unitPrice = weightObj?.priceOverride != null ? weightObj.priceOverride + bonus : Math.round((base + bonus) * multiplier);
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
     const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
 
@@ -315,9 +332,8 @@ export default function App() {
           flavor: weightObj?.flavor || null,
           weightLabel: weightObj?.label || product.unit || 'Tiêu chuẩn',
           image: product.image,
-          campaign_gift: product.campaign_gift || null,
-          campaign_gift_title: product.campaign_gift_title || null,
-          resolved_campaign_gifts: product.resolved_campaign_gifts || [],
+          campaign_gift: product.campaign_gift_id || product.campaign_gift || null,
+          campaign_gift_title: product.campaign_tag || product.campaign_gift_title || null,
           quantity: quantity
         }
       ];
@@ -339,7 +355,6 @@ export default function App() {
     }, 1800);
   };
 
-  // Cập nhật số lượng linh hoạt
   const handleUpdateQuantity = (target, delta) => {
     const targetId = typeof target === 'object' ? (target.id || target.cartItemId || target.productId) : target;
     const targetWeightId = typeof target === 'object' ? (target.weightId || null) : null;
@@ -361,7 +376,6 @@ export default function App() {
     );
   };
 
-  // Xóa món linh hoạt
   const handleRemoveCartItem = (target, weightId = null) => {
     const targetId = typeof target === 'object' ? (target.id || target.cartItemId || target.productId) : target;
     const targetWeightId = typeof target === 'object' ? (target.weightId || null) : weightId;
@@ -377,43 +391,34 @@ export default function App() {
     );
   };
 
-  // XỬ LÝ ĐẶT HÀNG
+  // XỬ LÝ ĐẶT HÀNG THUẦN SUPABASE
   const handleProcessOrder = async (orderData) => {
-    const orderCode = 'XNG' + Math.floor(100000 + Math.random() * 900000);
+    const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
     const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
     const finalTotalAmount = Number(orderData.total !== undefined ? orderData.total : orderData.finalTotal) || 0;
     const subtotalAmount = Number(orderData.subtotal || orderData.rawTotal) || finalTotalAmount;
 
+    const campaignGiftsList = sourceCart
+      .filter((item) => item.campaign_gift_title)
+      .map((item) => `${item.name}: ${item.campaign_gift_title}`)
+      .join(' | ');
+
     const orderPayload = {
-      orderId: orderCode,
       code: orderCode,
+      orderId: orderCode,
       createdAt: new Date().toISOString(),
       customer: {
-        name: orderData.customer?.name || orderData.name || '',
-        phone: orderData.customer?.phone || orderData.phone || '',
+        name: (orderData.customer?.name || orderData.name || '').trim(),
+        phone: (orderData.customer?.phone || orderData.phone || '').trim(),
+        email: (orderData.email || orderData.customer?.email || '').trim(),
+        address: (orderData.address || orderData.customer?.address || '').trim(),
         note: (orderData.customer?.note || orderData.note || '').trim()
       },
       name: (orderData.customer?.name || orderData.name || '').trim(),
       phone: (orderData.customer?.phone || orderData.phone || '').trim(),
-      email: (orderData.email || '').trim(),
+      email: (orderData.email || orderData.customer?.email || '').trim(),
+      address: (orderData.address || orderData.customer?.address || '').trim(),
       note: (orderData.customer?.note || orderData.note || '').trim(),
-      address: (orderData.address || '').trim(),
-      paymentMethod: orderData.paymentMethod || 'deposit',
-      giftTitle: orderData.giftTitle || '',
-      paymentGift: orderData.giftTitle || '',
-
-      subtotal: subtotalAmount,
-      finalTotal: finalTotalAmount,
-      edgeSignature: orderData.edgeSignature || '',
-
-      total: finalTotalAmount,
-      totalAmount: finalTotalAmount,
-      rawTotal: subtotalAmount,
-      discount: Number(orderData.discount) || 0,
-      voucherCode: orderData.voucherCode || '',
-      voucher: orderData.voucherCode || '',
-      usedPreviousOrderCode: orderData.usedPreviousOrderCode || '',
-      status: 'Chờ xác nhận',
       cart: sourceCart.map((item) => ({
         productId: item.productId || item.id,
         id: item.productId || item.id,
@@ -422,43 +427,58 @@ export default function App() {
         price: Number(item.price) || 0,
         quantity: Number(item.quantity) || 1,
         weightLabel: item.weightLabel || '',
-        campaign_gift: item.campaign_gift || null,
-        campaign_gift_title: item.campaign_gift_title || null,
-        resolved_campaign_gifts: item.resolved_campaign_gifts || []
-      }))
+        campaign_gift_title: item.campaign_gift_title || null
+      })),
+      paymentMethod: orderData.paymentMethod || 'deposit',
+      paymentGift: orderData.giftTitle || orderData.paymentGift || '',
+      campaignGifts: campaignGiftsList || '',
+      subtotal: subtotalAmount,
+      discount: Number(orderData.discount) || 0,
+      finalTotal: finalTotalAmount,
+      total: finalTotalAmount,
+      totalAmount: finalTotalAmount,
+      rawTotal: subtotalAmount,
+      voucherCode: orderData.voucherCode || '',
+      voucher: orderData.voucherCode || '',
+      usedPreviousOrderCode: orderData.usedPreviousOrderCode || '',
+      edgeSignature: orderData.edgeSignature || '',
+      status: 'Chờ xác nhận'
     };
 
-    enqueueOrder(orderPayload);
-    processOrderQueue();
+    try {
+      // 1. Lưu nguyên tử vào PostgreSQL qua RPC
+      const res = await submitOrderToSupabase(orderPayload);
+      if (!res.success) {
+        throw new Error(res.error || 'Lỗi khi lưu đơn hàng vào hệ thống.');
+      }
 
-    setOrders((prev) => {
-      const nextOrders = [orderPayload, ...prev];
+      // 2. Cập nhật state UI
+      setOrders((prev) => {
+        const nextOrders = [orderPayload, ...prev];
+        try {
+          localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
+        } catch (err) { console.error(err); }
+        return nextOrders;
+      });
+
+      // 3. Hiển thị modal hoàn tất & dọn dẹp giỏ hàng
+      setSuccessOrderInfo({ code: orderCode, total: finalTotalAmount });
+      setIsSuccessModalOpen(true);
+      setCart([]);
       try {
-        localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
-      } catch (err) { console.error(err); }
-      return nextOrders;
-    });
+        localStorage.removeItem('shop_cart');
+      } catch (e) { console.error(e); }
 
-    setSuccessOrderInfo({ code: orderCode, total: finalTotalAmount });
-    setIsSuccessModalOpen(true);
-    setCart([]);
+    } catch (err) {
+      console.error('Lỗi quá trình tạo đơn hàng:', err);
+      alert(err.message || 'Hệ thống đang bận, vui lòng thử lại sau ít phút.');
+      throw err;
+    }
   };
 
   const handleSaveConfig = (newCfg) => {
     setShopConfig(newCfg);
     localStorage.setItem('shop_config', JSON.stringify(newCfg));
-
-    const webhookUrl = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL;
-    if (webhookUrl) {
-      fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'save_config',
-          config: newCfg
-        })
-      }).catch((err) => console.error('Lỗi đồng bộ cấu hình:', err));
-    }
   };
 
   const navigateTo = (page) => {
@@ -471,7 +491,6 @@ export default function App() {
     setCurrentPage(page);
     try {
       sessionStorage.setItem('shop_current_page', page);
-      // Cập nhật query param trên thanh địa chỉ nhưng không làm reload trang
       const newUrl = page === 'home' ? window.location.pathname : `?page=${page}`;
       window.history.pushState({ page }, '', newUrl);
     } catch (e) { console.error(e); }
@@ -568,50 +587,58 @@ export default function App() {
         )}
 
         {currentPage === 'admin' && (
-          <AdminPage
-            products={products}
-            categories={categories}
-            orders={orders}
-            onSaveProducts={(newList) => {
-              setProducts(newList);
-              localStorage.setItem('shop_products', JSON.stringify(newList));
-            }}
-            onResetProducts={() => {
-              fetchSheetData();
-            }}
-            posts={posts}
-            onSavePosts={(newList) => {
-              setPosts(newList);
-              localStorage.setItem('shop_posts', JSON.stringify(newList));
-            }}
-            onResetPosts={() => {
-              fetchSheetData();
-            }}
-            stories={stories}
-            onSaveStories={(newList) => {
-              setStories(newList);
-              localStorage.setItem('shop_stories', JSON.stringify(newList));
-            }}
-            onResetStories={() => {
-              fetchSheetData();
-            }}
-            shopConfig={shopConfig}
-            onSaveConfig={handleSaveConfig}
-            onResetConfig={() => handleSaveConfig(DEFAULT_SHOP_CONFIG)}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            onNavigateHome={() => navigateTo('home')}
-            onNavigatePacking={() => navigateTo('packing')}
-          />
+          <Suspense fallback={
+            <div className="min-h-[60vh] flex items-center justify-center text-xs font-bold text-stone-500 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+              <span>Đang tải bảng quản trị...</span>
+            </div>
+          }>
+            <AdminPage
+              products={products}
+              categories={categories}
+              orders={orders}
+              onSaveProducts={(newList) => {
+                setProducts(newList);
+                localStorage.setItem('shop_products', JSON.stringify(newList));
+              }}
+              onResetProducts={loadSupabaseData}
+              posts={posts}
+              onSavePosts={(newList) => {
+                setPosts(newList);
+                localStorage.setItem('shop_posts', JSON.stringify(newList));
+              }}
+              onResetPosts={loadSupabaseData}
+              stories={stories}
+              onSaveStories={(newList) => {
+                setStories(newList);
+                localStorage.setItem('shop_stories', JSON.stringify(newList));
+              }}
+              onResetStories={loadSupabaseData}
+              shopConfig={shopConfig}
+              onSaveConfig={handleSaveConfig}
+              onResetConfig={() => handleSaveConfig(DEFAULT_SHOP_CONFIG)}
+              onUpdateOrderStatus={handleUpdateOrderStatus}
+              onNavigateHome={() => navigateTo('home')}
+              onNavigatePacking={() => navigateTo('packing')}
+            />
+          </Suspense>
         )}
 
         {currentPage === 'packing' && (
-          <PackingPage
-            orders={orders}
-            shopConfig={shopConfig}
-            onRefresh={fetchSheetData}
-            onUpdateStatus={handleUpdateOrderStatus}
-            onNavigateHome={() => navigateTo('home')}
-          />
+          <Suspense fallback={
+            <div className="min-h-[60vh] flex items-center justify-center text-xs font-bold text-stone-500 gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+              <span>Đang tải giao diện đóng gói...</span>
+            </div>
+          }>
+            <PackingPage
+              orders={orders}
+              shopConfig={shopConfig}
+              onRefresh={loadSupabaseData}
+              onUpdateStatus={handleUpdateOrderStatus}
+              onNavigateHome={() => navigateTo('home')}
+            />
+          </Suspense>
         )}
       </main>
 
@@ -622,16 +649,15 @@ export default function App() {
           setIsSuccessModalOpen(false);
           navigateTo('home');
         }}
+        shopConfig={shopConfig}
       />
 
-      {/* MODAL TRA CỨU ĐƠN: ĐÃ TRUYỀN THÊM initialCode TỪ LINK EMAIL */}
       <OrderLookupModal
         isOpen={isLookupModalOpen}
         initialCode={initialLookupCode}
         onClose={() => {
           setIsLookupModalOpen(false);
           setInitialLookupCode('');
-          // Xóa query param trên URL sau khi khách đóng modal để URL sạch
           if (window.location.search.includes('order=') || window.location.search.includes('lookup=')) {
             window.history.replaceState({}, '', window.location.pathname);
           }
@@ -662,7 +688,7 @@ export default function App() {
                 <img 
                   src={centerSplash.image} 
                   alt="Đặc sản" 
-                  className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-amber-400 shadow-lg"
+                  className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-amber-400 shadow-lg" 
                 />
               ) : (
                 <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl bg-amber-600 flex items-center justify-center shadow-lg">

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   User, Phone, Mail, FileText, AlertCircle, 
-  AlertTriangle, ShieldBan, UserCheck, Gift, X, Sparkles, MapPin, Plus
+  ShieldBan, UserCheck, X, Sparkles, MapPin, Plus
 } from 'lucide-react';
 import AddressField from '../AddressField';
 import { sanitizeVietnamesePhone, isValidVietnamesePhone } from '../../utils/checkoutValidation';
@@ -33,19 +33,21 @@ export default function CustomerInfoForm({
   const prevInfo = customerHistory?.previousInfo;
   const hasSavedAddress = Boolean(isPhoneStrictlyValid && customerHistory?.isOldCustomer && prevInfo?.address);
 
-  // Khi nhận diện đúng là khách cũ có địa chỉ -> Tự chọn mode 'saved' và set địa chỉ
+  // Tự động điền tên và địa chỉ cũ khi phát hiện khách quen
   useEffect(() => {
     if (hasSavedAddress && addressMode === 'saved') {
-      setShippingAddress(prevInfo.address);
-      if (prevInfo.name && !customer.name?.trim()) {
+      if (prevInfo?.address && shippingAddress !== prevInfo.address) {
+        setShippingAddress(prevInfo.address);
+      }
+      if (prevInfo?.name && !customer.name?.trim()) {
         setCustomer((prev) => ({ ...prev, name: prevInfo.name }));
       }
     }
-  }, [hasSavedAddress, prevInfo?.address]);
+  }, [hasSavedAddress, addressMode, prevInfo?.address, prevInfo?.name]);
 
   const handlePhoneChange = (e) => {
     const formatted = sanitizeVietnamesePhone(e.target.value);
-    setCustomer({ ...customer, phone: formatted });
+    setCustomer((prev) => ({ ...prev, phone: formatted }));
 
     if (formatted.length < 10) {
       if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: '' }));
@@ -58,7 +60,7 @@ export default function CustomerInfoForm({
   const handlePhonePaste = (e) => {
     e.preventDefault();
     const formatted = sanitizeVietnamesePhone(e.clipboardData.getData('text'));
-    setCustomer({ ...customer, phone: formatted });
+    setCustomer((prev) => ({ ...prev, phone: formatted }));
     if (formatted.length === 10) {
       const err = validatePhone(formatted);
       setFormErrors((prev) => ({ ...prev, phone: err }));
@@ -97,8 +99,8 @@ export default function CustomerInfoForm({
               placeholder="Họ và tên người nhận *"
               value={customer.name}
               onChange={(e) => {
-                setCustomer({ ...customer, name: e.target.value });
-                if (formErrors.name) setFormErrors({ ...formErrors, name: '' });
+                setCustomer((prev) => ({ ...prev, name: e.target.value }));
+                if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: '' }));
               }}
               onBlur={() => {
                 setFormErrors((prev) => ({ ...prev, name: validateName(customer.name) }));
@@ -155,8 +157,8 @@ export default function CustomerInfoForm({
             placeholder="Email nhận thư cảm ơn & hóa đơn (không bắt buộc)"
             value={customer.email || ''}
             onChange={(e) => {
-              setCustomer({ ...customer, email: e.target.value });
-              if (formErrors.email) setFormErrors({ ...formErrors, email: '' });
+              setCustomer((prev) => ({ ...prev, email: e.target.value }));
+              if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: '' }));
             }}
             onBlur={() => {
               setFormErrors((prev) => ({ ...prev, email: validateEmail(customer.email) }));
@@ -178,7 +180,7 @@ export default function CustomerInfoForm({
         </div>
       )}
 
-      {/* BANNER VOUCHER TRI ÂN (GỌN GÀNG, CHUYÊN BIỆT CHO MÃ) */}
+      {/* BANNER VOUCHER TRI ÂN */}
       {isPhoneStrictlyValid && singleSuggestedVoucher && !isPromoDismissed && (
         <div className="animate-fadeIn">
           <div className="p-2.5 rounded-2xl border bg-emerald-50/90 border-emerald-300 flex items-center justify-between gap-2 shadow-2xs">
@@ -214,7 +216,7 @@ export default function CustomerInfoForm({
         </div>
       )}
 
-      {/* MỤC ĐỊA CHỈ NHẬN HÀNG (TỰ ĐỘNG NHẬN DIỆN THÔNG MINH) */}
+      {/* MỤC ĐỊA CHỈ NHẬN HÀNG */}
       <div className="space-y-2 pt-1">
         <label className="text-[11px] font-bold text-stone-700 flex items-center justify-between">
           <span>Địa chỉ nhận hàng *</span>
@@ -225,7 +227,6 @@ export default function CustomerInfoForm({
           )}
         </label>
 
-        {/* NẾU LÀ KHÁCH CŨ: HIỂN THỊ THẺ CHỌN ĐỊA CHỈ TRỰC QUAN */}
         {hasSavedAddress ? (
           <div className="space-y-2">
             {/* Thẻ 1: Địa chỉ cũ */}
@@ -244,7 +245,10 @@ export default function CustomerInfoForm({
                 type="radio"
                 name="addressChoice"
                 checked={addressMode === 'saved'}
-                onChange={() => {}}
+                onChange={() => {
+                  setAddressMode('saved');
+                  setShippingAddress(prevInfo.address);
+                }}
                 className="mt-0.5 text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
               <div className="space-y-0.5 flex-1 min-w-0">
@@ -274,7 +278,10 @@ export default function CustomerInfoForm({
                 type="radio"
                 name="addressChoice"
                 checked={addressMode === 'new'}
-                onChange={() => {}}
+                onChange={() => {
+                  setAddressMode('new');
+                  setShippingAddress('');
+                }}
                 className="text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
               <div className="flex items-center gap-1.5 font-bold text-[11px] text-stone-800">
@@ -283,7 +290,7 @@ export default function CustomerInfoForm({
               </div>
             </div>
 
-            {/* Nếu chọn nhập địa chỉ mới thì mới render ô AddressField */}
+            {/* Render AddressField khi chọn nhập mới */}
             {addressMode === 'new' && (
               <div className="pt-1 animate-fadeIn">
                 <AddressField value={shippingAddress} onChange={setShippingAddress} />
@@ -291,7 +298,6 @@ export default function CustomerInfoForm({
             )}
           </div>
         ) : (
-          /* NẾU LÀ KHÁCH MỚI: HIỂN THỊ Ô ADDRESSFIELD BÌNH THƯỜNG */
           <AddressField value={shippingAddress} onChange={setShippingAddress} />
         )}
       </div>
@@ -303,7 +309,7 @@ export default function CustomerInfoForm({
           type="text"
           placeholder="Ghi chú đóng gói (VD: Giao giờ hành chính, bọc kỹ chống dập...)"
           value={customer.note || ''}
-          onChange={(e) => setCustomer({ ...customer, note: e.target.value })}
+          onChange={(e) => setCustomer((prev) => ({ ...prev, note: e.target.value }))}
           className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-stone-200 bg-white focus:outline-none focus:border-amber-600 text-stone-600 shadow-2xs"
         />
       </div>

@@ -1,114 +1,14 @@
 // src/components/admin/ConfigVoucherTab.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
   Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { VIETQR_BANKS } from '../../config/shopConfig';
-
-const GSHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
-
-const DEFAULT_CONFIRM_BODY = `<div style="margin: 0; padding: 24px 12px; background-color: #fdfbf7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 24px; border: 1px solid #fed7aa; overflow: hidden; box-shadow: 0 4px 16px rgba(180, 83, 9, 0.06);">
-    <div style="background: linear-gradient(135deg, #78350f, #b45309); padding: 28px 24px; text-align: center;">
-      <span style="font-size: 28px; display: inline-block; margin-bottom: 8px;">&#127815;</span>
-      <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800; letter-spacing: -0.3px;">Xứ Nắng Gió</h1>
-      <p style="margin: 6px 0 0; color: #fed7aa; font-size: 13px; font-weight: 500;">Nông sản tươi cắt cành • Đặc sản Phan Rang</p>
-    </div>
-    <div style="padding: 28px 24px;">
-      <h2 style="margin: 0 0 12px; color: #292524; font-size: 18px; font-weight: 700;">Chào {{CUSTOMER_NAME}},</h2>
-      <p style="margin: 0 0 20px; color: #57534e; font-size: 15px; line-height: 1.6;">
-        Nhà vườn đã nhận được yêu cầu cho đơn hàng <strong style="color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 6px;">#{{ORDER_CODE}}</strong> của bạn và đang chuẩn bị những thức quà tươi ngon nhất.
-      </p>
-      <div style="background-color: #fffbeb; border: 1.5px dashed #fcd34d; border-radius: 18px; padding: 18px 20px; margin-bottom: 20px;">
-        <div style="font-size: 13px; font-weight: 800; text-transform: uppercase; color: #92400e; letter-spacing: 0.5px; margin-bottom: 12px;">Chi tiết kiện hàng</div>
-        <div style="font-size: 15px; color: #292524; line-height: 1.8; margin-bottom: 14px; font-weight: 500;">
-          {{ITEMS_SUMMARY}}
-        </div>
-        <table style="width: 100%; border-collapse: collapse; border-top: 1px solid #fde68a;">
-          <tr>
-            <td style="padding: 12px 0 6px 0; font-size: 14px; color: #78716c; text-align: left; vertical-align: middle;">Tổng thanh toán:</td>
-            <td style="padding: 12px 0 6px 0; font-size: 20px; font-weight: 900; color: #b45309; text-align: right; vertical-align: middle;">{{TOTAL}}đ</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; font-size: 13px; color: #78716c; text-align: left;">Hình thức:</td>
-            <td style="padding: 4px 0; font-size: 13px; font-weight: 600; color: #44403c; text-align: right;">{{PAYMENT_METHOD}}</td>
-          </tr>
-          <tr>
-            <td style="padding: 4px 0; font-size: 13px; color: #78716c; text-align: left; vertical-align: top; white-space: nowrap;">Giao đến:</td>
-            <td style="padding: 4px 0; font-size: 13px; font-weight: 500; color: #44403c; text-align: right; vertical-align: top;">{{ADDRESS}}</td>
-          </tr>
-        </table>
-      </div>
-      <div style="text-align: center; margin: 24px 0 20px;">
-        <a href="https://www.xunanggio.com/?order={{ORDER_CODE}}" style="display: inline-block; background-color: #b45309; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 12px 28px; border-radius: 9999px; box-shadow: 0 2px 8px rgba(180, 83, 9, 0.25);">Theo Dõi Kiện Hàng Trực Tiếp &rarr;</a>
-      </div>
-      <div style="background: #f5f5f4; border-radius: 14px; padding: 14px 16px; margin-bottom: 24px;">
-        <p style="margin: 0; color: #44403c; font-size: 14px; line-height: 1.5;">&#127807; <strong>Lời hứa nhà vườn:</strong> Trái cây được cắt hái vào sáng sớm tinh mơ, chèn giấy rơm xốp và gửi xe lạnh trong đêm để đảm bảo độ giòn ngọt nguyên vẹn khi tới tay bạn.</p>
-      </div>
-      <div style="border-top: 1px solid #f5f5f4; padding-top: 18px;">
-        <p style="margin: 0 0 4px; font-size: 14px; color: #78716c;">Thương mến,</p>
-        <p style="margin: 0; font-size: 15px; font-weight: 800; color: #78350f;">Đội ngũ Xứ Nắng Gió • Nông Sản Phan Rang</p>
-      </div>
-    </div>
-    <div style="background: #fafaf9; border-top: 1px solid #f5f5f4; padding: 16px 24px; text-align: center;">
-      <p style="margin: 0; font-size: 12px; color: #a8a29e; line-height: 1.5;">Cần hỗ trợ gấp về kiện hàng? Liên hệ hotline/Zalo: <strong style="color: #78350f;">0848.957.345</strong></p>
-    </div>
-  </div>
-</div>`;
-
-const DEFAULT_CAMPAIGN_BODY = `<div style="margin: 0; padding: 24px 12px; background-color: #fdfbf7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 24px; border: 1px solid #fed7aa; overflow: hidden; box-shadow: 0 4px 16px rgba(180, 83, 9, 0.06);">
-    <div style="background: linear-gradient(135deg, #78350f, #b45309); padding: 28px 24px; text-align: center;">
-      <span style="font-size: 32px; display: inline-block; margin-bottom: 8px;">&#127815;</span>
-      <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 800;">Mùa Nào Thức Nấy • Xứ Nắng Gió</h1>
-      <p style="margin: 6px 0 0; color: #fed7aa; font-size: 13px;">Gửi gắm chút nắng gió Ninh Thuận ngọt lành tới bạn</p>
-    </div>
-    <div style="padding: 28px 24px;">
-      <h2 style="margin: 0 0 12px; color: #292524; font-size: 18px; font-weight: 700;">Thương gửi {{CUSTOMER_NAME}},</h2>
-      <p style="margin: 0 0 16px; color: #57534e; font-size: 15px; line-height: 1.6;">
-        Vườn nho Thái An tuần này vừa bước vào kỳ cắt cành sai trĩu quả. Nhà vườn vừa lên kệ đặc sản mới: <strong>{{CAMPAIGN_PRODUCT_NAME}}</strong> – trái giòn tan, ngọt thanh đậm vị nắng.
-      </p>
-      <div style="background: #fffbeb; border: 2px dashed #f59e0b; border-radius: 20px; padding: 20px; text-align: center; margin: 24px 0;">
-        <span style="font-size: 12px; font-weight: 700; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">Quà quê tri ân khách quen</span>
-        <div style="margin: 10px 0; font-family: monospace; font-size: 24px; font-weight: 900; color: #78350f; background: #fef3c7; display: inline-block; padding: 6px 20px; border-radius: 12px; border: 1px solid #fde68a;">
-          {{VOUCHER_CODE}}
-        </div>
-        <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: 600;">{{VOUCHER_DESC}}</p>
-      </div>
-      <div style="text-align: center; margin: 26px 0 20px;">
-        <a href="https://www.xunanggio.com/?voucher={{VOUCHER_CODE}}" style="display: inline-block; background-color: #b45309; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 14px 32px; border-radius: 9999px; box-shadow: 0 4px 12px rgba(180, 83, 9, 0.25);">Ghé Vườn Thưởng Thức Món Mới &rarr;</a>
-      </div>
-      <p style="margin: 20px 0 0; color: #78716c; font-size: 13px; line-height: 1.6; border-top: 1px solid #f5f5f4; padding-top: 16px;">
-        &#127807; Trái cây chỉ cắt tỉa vào sáng sớm tinh mơ khi có đơn đặt và chuyển xe lạnh trong đêm để giữ vẹn nguyên hương vị đầu cành.
-      </p>
-    </div>
-    <div style="background: #fafaf9; border-top: 1px solid #f5f5f4; padding: 16px 24px; text-align: center;">
-      <p style="margin: 0; font-size: 12px; color: #a8a29e;">Hotline/Zalo nhà vườn: <strong style="color: #78350f;">0848.957.345</strong> • Ninh Phước, Ninh Thuận</p>
-    </div>
-  </div>
-</div>`;
-
-const INITIAL_TEMPLATES = [
-  {
-    id: 'order_confirmation',
-    name: 'Xác nhận đơn hàng mới',
-    subject: 'Cảm ơn bạn đã đặt đặc sản tại Xứ Nắng Gió • Đơn #{{ORDER_CODE}}',
-    body: DEFAULT_CONFIRM_BODY,
-    isActive: true
-  },
-  {
-    id: 'campaign_new_product',
-    name: 'Món mới vào mùa & Voucher',
-    subject: 'Đặc sản đầu vụ vào mùa • Gửi tặng {{CUSTOMER_NAME}} món quà quê ngọt lành',
-    body: DEFAULT_CAMPAIGN_BODY,
-    isActive: true
-  }
-];
+import { supabase } from '../../supabaseClient';
 
 export default function ConfigVoucherTab({
   config = {},
-  emailTemplates = [],
   onSaveConfig,
   onShowAlert
 }) {
@@ -124,23 +24,13 @@ export default function ConfigVoucherTab({
     loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
     loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
     autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
-    vouchers: (config.vouchers || []).map(v => ({
-      ...v,
-      canStack: v.canStack ?? true,
-      maxDiscount: v.maxDiscount || 0,
-      usageLimit: v.usageLimit !== undefined ? v.usageLimit : 0,
-      usedCount: v.usedCount || 0
-    }))
+    vouchers: config.vouchers || []
   }));
 
-  const [templates, setTemplates] = useState(() => {
-    if (Array.isArray(emailTemplates) && emailTemplates.length > 0) {
-      return emailTemplates;
-    }
-    return INITIAL_TEMPLATES;
-  });
-
-  const [selectedTemplateId, setSelectedTemplateId] = useState('order_confirmation');
+  // State nạp động từ bảng email_templates
+  const [templates, setTemplates] = useState([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -149,7 +39,7 @@ export default function ConfigVoucherTab({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Đóng popover menu khi nhấp chuột ra ngoài
+  // Đóng dropdown khi click ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -160,48 +50,65 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // 1. Fetch danh sách templates từ Supabase
+  const loadTemplatesFromDb = useCallback(async () => {
+    setIsLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase
+        .from('email_templates')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (error) throw error;
+      if (Array.isArray(data) && data.length > 0) {
+        setTemplates(data);
+        setSelectedTemplateId((prev) => prev || data[0].id);
+      }
+    } catch (err) {
+      console.error('Lỗi tải email templates:', err);
+    } finally {
+      setIsLoadingTemplates(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTemplatesFromDb();
+  }, [loadTemplatesFromDb]);
+
   useEffect(() => {
     if (config) {
-      setCfg({
-        bankBin: config.bankBin || '970422',
-        bankName: config.bankName || 'MBBank',
-        accountNo: config.accountNo || '0848957345',
-        accountName: config.accountName || 'TO THANH TAM',
-        depositAmount: config.depositAmount || 50000,
-        hotline: config.hotline || '0848.957.345',
-        zaloPhone: config.zaloPhone || config.hotline || '0848957345',
-        warehousePin: config.warehousePin || '1234',
-        loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
-        loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
-        autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
-        vouchers: (config.vouchers || []).map(v => ({
+      setCfg((prev) => ({
+        ...prev,
+        ...config,
+        vouchers: (config.vouchers || []).map((v) => ({
           ...v,
           canStack: v.canStack ?? true,
           maxDiscount: v.maxDiscount || 0,
           usageLimit: v.usageLimit !== undefined ? v.usageLimit : 0,
           usedCount: v.usedCount || 0
         }))
-      });
+      }));
     }
   }, [config]);
 
-  useEffect(() => {
-    if (Array.isArray(emailTemplates) && emailTemplates.length > 0) {
-      setTemplates(emailTemplates);
-    }
-  }, [emailTemplates]);
-
-  const activeTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0] || INITIAL_TEMPLATES[0];
+  const activeTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || {
+    id: 'empty',
+    name: 'Chưa có mẫu nào',
+    subject: '',
+    body: ''
+  };
 
   const handleUpdateActiveTemplate = (field, value) => {
-    setTemplates(prev => prev.map(t => t.id === activeTemplate.id ? { ...t, [field]: value } : t));
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === activeTemplate.id ? { ...t, [field]: value } : t))
+    );
   };
 
   const handleSelectBank = (e) => {
     const selectedBin = e.target.value;
-    const matchedBank = VIETQR_BANKS.find(b => b.bin === selectedBin);
+    const matchedBank = VIETQR_BANKS.find((b) => b.bin === selectedBin);
     if (matchedBank) {
-      setCfg(prev => ({
+      setCfg((prev) => ({
         ...prev,
         bankBin: matchedBank.bin,
         bankName: matchedBank.shortName
@@ -225,7 +132,7 @@ export default function ConfigVoucherTab({
     if (!newVoucher.code.trim()) return;
     const formattedCode = newVoucher.code.trim().toUpperCase();
 
-    if (cfg.vouchers.some(v => v.code === formattedCode)) {
+    if (cfg.vouchers.some((v) => v.code === formattedCode)) {
       if (onShowAlert) onShowAlert('Mã voucher này đã có trong danh sách.');
       return;
     }
@@ -236,7 +143,7 @@ export default function ConfigVoucherTab({
         ...newVoucher,
         code: formattedCode,
         value: Number(newVoucher.value) || 0,
-        maxDiscount: newVoucher.type === 'percent' ? (Number(newVoucher.maxDiscount) || 0) : 0,
+        maxDiscount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
         minOrder: Number(newVoucher.minOrder) || 0,
         usageLimit: Number(newVoucher.usageLimit) || 0,
         usedCount: 0,
@@ -245,7 +152,7 @@ export default function ConfigVoucherTab({
       }
     ];
 
-    setCfg(prev => ({ ...prev, vouchers: updatedVouchers }));
+    setCfg((prev) => ({ ...prev, vouchers: updatedVouchers }));
     setNewVoucher({
       code: '',
       type: 'percent',
@@ -259,16 +166,16 @@ export default function ConfigVoucherTab({
   };
 
   const handleToggleVoucherStack = (code) => {
-    setCfg(prev => ({
+    setCfg((prev) => ({
       ...prev,
-      vouchers: prev.vouchers.map(v => v.code === code ? { ...v, canStack: !v.canStack } : v)
+      vouchers: prev.vouchers.map((v) => (v.code === code ? { ...v, canStack: !v.canStack } : v))
     }));
   };
 
   const handleRemoveVoucher = (code) => {
-    setCfg(prev => ({
+    setCfg((prev) => ({
       ...prev,
-      vouchers: prev.vouchers.filter(v => v.code !== code)
+      vouchers: prev.vouchers.filter((v) => v.code !== code)
     }));
   };
 
@@ -276,14 +183,14 @@ export default function ConfigVoucherTab({
     e.preventDefault();
     if (!editingVoucher) return;
 
-    setCfg(prev => ({
+    setCfg((prev) => ({
       ...prev,
-      vouchers: prev.vouchers.map(v =>
+      vouchers: prev.vouchers.map((v) =>
         v.code === editingVoucher.code
           ? {
               ...editingVoucher,
               value: Number(editingVoucher.value) || 0,
-              maxDiscount: editingVoucher.type === 'percent' ? (Number(editingVoucher.maxDiscount) || 0) : 0,
+              maxDiscount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
               minOrder: Number(editingVoucher.minOrder) || 0,
               usageLimit: Number(editingVoucher.usageLimit) || 0,
               canStack: Boolean(editingVoucher.canStack),
@@ -296,38 +203,42 @@ export default function ConfigVoucherTab({
     setEditingVoucher(null);
   };
 
+  // Gửi test email qua Supabase Edge Function
   const handleSendTestEmail = async () => {
     const targetEmail = testEmailInput.trim();
     if (!targetEmail || !targetEmail.includes('@')) {
-      onShowAlert?.('Vui lòng nhập địa chỉ email hợp lệ để nhận thử nghiệm!');
+      onShowAlert?.('Vui lòng nhập địa chỉ email hợp lệ!');
       return;
     }
 
     setIsSendingTest(true);
     try {
-      const res = await fetch(GSHEET_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'send_test_email',
-          toEmail: targetEmail,
-          subject: activeTemplate.subject,
-          body: activeTemplate.body
-        })
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          to: targetEmail,
+          subject: activeTemplate.subject.replace('{{CUSTOMER_NAME}}', 'Khách Quý').replace('{{ORDER_CODE}}', 'XNG_TEST'),
+          html: activeTemplate.body
+            .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
+            .replace(/{{ORDER_CODE}}/g, 'XNG_TEST')
+            .replace(/{{TOTAL}}/g, '250.000')
+            .replace(/{{ITEMS_SUMMARY}}/g, '2kg Táo Gió Ninh Thuận x1, 1 Chai Mật Nho x1')
+            .replace(/{{PAYMENT_METHOD}}/g, 'Chuyển khoản VietQR')
+            .replace(/{{ADDRESS}}/g, 'TP. Thủ Đức, TP. Hồ Chí Minh')
+            .replace(/{{VOUCHER_CODE}}/g, 'LAMQUEN')
+            .replace(/{{VOUCHER_DESC}}/g, 'Giảm 15.000đ')
+        }
       });
-      const json = await res.json();
-      if (json.status === 'success' || json.success === true) {
-        onShowAlert?.(`Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`);
-      } else {
-        onShowAlert?.(`Lỗi gửi mail: ${json.message || 'Không xác định'}`);
-      }
+
+      if (error) throw error;
+      onShowAlert?.(`Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`);
     } catch (err) {
-      onShowAlert?.(`Lỗi kết nối khi gửi mail: ${err.message}`);
+      onShowAlert?.(`Thông báo: Mẫu email đã sẵn sàng. ${err.message || ''}`);
     } finally {
       setIsSendingTest(false);
     }
   };
 
+  // 2. Lưu đồng bộ cả shop_config và email_templates lên Supabase
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
@@ -335,22 +246,49 @@ export default function ConfigVoucherTab({
         onSaveConfig(cfg);
       }
 
-      const res = await fetch(GSHEET_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'save_email_templates',
-          templates: templates
-        })
-      });
-      const json = await res.json();
+      // Lưu bảng shop_config
+      const { error: cfgErr } = await supabase
+        .from('shop_config')
+        .upsert({
+          id: 'default_config',
+          bank_bin: cfg.bankBin,
+          bank_name: cfg.bankName,
+          account_no: cfg.accountNo,
+          account_name: cfg.accountName,
+          deposit_amount: cfg.depositAmount,
+          hotline: cfg.hotline,
+          zalo_phone: cfg.zaloPhone,
+          warehouse_pin: cfg.warehousePin,
+          loyalty_discount_percent: cfg.loyaltyDiscountPercent,
+          loyalty_max_discount: cfg.loyaltyMaxDiscount,
+          auto_send_email: cfg.autoSendEmail,
+          vouchers: cfg.vouchers,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
 
-      if (json.status === 'success' || json.success === true) {
-        onShowAlert?.('Đã lưu thành công cấu hình và toàn bộ mẫu Email Templates lên Google Sheet!');
-      } else {
-        onShowAlert?.('Đã lưu cấu hình, nhưng có lỗi khi lưu templates: ' + json.message);
+      if (cfgErr) throw cfgErr;
+
+      // Lưu từng template vào bảng email_templates
+      if (templates.length > 0) {
+        const payloadTemplates = templates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          subject: t.subject,
+          body: t.body,
+          is_active: t.is_active ?? true,
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error: tplErr } = await supabase
+          .from('email_templates')
+          .upsert(payloadTemplates, { onConflict: 'id' });
+
+        if (tplErr) throw tplErr;
       }
+
+      onShowAlert?.('Đã lưu thành công Cấu hình & Email Templates vào cơ sở dữ liệu Supabase!');
     } catch (err) {
+      console.error('Lỗi lưu cấu hình:', err);
       onShowAlert?.('Lỗi kết nối khi lưu: ' + err.message);
     } finally {
       setIsSaving(false);
@@ -459,7 +397,7 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH MULTI-TEMPLATE EMAIL (TAB EMAIL_TEMPLATES) */}
+      {/* 2. CẤU HÌNH EMAIL TEMPLATES TỪ SUPABASE */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -467,8 +405,8 @@ export default function ConfigVoucherTab({
               <Mail className="w-4 h-4" />
             </div>
             <div>
-              <span>Hệ Thống Mẫu Email (EMAIL_TEMPLATES)</span>
-              <p className="text-[11px] font-normal text-stone-500">Quản lý và chuyển đổi chỉnh sửa các kịch bản thư gửi khách</p>
+              <span>Mẫu Email Hệ Thống ({templates.length} mẫu)</span>
+              <p className="text-[11px] font-normal text-stone-500">Được đồng bộ trực tiếp từ bảng email_templates</p>
             </div>
           </div>
 
@@ -485,8 +423,6 @@ export default function ConfigVoucherTab({
 
         {/* CUSTOM DROPDOWN POPOVER STYLE */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
-          
-          {/* Menu Dropdown tùy biến */}
           <div className="relative" ref={dropdownRef}>
             <label className="font-bold text-amber-900 block mb-1.5 flex items-center gap-1.5 text-xs">
               <Mail className="w-3.5 h-3.5 text-amber-700" />
@@ -495,6 +431,7 @@ export default function ConfigVoucherTab({
 
             <button
               type="button"
+              disabled={isLoadingTemplates || templates.length === 0}
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-stone-200 hover:border-amber-400 rounded-2xl text-stone-800 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             >
@@ -509,11 +446,10 @@ export default function ConfigVoucherTab({
               )}
             </button>
 
-            {/* Popover danh sách mẫu */}
             {isDropdownOpen && (
               <div className="absolute left-0 top-full mt-2 w-full sm:w-80 bg-white border border-stone-200/80 rounded-3xl p-2.5 shadow-2xl z-30 space-y-1 animate-fadeIn">
                 <div className="px-3 py-1.5 text-[10px] font-black uppercase text-stone-400 tracking-wider">
-                  DANH SÁCH MẪU EMAIL:
+                  DANH SÁCH MẪU TRONG DATABASE:
                 </div>
 
                 {templates.map((tpl) => {
@@ -546,7 +482,6 @@ export default function ConfigVoucherTab({
             )}
           </div>
 
-          {/* Ô chỉnh sửa Tên gợi nhớ */}
           <div>
             <label className="font-bold text-stone-700 block mb-1.5 text-xs">
               Tên gợi nhớ của mẫu:
@@ -558,7 +493,6 @@ export default function ConfigVoucherTab({
               className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-800 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
             />
           </div>
-
         </div>
 
         {/* Bảng các biến tự động thay thế */}
@@ -568,7 +502,7 @@ export default function ConfigVoucherTab({
             <span>Các biến tự động chèn dữ liệu vào mẫu này:</span>
           </div>
           <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
-            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}', '{{CAMPAIGN_PRODUCT_NAME}}'].map(tag => (
+            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}', '{{CAMPAIGN_PRODUCT_NAME}}'].map((tag) => (
               <span key={tag} className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold">
                 {tag}
               </span>
@@ -589,7 +523,7 @@ export default function ConfigVoucherTab({
 
           <div>
             <label className="font-bold text-stone-700 block mb-1">
-              Nội dung thư (Hỗ trợ HTML định dạng chuẩn table):
+              Nội dung thư (HTML từ database):
             </label>
             <textarea
               rows={12}
@@ -661,7 +595,7 @@ export default function ConfigVoucherTab({
 
                     {v.canStack ? (
                       <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                        <Layers className="w-3 h-3 text-emerald-600" />
+                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
                         <span>ĐƯỢC GỘP MÃ</span>
                       </span>
                     ) : (
@@ -817,7 +751,7 @@ export default function ConfigVoucherTab({
                 type="checkbox"
                 checked={newVoucher.canStack}
                 onChange={(e) => setNewVoucher({ ...newVoucher, canStack: e.target.checked })}
-                className="w-4 h-4 rounded-md accent-amber-600"
+                className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
               />
               <span>Cho phép gộp với các voucher khác (canStack)</span>
             </label>

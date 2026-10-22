@@ -1,22 +1,33 @@
 // src/components/checkout/VietQrBox.jsx
 import React, { useState, useMemo } from 'react';
-import { Copy, Check, ExternalLink } from 'lucide-react';
+import { Copy, Check, QrCode } from 'lucide-react';
 import { getBankByBin } from '../../constants/vietqrBanks';
 
 export default function VietQrBox({
-  paymentMethod,
+  paymentMethod = 'deposit',
   depositAmount = 50000,
-  finalTotalAmount,
+  finalTotalAmount = 0,
   bankBin = '970422',
   bankName,
   accountNo = '0848957345',
   accountName = 'TO THANH TAM',
-  cleanPhone
+  cleanPhone = '',
+  orderCode = ''
 }) {
   const [copiedField, setCopiedField] = useState("");
 
-  const qrTransferAmount = paymentMethod === "full_qr" ? finalTotalAmount : depositAmount;
-  const rawTransferMemo = `XNG ${cleanPhone ? cleanPhone.slice(-6) : "DATNHO"}`;
+  const parsedTotal = Number(finalTotalAmount) || 0;
+  const parsedDeposit = Number(depositAmount) || 50000;
+  const qrTransferAmount = paymentMethod === "full_qr" ? parsedTotal : parsedDeposit;
+
+  const rawTransferMemo = useMemo(() => {
+    if (orderCode && orderCode.trim()) {
+      return orderCode.trim().toUpperCase();
+    }
+    const cleanDigits = String(cleanPhone || '').replace(/\D/g, '');
+    return cleanDigits.length >= 6 ? `XNG ${cleanDigits.slice(-6)}` : "XNG DATNHO";
+  }, [orderCode, cleanPhone]);
+
   const transferMemo = encodeURIComponent(rawTransferMemo);
   
   let safeAccountNo = String(accountNo || '').trim();
@@ -27,59 +38,48 @@ export default function VietQrBox({
   const matchedBank = useMemo(() => getBankByBin(bankBin), [bankBin]);
   const currentBankName = bankName || matchedBank?.shortName || 'MBBank';
 
-  // Khung VietQR chuẩn Napas 247 chính thức
-  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${safeAccountNo}-compact.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(accountName)}`;
+  // Template 'qr_only': hiển thị khung mã QR thuần vuông vắn, không chữ thừa
+  const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${safeAccountNo}-qr_only.png?amount=${qrTransferAmount}&addInfo=${transferMemo}&accountName=${encodeURIComponent(accountName)}`;
 
   const handleCopy = (text, fieldName) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(""), 2000);
   };
 
-  // Mở ảnh trực tiếp để tải hoặc chạm giữ lưu về thư viện máy (Tránh tuyệt đối lỗi CORS fetch)
-  const handleOpenFullImage = () => {
-    window.open(qrImageUrl, '_blank');
-  };
-
   return (
-    <div className="p-4 bg-white rounded-3xl border border-amber-200 shadow-2xs space-y-3 text-center font-sans">
-      {/* Tiêu đề & Số tiền thanh toán */}
+    <div className="p-4 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-3.5 text-center font-sans">
+      {/* Tiêu đề & Số tiền */}
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
-          {paymentMethod === "deposit" ? "Quét VietQR Đặt Cọc" : "Quét VietQR Thanh Toán"}
+        <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+          <QrCode className="w-4 h-4 text-amber-700" />
+          <span>{paymentMethod === "deposit" ? "Quét VietQR Đặt Cọc" : "Quét VietQR Thanh Toán"}</span>
         </span>
         <span className="text-xs font-black font-mono text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
           {qrTransferAmount.toLocaleString("vi-VN")}đ
         </span>
       </div>
 
-      {/* ẢNH VIETQR NAPAS 247 */}
-      <div className="flex justify-center items-center py-0.5">
+      {/* KHUNG MÃ QR THUẦN TÚY */}
+      <div className="inline-flex p-3 bg-white rounded-2xl border border-stone-200 shadow-inner">
         <img
           src={qrImageUrl}
-          alt="Mã VietQR Chuyển Khoản"
-          className="w-full max-w-[250px] sm:max-w-[270px] object-contain mx-auto rounded-2xl"
+          alt="Mã VietQR"
+          className="w-48 h-48 sm:w-52 sm:h-52 object-contain mx-auto rounded-xl"
         />
       </div>
 
-      {/* NÚT MỞ ẢNH GỐC ĐỂ CHẠM GIỮ LƯU VÀO ALBUM (KHÔNG DÙNG FETCH) */}
-      <div className="flex justify-center">
-        <button
-          type="button"
-          onClick={handleOpenFullImage}
-          className="py-1.5 px-3.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-xl text-[11px] font-bold flex items-center gap-1.5 transition-colors border border-amber-200/90 shadow-2xs cursor-pointer active:scale-95"
-          title="Mở ảnh QR để lưu vào máy"
-        >
-          <ExternalLink className="w-3.5 h-3.5 text-amber-700" />
-          <span>Mở ảnh QR để lưu vào máy</span>
-        </button>
-      </div>
-
-      {/* BẢNG SAO CHÉP THÔNG TIN TIỆN DỤNG */}
+      {/* BẢNG THÔNG TIN TÀI KHOẢN KÈM NÚT SAO CHÉP */}
       <div className="bg-stone-50/90 p-3 rounded-2xl border border-stone-200/80 space-y-2 text-xs text-left">
         <div className="flex items-center justify-between">
           <span className="text-stone-500 font-medium">Ngân hàng:</span>
-          <strong className="text-stone-800">{currentBankName}</strong>
+          <strong className="text-stone-800 font-semibold">{currentBankName}</strong>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-stone-500 font-medium">Chủ tài khoản:</span>
+          <strong className="text-stone-900 font-mono font-bold uppercase">{accountName}</strong>
         </div>
 
         <div className="flex items-center justify-between">

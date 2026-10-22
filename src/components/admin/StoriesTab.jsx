@@ -1,3 +1,4 @@
+// src/components/admin/StoriesTab.jsx
 import React, { useState } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
@@ -8,12 +9,10 @@ export default function StoriesTab({
   onAddStory,
   onEditStory,
   onDeleteStory,
-  onResetStories,
-  uploadUrl
+  onResetStories
 }) {
   const [newStory, setNewStory] = useState({
     title: '',
-    date: formatDate(new Date()),
     season: 'Vụ Thu Đông',
     quote: '',
     story: '',
@@ -28,13 +27,15 @@ export default function StoriesTab({
 
     onAddStory({
       ...newStory,
-      // Đảm bảo tương thích với mọi trang hiển thị
-      content: newStory.story || newStory.quote
+      // Tương thích song song cả bảng stories trên Supabase và state hiện tại
+      content: newStory.story || newStory.quote,
+      desc: newStory.quote,
+      image_url: newStory.image,
+      created_at: new Date().toISOString()
     });
 
     setNewStory({
       title: '',
-      date: formatDate(new Date()),
       season: 'Vụ Thu Đông',
       quote: '',
       story: '',
@@ -101,11 +102,12 @@ export default function StoriesTab({
             </div>
           </div>
 
+          {/* Tải ảnh mẩu chuyện lên Supabase Storage bucket stories */}
           <ImageUploadField
-            label="Ảnh mẩu chuyện (Tải trực tiếp lên Google Drive hoặc dán URL)"
+            label="Ảnh mẩu chuyện (Supabase Storage)"
             value={newStory.image}
+            bucket="stories"
             onChange={(url) => setNewStory({ ...newStory, image: url })}
-            uploadUrl={uploadUrl}
           />
 
           <div>
@@ -148,7 +150,7 @@ export default function StoriesTab({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-stone-900">Danh Sách Chuyện Đã Đăng ({stories.length})</h2>
-            <p className="text-xs text-stone-500">Chuẩn cột Sheet: title, date, season, quote, story, image, location, author</p>
+            <p className="text-xs text-stone-500">Quản lý mẩu chuyện vườn và hình ảnh lưu trữ trên Supabase</p>
           </div>
           {onResetStories && (
             <button
@@ -169,34 +171,9 @@ export default function StoriesTab({
         ) : (
           <div className="divide-y divide-stone-100">
             {stories.map((storyItem, idx) => {
-              // TỰ ĐỘNG NHẬN DIỆN VÀ HOÁN ĐỔI NẾU BỊ ĐẢO CỘT HOẶC KẸT LOCALSTORAGE
-              let rawDate = storyItem.date || '';
-              let rawQuote = storyItem.quote || '';
-              let rawStory = storyItem.story || storyItem.content || '';
-
-              // Kiểm tra xem chuỗi có đặc trưng của chuỗi thời gian hay không
-              const isTimeStr = (str) => {
-                if (!str) return false;
-                const s = String(str);
-                return /GMT|\d{4}|(0[1-9]|[12]\d|3[01])\//i.test(s) && !s.includes('nho') && !s.includes('nắng');
-              };
-
-              // Nếu rawStory hoặc rawQuote lại là ngày tháng, còn rawDate là câu văn tiếng Việt
-              if (isTimeStr(rawStory) && !isTimeStr(rawDate)) {
-                const textVal = rawDate;
-                rawDate = rawStory;
-                rawStory = textVal;
-              } else if (isTimeStr(rawQuote) && !isTimeStr(rawDate)) {
-                const textVal = rawDate;
-                rawDate = rawQuote;
-                rawQuote = textVal;
-              }
-
-              const displayDate = formatDate(rawDate, '15/10/2026');
-              const displayExcerpt = rawQuote || rawStory || 'Chuyện làm vườn mùa nắng gió...';
-              const displayImage = (storyItem.image && String(storyItem.image).startsWith('http')) 
-                ? storyItem.image 
-                : 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
+              const displayDate = formatDate(storyItem.created_at || storyItem.date, 'Gần đây');
+              const displayExcerpt = storyItem.quote || storyItem.desc || storyItem.story || storyItem.content || 'Chuyện làm vườn mùa nắng gió...';
+              const displayImage = storyItem.image_url || storyItem.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
 
               return (
                 <div key={storyItem.id || idx} className="py-3.5 flex items-start justify-between gap-4 text-xs">

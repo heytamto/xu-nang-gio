@@ -1,5 +1,6 @@
+// src/components/checkout/OrderSuccessModal.jsx
 import React, { useState, useEffect } from 'react';
-import { Check, Copy, Printer, CheckCircle2, Phone, Gift, Sparkles } from 'lucide-react';
+import { Check, Copy, Printer, Phone, Gift, Sparkles } from 'lucide-react';
 
 export default function OrderSuccessModal({ isOpen, orderInfo, onClose }) {
   // stage: 'printing' (đang in) -> 'completed' (ẩn máy in, bung hóa đơn thành công)
@@ -9,7 +10,7 @@ export default function OrderSuccessModal({ isOpen, orderInfo, onClose }) {
   useEffect(() => {
     if (isOpen) {
       setStage('printing');
-      // Cho máy in chạy từ từ trong 2 giây rồi xé giấy và ẩn máy in
+      // Chạy hiệu ứng in trong 2 giây rồi xé giấy và ẩn máy in
       const timer = setTimeout(() => {
         setStage('completed');
       }, 2000);
@@ -20,19 +21,22 @@ export default function OrderSuccessModal({ isOpen, orderInfo, onClose }) {
 
   if (!isOpen || !orderInfo) return null;
 
-  const orderCode = orderInfo.code || 'XNG329826';
-  const totalDisplay = typeof orderInfo.total === 'number' 
-    ? `${orderInfo.total.toLocaleString('vi-VN')}đ` 
-    : (orderInfo.total || '0đ');
+  const orderCode = orderInfo.code || orderInfo.orderId || 'XNG329826';
+  const rawTotal = orderInfo.final_total ?? orderInfo.total ?? orderInfo.totalAmount ?? 0;
+  const totalDisplay = typeof rawTotal === 'number' 
+    ? `${rawTotal.toLocaleString('vi-VN')}đ` 
+    : String(rawTotal);
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(orderCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(orderCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fadeIn overflow-hidden font-sans">
       
       <div className="flex flex-col items-center max-w-sm w-full relative">
         
@@ -72,7 +76,7 @@ export default function OrderSuccessModal({ isOpen, orderInfo, onClose }) {
 
           {/* Dấu tích xanh tròn */}
           <div className="flex justify-center mb-3">
-            <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-400 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-400 flex items-center justify-center text-emerald-600 shadow-xs animate-bounce">
               <Check className="w-7 h-7 stroke-[3]" />
             </div>
           </div>
@@ -102,7 +106,7 @@ export default function OrderSuccessModal({ isOpen, orderInfo, onClose }) {
             </div>
           </div>
 
-          {/* Box Ưu đãi lần ghé sau (Code XNG...) */}
+          {/* Box Ưu đãi lần ghé sau (Mã tri ân) */}
           <div className="bg-amber-50/70 rounded-2xl p-4 border border-amber-200/90 space-y-2.5 mb-5 text-left">
             <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
               <Gift className="w-4 h-4 text-amber-700 shrink-0" />

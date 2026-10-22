@@ -1,13 +1,14 @@
+// src/components/checkout/ShippingPolicyCard.jsx
 import React from 'react';
-import { HeartHandshake, Sparkle, PackageCheck, ShieldCheck, Headphones, BadgeCheck } from 'lucide-react';
+import { HeartHandshake, Sparkles, PackageCheck, ShieldCheck, Headphones, BadgeCheck } from 'lucide-react';
 
 export default function ShippingPolicyCard({ shouldShowFullPolicy, hotline = '0848.957.345' }) {
   if (!shouldShowFullPolicy) {
     return (
-      <div className="p-3 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/50 rounded-2xl border border-amber-200/80 shadow-2xs flex items-center justify-between text-xs animate-fadeIn">
-        <span className="flex items-center gap-1.5 font-bold text-amber-950 text-xs">
+      <div className="p-3 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/50 rounded-2xl border border-amber-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs animate-fadeIn font-sans">
+        <span className="flex items-center gap-1.5 font-bold text-amber-950 text-xs min-w-0">
           <BadgeCheck className="w-4 h-4 text-amber-700 shrink-0" />
-          <span>Bao ăn từng quả • Đóng thùng xốp dày • Đổi trả bù trong 24h</span>
+          <span className="truncate">Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h</span>
         </span>
         <span className="text-[10.5px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md shrink-0">
           Hotline: {hotline}
@@ -17,14 +18,14 @@ export default function ShippingPolicyCard({ shouldShowFullPolicy, hotline = '08
   }
 
   return (
-    <div className="bg-gradient-to-br from-amber-50/70 via-stone-50 to-emerald-50/40 rounded-3xl p-4 sm:p-5 border border-amber-200/70 shadow-2xs space-y-3 animate-fadeIn">
+    <div className="bg-gradient-to-br from-amber-50/70 via-stone-50 to-emerald-50/40 rounded-3xl p-4 sm:p-5 border border-amber-200/70 shadow-2xs space-y-3 animate-fadeIn font-sans">
       <div className="flex items-center justify-between border-b border-amber-200/50 pb-2">
         <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
           <HeartHandshake className="w-4 h-4 text-amber-700" />
           <span>Chính Sách Giao Hàng & Bảo Vệ Khách Hàng</span>
         </span>
         <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-          <Sparkle className="w-2.5 h-2.5" />
+          <Sparkles className="w-2.5 h-2.5" />
           <span>Bao ăn từng quả</span>
         </span>
       </div>

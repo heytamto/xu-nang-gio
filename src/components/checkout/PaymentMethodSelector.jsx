@@ -1,14 +1,17 @@
+// src/components/checkout/PaymentMethodSelector.jsx
 import React from 'react';
 import { QrCode, ShieldCheck, Truck } from 'lucide-react';
 
 export default function PaymentMethodSelector({
-  paymentMethod,
+  paymentMethod = 'deposit',
   setPaymentMethod,
   customerHistory,
   depositAmount = 50000,
 }) {
+  const safeDeposit = Number(depositAmount) || 50000;
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 font-sans">
       <label className="text-[11px] font-bold text-stone-700 block">Chọn hình thức thanh toán:</label>
       <div className="grid grid-cols-1 gap-2">
         {/* 1. Chuyển khoản 100% */}
@@ -31,7 +34,7 @@ export default function PaymentMethodSelector({
             value="full_qr" 
             checked={paymentMethod === 'full_qr'} 
             onChange={() => setPaymentMethod('full_qr')} 
-            className="accent-amber-600" 
+            className="accent-amber-600 cursor-pointer" 
           />
         </label>
 
@@ -44,7 +47,7 @@ export default function PaymentMethodSelector({
               <ShieldCheck className={`w-4 h-4 shrink-0 ${paymentMethod === 'deposit' ? 'text-amber-700' : 'text-stone-400'}`} />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <strong className="text-xs text-stone-900 font-bold">Cọc {depositAmount.toLocaleString('vi-VN')}đ</strong>
+                  <strong className="text-xs text-stone-900 font-bold">Cọc {safeDeposit.toLocaleString('vi-VN')}đ</strong>
                   <span className="text-[9.5px] bg-amber-200 text-amber-900 px-1.5 py-0.2 rounded-md font-bold">+ Tặng Quà</span>
                 </div>
                 <span className="text-[10px] text-stone-500 block leading-tight">Giữ đơn hái tươi • Phần còn lại nhà xe thu</span>
@@ -56,7 +59,7 @@ export default function PaymentMethodSelector({
               value="deposit" 
               checked={paymentMethod === 'deposit'} 
               onChange={() => setPaymentMethod('deposit')} 
-              className="accent-amber-600" 
+              className="accent-amber-600 cursor-pointer" 
             />
           </label>
         ) : (
@@ -64,7 +67,7 @@ export default function PaymentMethodSelector({
             <div className="flex items-center gap-2.5">
               <ShieldCheck className="w-4 h-4 shrink-0" />
               <div>
-                <strong className="block text-xs font-bold line-through">Cọc {depositAmount.toLocaleString('vi-VN')}đ</strong>
+                <strong className="block text-xs font-bold line-through">Cọc {safeDeposit.toLocaleString('vi-VN')}đ</strong>
                 <span className="text-[10px] block leading-tight">Không áp dụng cho số điện thoại từng có đơn bom</span>
               </div>
             </div>
@@ -92,7 +95,7 @@ export default function PaymentMethodSelector({
               value="cod" 
               checked={paymentMethod === 'cod'} 
               onChange={() => setPaymentMethod('cod')} 
-              className="accent-amber-600" 
+              className="accent-amber-600 cursor-pointer" 
             />
           </label>
         ) : (

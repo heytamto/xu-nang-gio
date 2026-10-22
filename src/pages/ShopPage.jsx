@@ -14,7 +14,6 @@ import {
   Leaf,
   Heart,
   SlidersHorizontal,
-  CheckCircle2,
   TrendingUp,
   X,
   Check,
@@ -22,16 +21,13 @@ import {
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
-const ICON_MAP = {
-  Apple,
-  Sparkles,
-  Fish,
-  Wine,
-  Sun,
-  Flame,
-  ShoppingBag,
-  Leaf,
-  Heart
+const CATEGORY_ID_ICON_MAP = {
+  cat01: Sparkles, // Combo Ưu Đãi
+  cat02: Apple,    // Trái Cây Tươi Giàn
+  cat03: Flame,    // Nem & Chả Đặc Sản
+  cat04: Fish,     // Hải Sản Gió Biển
+  cat05: Wine,     // Gia Vị Xứ Nắng
+  cat06: Leaf      // Đặc Sản Sấy Dẻo
 };
 
 const SORT_OPTIONS = [
@@ -41,7 +37,7 @@ const SORT_OPTIONS = [
   { value: 'name', label: 'Tên: A → Z' },
 ];
 
-const POPULAR_SEARCHES = ['Táo gió', 'Nho đỏ', 'Nho xanh', 'Rượu nho', 'Mực một nắng', 'Tỏi Phan Rang'];
+const POPULAR_SEARCHES = ['Táo gió', 'Nho xanh', 'Nho đỏ', 'Chả cá', 'Mực một nắng', 'Tỏi cô đơn'];
 
 export default function ShopPage({ 
   products = [], 
@@ -66,7 +62,7 @@ export default function ShopPage({
   const searchBoxRef = useRef(null);
   const sortRef = useRef(null);
 
-  // Ref và state phục vụ kéo rê danh mục chuột (Drag to Scroll)
+  // Kéo rê danh mục (Drag to Scroll)
   const catScrollRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -94,6 +90,7 @@ export default function ShopPage({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Đồng bộ category khi chuyển trang
   useEffect(() => {
     if (initialCategory && initialCategory !== 'all') {
       setSelectedCategories([initialCategory]);
@@ -102,7 +99,6 @@ export default function ShopPage({
     }
   }, [initialCategory]);
 
-  // Xử lý kéo rê chuột ngang cho danh mục
   const handleMouseDown = (e) => {
     if (!catScrollRef.current) return;
     setIsDragging(true);
@@ -118,7 +114,7 @@ export default function ShopPage({
     if (!isDragging || !catScrollRef.current) return;
     e.preventDefault();
     const x = e.pageX - catScrollRef.current.offsetLeft;
-    const walk = (x - startX) * 1.5; // Hệ số cuộn
+    const walk = (x - startX) * 1.5;
     catScrollRef.current.scrollLeft = scrollLeftState - walk;
   };
 
@@ -163,15 +159,18 @@ export default function ShopPage({
         !query ||
         p.name?.toLowerCase().includes(query) ||
         (p.source && p.source.toLowerCase().includes(query)) ||
-        (p.desc && p.desc.toLowerCase().includes(query));
+        (p.desc && p.desc.toLowerCase().includes(query)) ||
+        (p.description && p.description.toLowerCase().includes(query));
 
       return matchCat && matchSearch;
     });
 
+    const getPrice = (item) => Number(item.basePrice ?? item.base_price ?? item.price ?? 0);
+
     if (sortBy === 'price-asc') {
-      result.sort((a, b) => (Number(a.basePrice || a.price) || 0) - (Number(b.basePrice || b.price) || 0));
+      result.sort((a, b) => getPrice(a) - getPrice(b));
     } else if (sortBy === 'price-desc') {
-      result.sort((a, b) => (Number(b.basePrice || b.price) || 0) - (Number(a.basePrice || a.price) || 0));
+      result.sort((a, b) => getPrice(b) - getPrice(a));
     } else if (sortBy === 'name') {
       result.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
     }
@@ -198,7 +197,7 @@ export default function ShopPage({
   return (
     <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
       
-      {/* ================= 1. BANNER TIÊU ĐỀ ================= */}
+      {/* 1. BANNER TIÊU ĐỀ */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-5 sm:p-10 shadow-xl border border-stone-800">
         <div className="relative z-10 max-w-3xl space-y-2.5">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-[11px] font-bold border border-amber-400/20 shadow-2xs">
@@ -219,17 +218,16 @@ export default function ShopPage({
         </div>
       </section>
 
-      {/* ================= 2. BỘ LỌC TỐI ƯU GỌN GÀNG TRÊN 1 HÀNG ================= */}
+      {/* 2. BỘ LỌC TÌM KIẾM, SẮP XẾP & DANH MỤC */}
       <section className="bg-white rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs space-y-2.5">
         
-        {/* HÀNG 1: Ô TÌM KIẾM CHIẾM TRỌN DIỆN TÍCH + NÚT LỌC CUSTOM */}
+        {/* HÀNG 1: Ô TÌM KIẾM + SẮP XẾP */}
         <div className="flex items-center gap-2">
-          
           <div ref={searchBoxRef} className="relative flex-1">
             <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm táo gió, nho mộc, bánh tráng..."
+              placeholder="Tìm táo gió, nho xanh, chả cá, mật nho..."
               value={searchInput}
               onFocus={() => setIsSearchFocused(true)}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -248,7 +246,7 @@ export default function ShopPage({
               </button>
             )}
 
-            {/* DROPDOWN GỢI Ý TÌM KIẾM */}
+            {/* DROPDOWN GỢI Ý */}
             {isSearchFocused && (
               <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-stone-200 shadow-xl p-3 z-30 animate-fadeIn space-y-2 text-xs">
                 {searchInput.trim() ? (
@@ -267,7 +265,7 @@ export default function ShopPage({
                             className="px-2.5 py-1.5 rounded-xl hover:bg-amber-50 text-stone-700 hover:text-amber-900 cursor-pointer flex items-center justify-between"
                           >
                             <span className="font-medium">{item}</span>
-                            <ArrowRight className="w-3 h-3 text-stone-300" />
+                            <ArrowRight className="w-3.5 h-3.5 text-stone-300" />
                           </div>
                         ))}
                       </div>
@@ -305,7 +303,7 @@ export default function ShopPage({
             )}
           </div>
 
-          {/* NÚT SẮP XẾP CUSTOM UI */}
+          {/* NÚT SẮP XẾP */}
           <div ref={sortRef} className="relative shrink-0">
             <button
               type="button"
@@ -350,7 +348,7 @@ export default function ShopPage({
           </div>
         </div>
 
-        {/* HÀNG 2: THANH CUỘN DANH MỤC (HỖ TRỢ LĂN CHUỘT + KÉO CHUỘT TRƯỢT NGANG MƯỢT MÀ) */}
+        {/* HÀNG 2: THANH DANH MỤC CAT01...CAT06 */}
         <div
           ref={catScrollRef}
           onWheel={handleWheel}
@@ -381,9 +379,10 @@ export default function ShopPage({
           </button>
 
           {displayCategories.map((cat) => {
-            const IconComponent = ICON_MAP[cat.icon] || Sparkles;
+            const IconComponent = CATEGORY_ID_ICON_MAP[cat.id] || Sparkles;
             const isCatActive = selectedCategories.includes(cat.id);
             const itemCount = categoryCounts[cat.id] || 0;
+            const catName = cat.name || cat.label || 'Danh mục';
 
             return (
               <button
@@ -397,7 +396,7 @@ export default function ShopPage({
                 }`}
               >
                 <IconComponent className={`w-3.5 h-3.5 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
-                <span>{cat.label}</span>
+                <span>{catName}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
                   isCatActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
                 }`}>
@@ -409,7 +408,7 @@ export default function ShopPage({
         </div>
       </section>
 
-      {/* ================= 3. LƯỚI SẢN PHẨM ================= */}
+      {/* 3. LƯỚI SẢN PHẨM */}
       {filteredProducts.length === 0 ? (
         <section className="bg-white rounded-3xl p-8 sm:p-14 text-center border border-dashed border-stone-300 space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
@@ -419,7 +418,7 @@ export default function ShopPage({
           <div className="space-y-1">
             <h3 className="font-bold text-stone-800 text-sm sm:text-base">Không tìm thấy món phù hợp</h3>
             <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
-              Không có sản phẩm nào khớp với từ khóa "{searchInput}". Bạn thử chọn lại từ khóa gợi ý phía trên nhé!
+              Không có sản phẩm nào khớp với bộ lọc hiện tại. Thử chọn lại danh mục hoặc tìm từ khóa khác nhé!
             </p>
           </div>
 
@@ -458,7 +457,7 @@ export default function ShopPage({
         </section>
       )}
 
-      {/* ================= 4. CAM KẾT VẬN CHUYỂN ================= */}
+      {/* 4. CAM KẾT VẬN CHUYỂN */}
       <section className="bg-amber-50/80 rounded-3xl p-5 sm:p-7 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="space-y-1 text-center sm:text-left">
           <h4 className="font-bold text-sm text-amber-950 flex items-center justify-center sm:justify-start gap-1.5">

@@ -1,3 +1,4 @@
+// src/components/admin/PostsTab.jsx
 import React, { useState } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Calendar, Clock } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
@@ -15,8 +16,7 @@ export default function PostsTab({
   onAddPost,
   onEditPost,
   onDeletePost,
-  onResetPosts,
-  uploadUrl
+  onResetPosts
 }) {
   const [newPost, setNewPost] = useState({
     title: '',
@@ -34,9 +34,12 @@ export default function PostsTab({
 
     onAddPost({
       ...newPost,
-      // Đảm bảo tương thích ngược cho cả desc và excerpt
+      // Tương thích song song cho bảng posts trên Supabase
       desc: newPost.excerpt,
-      summary: newPost.excerpt
+      summary: newPost.excerpt,
+      image_url: newPost.image,
+      read_time: newPost.readTime,
+      created_at: new Date().toISOString()
     });
 
     setNewPost({
@@ -77,10 +80,10 @@ export default function PostsTab({
             />
           </div>
 
-          {/* Gộp Chuyên mục, Thời gian đọc & Tác giả */}
+          {/* Chuyên mục, Thời gian đọc & Tác giả */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Chuyên mục (Chuẩn Sheet)</label>
+              <label className="font-semibold text-stone-600 block mb-1">Chuyên mục</label>
               <select
                 value={newPost.category}
                 onChange={(e) => setNewPost({ ...newPost, category: e.target.value })}
@@ -117,11 +120,12 @@ export default function PostsTab({
             </div>
           </div>
 
+          {/* Upload ảnh trực tiếp lên Supabase Storage bucket posts */}
           <ImageUploadField
-            label="Ảnh bìa bài viết (Tải trực tiếp lên Google Drive hoặc dán URL)"
+            label="Ảnh bìa bài viết (Supabase Storage)"
             value={newPost.image}
+            bucket="posts"
             onChange={(url) => setNewPost({ ...newPost, image: url })}
-            uploadUrl={uploadUrl}
           />
 
           <div>
@@ -164,7 +168,7 @@ export default function PostsTab({
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-bold text-stone-900">Danh Sách Bài Đã Đăng ({posts.length})</h2>
-            <p className="text-xs text-stone-500">Chỉnh sửa nội dung, đổi ảnh hoặc gỡ bài viết khỏi Web & Google Sheet</p>
+            <p className="text-xs text-stone-500">Chỉnh sửa nội dung, đổi ảnh hoặc gỡ bài viết khỏi hệ thống</p>
           </div>
           {onResetPosts && (
             <button
@@ -185,14 +189,16 @@ export default function PostsTab({
         ) : (
           <div className="divide-y divide-stone-100">
             {posts.map((post, idx) => {
-              const displayDate = formatDate(post.date, 'Gần đây');
+              const displayDate = formatDate(post.created_at || post.date, 'Gần đây');
               const summaryText = post.excerpt || post.desc || post.summary || '';
+              const postImageUrl = post.image_url || post.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
+              const readTimeText = post.read_time || post.readTime;
 
               return (
                 <div key={post.id || idx} className="py-3.5 flex items-start justify-between gap-4 text-xs">
                   <div className="flex items-start gap-3 min-w-0">
                     <img
-                      src={post.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80'}
+                      src={postImageUrl}
                       alt={post.title}
                       className="w-16 h-14 rounded-xl object-cover shrink-0 border border-stone-100 shadow-2xs"
                       onError={(e) => {
@@ -213,10 +219,10 @@ export default function PostsTab({
                           <Calendar className="w-3 h-3 text-stone-400" />
                           <span className="font-mono">{displayDate}</span>
                         </span>
-                        {post.readTime && (
+                        {readTimeText && (
                           <span className="inline-flex items-center gap-1">
                             <Clock className="w-3 h-3 text-stone-400" />
-                            <span>{post.readTime}</span>
+                            <span>{readTimeText}</span>
                           </span>
                         )}
                       </div>

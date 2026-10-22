@@ -1,10 +1,10 @@
+// src/pages/BlogPage.jsx
 import React, { useState, useMemo } from 'react';
 import { 
   Clock, 
   ArrowRight, 
   BookOpen, 
   Calendar, 
-  User, 
   Sparkles, 
   ArrowLeft, 
   Share2, 
@@ -12,7 +12,6 @@ import {
   ChefHat, 
   HeartHandshake 
 } from 'lucide-react';
-import { POSTS as DEFAULT_POSTS } from '../data/posts';
 
 const CATEGORY_LABELS = {
   'all': 'Tất cả bài viết',
@@ -39,7 +38,7 @@ export default function BlogPage({ posts = [] }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isCopied, setIsCopied] = useState(false);
 
-  const rawPostList = Array.isArray(posts) && posts.length > 0 ? posts : (DEFAULT_POSTS || []);
+  const rawPostList = Array.isArray(posts) ? posts : [];
 
   const filteredPosts = useMemo(() => {
     if (selectedCategory === 'all') return rawPostList;
@@ -121,17 +120,17 @@ export default function BlogPage({ posts = [] }) {
                 {CATEGORY_LABELS[activePost.category || activePost.tag] || activePost.category || activePost.tag || 'Cẩm nang'}
               </span>
 
-              {activePost.date && (
+              {(activePost.created_at || activePost.date) && (
                 <span className="flex items-center gap-1.5 text-stone-500 font-medium">
                   <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                  <span>{formatDate(activePost.date)}</span>
+                  <span>{formatDate(activePost.created_at || activePost.date)}</span>
                 </span>
               )}
 
-              {activePost.readTime && (
+              {(activePost.read_time || activePost.readTime) && (
                 <span className="flex items-center gap-1.5 text-stone-500 font-medium">
                   <Clock className="w-3.5 h-3.5 text-stone-400" />
-                  <span>{activePost.readTime}</span>
+                  <span>{activePost.read_time || activePost.readTime}</span>
                 </span>
               )}
             </div>
@@ -218,7 +217,7 @@ export default function BlogPage({ posts = [] }) {
           </div>
 
           {filteredPosts.length === 0 ? (
-            <div className="p-16 text-center text-stone-400 text-xs bg-white rounded-3xl border border-stone-200 space-y-2">
+            <div className="p-16 text-center text-stone-400 text-xs bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
               <BookOpen className="w-8 h-8 mx-auto text-stone-300 stroke-[1.5]" />
               <p>Chưa có bài viết nào thuộc chuyên mục này...</p>
             </div>
@@ -245,7 +244,7 @@ export default function BlogPage({ posts = [] }) {
                       }}
                     />
                     <div className="absolute top-3.5 left-3.5 bg-amber-600 text-white font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
+                      <Sparkles className="w-3.5 h-3.5" />
                       <span>Bài viết nổi bật</span>
                     </div>
                   </div>
@@ -255,16 +254,16 @@ export default function BlogPage({ posts = [] }) {
                       <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md uppercase text-[10px]">
                         {CATEGORY_LABELS[featuredPost.category || featuredPost.tag] || 'Cẩm nang'}
                       </span>
-                      {featuredPost.date && (
+                      {(featuredPost.created_at || featuredPost.date) && (
                         <span className="flex items-center gap-1 font-medium text-stone-500">
                           <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                          <span>{formatDate(featuredPost.date)}</span>
+                          <span>{formatDate(featuredPost.created_at || featuredPost.date)}</span>
                         </span>
                       )}
-                      {featuredPost.readTime && (
+                      {(featuredPost.read_time || featuredPost.readTime) && (
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-stone-400" />
-                          <span>{featuredPost.readTime}</span>
+                          <Clock className="w-3.5 h-3.5 text-stone-400" />
+                          <span>{featuredPost.read_time || featuredPost.readTime}</span>
                         </span>
                       )}
                     </div>
@@ -315,16 +314,16 @@ export default function BlogPage({ posts = [] }) {
 
                         <div className="p-5 sm:p-6 space-y-2.5">
                           <div className="flex items-center gap-3 text-[11px] text-stone-400">
-                            {post.date && (
+                            {(post.created_at || post.date) && (
                               <span className="flex items-center gap-1 font-medium text-stone-500">
-                                <Calendar className="w-3 h-3 text-amber-600" />
-                                <span>{formatDate(post.date)}</span>
+                                <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                                <span>{formatDate(post.created_at || post.date)}</span>
                               </span>
                             )}
-                            {post.readTime && (
+                            {(post.read_time || post.readTime) && (
                               <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-stone-400" />
-                                <span>{post.readTime}</span>
+                                <Clock className="w-3.5 h-3.5 text-stone-400" />
+                                <span>{post.read_time || post.readTime}</span>
                               </span>
                             )}
                           </div>

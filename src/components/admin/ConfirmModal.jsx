@@ -1,11 +1,26 @@
-import React from 'react';
-import { AlertCircle, AlertTriangle, Info, Check } from 'lucide-react';
+// src/components/admin/ConfirmModal.jsx
+import React, { useEffect } from 'react';
+import { AlertTriangle, Info, Check } from 'lucide-react';
 
 export default function ConfirmModal({ modalConfig, onClose }) {
-  if (!modalConfig) return null;
+  const isAlert = Boolean(modalConfig?.isAlert);
+  const isDanger = modalConfig?.isDanger !== undefined ? Boolean(modalConfig.isDanger) : !isAlert;
 
-  const isAlert = Boolean(modalConfig.isAlert);
-  const isDanger = !isAlert;
+  // Hỗ trợ phím Escape để đóng nhanh
+  useEffect(() => {
+    if (!modalConfig) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [modalConfig, onClose]);
+
+  if (!modalConfig) return null;
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -32,7 +47,7 @@ export default function ConfirmModal({ modalConfig, onClose }) {
           <div>
             <h4 className="text-sm font-black text-stone-900">{modalConfig.title || 'Thông Báo'}</h4>
             <p className="text-xs text-stone-500">
-              {isAlert ? 'Hệ thống vườn Xứ Nắng' : 'Hành động này không thể hoàn tác'}
+              {modalConfig.subtitle || (isAlert ? 'Hệ thống vườn Xứ Nắng' : 'Hành động này không thể hoàn tác')}
             </p>
           </div>
         </div>

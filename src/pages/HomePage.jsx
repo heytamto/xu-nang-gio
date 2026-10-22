@@ -1,3 +1,4 @@
+// src/pages/HomePage.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowRight, 
@@ -17,7 +18,6 @@ import {
   Sprout,
   Compass,
   MapPin,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Droplets,
@@ -27,19 +27,17 @@ import {
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
-const ICON_MAP = {
-  Apple, 
-  Sparkles, 
-  Fish, 
-  Wine, 
-  Sun, 
-  Flame, 
-  ShoppingBag, 
-  Leaf, 
-  Heart
+// Bản đồ Icon dự phòng tự động theo ID chuẩn 3NF (cat01 -> cat06)
+const CATEGORY_ID_ICON_MAP = {
+  cat01: Sparkles,    // Combo Ưu Đãi
+  cat02: Apple,       // Trái Cây Tươi Giàn
+  cat03: Flame,       // Nem & Chả Đặc Sản
+  cat04: Fish,        // Hải Sản Gió Biển
+  cat05: Wine,        // Gia Vị Xứ Nắng / Mật Nho
+  cat06: Leaf         // Đặc Sản Sấy Dẻo
 };
 
-// DỮ LIỆU CẨM NANG 6 NÔNG SẢN NINH THUẬN CHUẨN GỐC (KÈM TABLABEL RÕ NGHĨA)
+// DỮ LIỆU CẨM NANG 6 NÔNG SẢN NINH THUẬN CHUẨN GỐC
 const NINH_THUAN_EXPERIENCES = [
   {
     id: 'nho',
@@ -152,9 +150,15 @@ export default function HomePage({
     else if (onNavigate) onNavigate('story');
   };
 
-  // 8 sản phẩm tiêu biểu cho 2 hàng
+  // 8 sản phẩm tiêu biểu cho 2 hàng (ưu tiên Combo cat01 & Trái cây giàn cat02)
   const featuredProducts = Array.isArray(products) && products.length > 0 
-    ? products.slice(0, 8) 
+    ? [...products]
+        .sort((a, b) => {
+          if (a.category === 'cat01' && b.category !== 'cat01') return -1;
+          if (b.category === 'cat01' && a.category !== 'cat01') return 1;
+          return 0;
+        })
+        .slice(0, 8) 
     : [];
 
   const displayCategories = categories.filter(c => c.id !== 'all');
@@ -224,7 +228,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 2. KHÁM PHÁ DANH MỤC: GIỮ NGUYÊN 1 HÀNG TUYỆT ĐỐI (NOWRAP) + NÚT TRƯỢT & THANH CUỘN ================= */}
+      {/* ================= 2. KHÁM PHÁ DANH MỤC: 1 HÀNG TUYỆT ĐỐI + MAP ICON CHUẨN 3NF ================= */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
@@ -277,7 +281,10 @@ export default function HomePage({
             </button>
 
             {displayCategories.map((cat) => {
-              const IconComponent = ICON_MAP[cat.icon] || Sparkles;
+              // Tự động map icon theo id cat01...cat06 hoặc tên icon
+              const IconComponent = CATEGORY_ID_ICON_MAP[cat.id] || Sparkles;
+              const catTitle = cat.name || cat.label || 'Danh mục';
+
               return (
                 <button
                   key={cat.id}
@@ -286,7 +293,7 @@ export default function HomePage({
                   className="shrink-0 px-4 py-2.5 rounded-2xl bg-white border border-stone-200 hover:border-amber-600 hover:text-amber-800 text-stone-700 text-xs font-bold shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer group"
                 >
                   <IconComponent className="w-3.5 h-3.5 text-amber-700 group-hover:scale-110 transition-transform" />
-                  <span>{cat.label}</span>
+                  <span>{catTitle}</span>
                 </button>
               );
             })}
@@ -294,7 +301,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 3. GÓC VĂN HÓA BẢN ĐỊA: KHÍ HẬU & THỔ NHƯỠNG ĐẶC THÙ ================= */}
+      {/* ================= 3. GÓC VĂN HÓA BẢN ĐỊA ================= */}
       <section className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-3xl p-6 sm:p-8 border border-amber-200/70 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/50 pb-4">
           <div className="space-y-1">
@@ -344,7 +351,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 4. KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (TỰ ĐỔI MỖI 5 GIÂY, TAB ĐẦY ĐỦ TÊN) ================= */}
+      {/* ================= 4. KINH NGHIỆM CHỌN NÔNG SẢN SẠCH ================= */}
       <ExperienceGuideSection />
 
       {/* ================= 5. BỐN CAM KẾT VƯỜN QUÊ ================= */}
@@ -430,7 +437,7 @@ export default function HomePage({
         )}
       </section>
 
-      {/* ================= 7. BANNER KÝ SỰ: MỜI GHÉ THĂM CHUYỆN VƯỜN ================= */}
+      {/* ================= 7. BANNER KÝ SỰ ================= */}
       <section className="relative overflow-hidden bg-gradient-to-r from-amber-900 via-stone-900 to-stone-900 text-white rounded-3xl p-7 sm:p-10 shadow-xl border border-stone-800 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-left max-w-2xl">
           <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold">
@@ -466,7 +473,6 @@ function ExperienceGuideSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Tự động chuyển đổi sau mỗi 5 giây (tự dừng khi người dùng hover chuột để đọc kỹ)
   useEffect(() => {
     if (isPaused) return;
 
@@ -493,7 +499,6 @@ function ExperienceGuideSection() {
       onMouseLeave={() => setIsPaused(false)}
       className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 transition-all"
     >
-      {/* Header thanh điều hướng */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
         <div>
           <div className="flex items-center gap-2 text-amber-800 text-xs font-black tracking-wider uppercase">
@@ -505,7 +510,6 @@ function ExperienceGuideSection() {
           </h3>
         </div>
 
-        {/* Nút lướt và bộ đếm */}
         <div className="flex items-center gap-2.5 self-end sm:self-auto">
           <span className="text-xs font-mono font-bold text-stone-400">
             {currentIndex + 1} / {NINH_THUAN_EXPERIENCES.length}
@@ -531,7 +535,6 @@ function ExperienceGuideSection() {
         </div>
       </div>
 
-      {/* Tabs chọn nhanh từng nông sản: Dùng chính xác tabLabel đầy đủ */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none]">
         {NINH_THUAN_EXPERIENCES.map((exp, idx) => (
           <button
@@ -549,9 +552,7 @@ function ExperienceGuideSection() {
         ))}
       </div>
 
-      {/* Nội dung chi tiết hiển thị mượt mà */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* Cột trái: Dấu hiệu hàng thật chuẩn gốc */}
         <div className="lg:col-span-8 p-5 sm:p-6 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-3.5 flex flex-col justify-between">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -583,7 +584,6 @@ function ExperienceGuideSection() {
           </div>
         </div>
 
-        {/* Cột phải: Dấu hiệu cảnh báo hàng tẩm ướp / trôi nổi */}
         <div className="lg:col-span-4 p-5 sm:p-6 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col justify-center space-y-3">
           <div className="flex items-center gap-1.5 text-xs font-black uppercase text-rose-800">
             <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />

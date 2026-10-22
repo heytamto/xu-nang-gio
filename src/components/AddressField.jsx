@@ -146,8 +146,8 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
 }
 
 export default function AddressField({ value = '', onChange }) {
-  // Mode: 'gps' (1. Lấy vị trí) hoặc 'manual' (2. Tự nhập)
-  const [inputMode, setInputMode] = useState('gps');
+  // Nếu có địa chỉ truyền vào từ trước -> mở thẳng tab manual để không đè dữ liệu
+  const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'gps'));
 
   const provinces = useMemo(() => Object.keys(administrativeData), []);
   const defaultProv = useMemo(() => {
@@ -178,7 +178,22 @@ export default function AddressField({ value = '', onChange }) {
   }, [selectedProvince]);
 
   const [selectedWard, setSelectedWard] = useState(() => wards[0] || '');
+  const [detailAddress, setDetailAddress] = useState('');
+  const [autoDetectedText, setAutoDetectedText] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
+  const lastEmittedValue = useRef('');
+
+  // Tự động phân rã nếu value ban đầu được truyền vào
+  useEffect(() => {
+    if (value && value !== lastEmittedValue.current && !detailAddress) {
+      setDetailAddress(value);
+      lastEmittedValue.current = value;
+    }
+  }, [value]);
+
+  // Cập nhật selectedWard khi danh sách wards thay đổi
   useEffect(() => {
     if (wards.length > 0) {
       if (!wards.includes(selectedWard)) {
@@ -187,21 +202,14 @@ export default function AddressField({ value = '', onChange }) {
     } else {
       setSelectedWard('');
     }
-  }, [wards, selectedWard]);
+  }, [wards]);
 
-  const [detailAddress, setDetailAddress] = useState('');
-  const [autoDetectedText, setAutoDetectedText] = useState('');
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationError, setLocationError] = useState('');
-
-  const lastEmittedValue = useRef('');
-
-  // Đồng bộ giá trị trả về cho Form
+  // Đồng bộ giá trị trả về cho Checkout Form
   useEffect(() => {
     let full = '';
     if (inputMode === 'gps' && autoDetectedText) {
       full = autoDetectedText;
-    } else {
+    } else if (inputMode === 'manual') {
       full = [
         detailAddress.trim(),
         selectedWard,
@@ -209,7 +217,7 @@ export default function AddressField({ value = '', onChange }) {
       ].filter(Boolean).join(', ');
     }
 
-    if (full !== lastEmittedValue.current) {
+    if (full && full !== lastEmittedValue.current) {
       lastEmittedValue.current = full;
       if (onChange) onChange(full);
     }
@@ -231,7 +239,7 @@ export default function AddressField({ value = '', onChange }) {
 
           const isInsideVietnam = (latitude >= 8.0 && latitude <= 23.5) && (longitude >= 102.0 && longitude <= 110.0);
           if (!isInsideVietnam) {
-            setLocationError('Tọa độ nằm ngoài Việt Nam (có thể do bật VPN). Bạn vui lòng dùng tab "Tự nhập".');
+            setLocationError('Tọa độ nằm ngoài Việt Nam (có thể do bật VPN). Bạn vui lòng dùng tab "Tự chọn / Nhập tay".');
             setIsLocating(false);
             return;
           }
@@ -289,7 +297,7 @@ export default function AddressField({ value = '', onChange }) {
             setLocationError('Không phân tích được địa chỉ chi tiết từ tọa độ.');
           }
         } catch {
-          setLocationError('Lỗi kết nối bản đồ định vị, vui lòng chuyển qua tab "Tự nhập".');
+          setLocationError('Lỗi kết nối bản đồ định vị, vui lòng chuyển qua tab "Tự chọn / Nhập tay".');
         } finally {
           setIsLocating(false);
         }
@@ -297,15 +305,15 @@ export default function AddressField({ value = '', onChange }) {
       (err) => {
         setIsLocating(false);
         if (err.code === err.PERMISSION_DENIED) {
-          setLocationError('Bạn chưa cấp quyền định vị. Hãy bấm "Cho phép" trên trình duyệt hoặc dùng tab "Tự nhập".');
+          setLocationError('Bạn chưa cấp quyền định vị. Hãy bấm "Cho phép" trên trình duyệt hoặc dùng tab "Tự chọn / Nhập tay".');
         } else {
           setLocationError('Không thể lấy tọa độ hiện tại.');
         }
       },
       { 
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        enableHighAccuracy: true, 
+        timeout: 10000, 
+        maximumAge: 0 
       }
     );
   };

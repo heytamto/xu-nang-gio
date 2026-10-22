@@ -1,3 +1,4 @@
+// src/utils/orderRiskUtils.js
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 
 export function parseCleanMoney(val) {
@@ -8,6 +9,7 @@ export function parseCleanMoney(val) {
   const cleanDigits = str.replace(/[^0-9]/g, '');
   if (!cleanDigits) return 0;
 
+  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy từ Google Sheets nếu còn sót trong cache)
   const len = cleanDigits.length;
   if (len >= 12 && len % 2 === 0) {
     const half1 = cleanDigits.slice(0, len / 2);
@@ -24,7 +26,10 @@ export function parseCleanMoney(val) {
 export function parseOrderDate(dateStr) {
   if (!dateStr) return null;
   if (dateStr instanceof Date) return isNaN(dateStr.getTime()) ? null : dateStr;
+  
   let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
+  
+  // Format DD/MM/YYYY
   if (str.includes('/')) {
     const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (match) {
@@ -33,6 +38,8 @@ export function parseOrderDate(dateStr) {
       return isNaN(parsed.getTime()) ? null : parsed;
     }
   }
+  
+  // Format chuẩn ISO từ PostgreSQL Supabase (2026-10-22T05:00:00Z)
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -40,7 +47,10 @@ export function parseOrderDate(dateStr) {
 export function parseOrderTimestamp(dateStr) {
   if (!dateStr) return 0;
   if (dateStr instanceof Date) return dateStr.getTime();
+  
   let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
+  
+  // Format DD/MM/YYYY HH:mm:ss
   if (str.includes('/')) {
     const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?/);
     if (match) {
@@ -48,6 +58,7 @@ export function parseOrderTimestamp(dateStr) {
       return new Date(Number(y), Number(m) - 1, Number(d), Number(hr), Number(min), Number(sec)).getTime();
     }
   }
+  
   const d = new Date(str);
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
@@ -61,10 +72,11 @@ export function isBadStatus(statusStr) {
 
 /**
  * Xây dựng từ điển lịch sử rủi ro cho từng đơn hàng của từng số điện thoại
- * Cơ chế loại trừ chính đơn đó để chống tự tham chiếu
+ * Hỗ trợ tương thích đồng thời cả Supabase (snake_case) và State cũ (camelCase)
  */
 export function buildCustomerProfileMap(orders = []) {
   const map = new Map();
+  
   orders.forEach((ord) => {
     const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
     if (cleanP.length >= 8) {
@@ -75,12 +87,17 @@ export function buildCustomerProfileMap(orders = []) {
   });
 
   const profileMap = new Map();
+  
   map.forEach((orderList, key) => {
-    // Sắp xếp đơn từ mới nhất -> cũ nhất
-    const sorted = [...orderList].sort((a, b) => parseOrderTimestamp(b.createdAt) - parseOrderTimestamp(a.createdAt));
+    // Sắp xếp đơn từ mới nhất -> cũ nhất (ưu tiên created_at từ Supabase)
+    const sorted = [...orderList].sort((a, b) => {
+      const timeB = parseOrderTimestamp(b.created_at || b.createdAt);
+      const timeA = parseOrderTimestamp(a.created_at || a.createdAt);
+      return timeB - timeA;
+    });
     
     sorted.forEach((currentOrd, index) => {
-      // Chỉ lấy các đơn CŨ HƠN đơn hiện tại
+      // Chỉ lấy các đơn CŨ HƠN đơn hiện tại (chống tự tham chiếu)
       const olderOrders = sorted.slice(index + 1);
 
       const latestOlder = olderOrders[0];
@@ -89,7 +106,8 @@ export function buildCustomerProfileMap(orders = []) {
       const bombedOrders = olderOrders.filter(ord => {
         const norm = normalizeOrderStatus(ord.status);
         const raw = String(ord.status || '').toLowerCase();
-        const isPrepaid100 = String(ord.paymentMethod || '').toLowerCase().includes('100%') || ord.paymentMethod === 'full_qr';
+        const paymentMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
+        const isPrepaid100 = paymentMethod.includes('100%') || paymentMethod === 'full_qr';
         return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
       });
 
@@ -105,15 +123,18 @@ export function buildCustomerProfileMap(orders = []) {
 
       let reason = '';
       if (primaryBadOrder) {
-        let rawReason = primaryBadOrder.cancelReason || primaryBadOrder.reason || '';
-        if (!rawReason && primaryBadOrder.note) {
-          const matchNote = String(primaryBadOrder.note).match(/\[(BOM HÀNG|LÝ DO HỦY):\s*([^\]]+)\]/i);
-          rawReason = matchNote ? matchNote[2] : primaryBadOrder.note;
+        let rawReason = primaryBadOrder.cancel_reason || primaryBadOrder.cancelReason || primaryBadOrder.reason || '';
+        const orderNote = primaryBadOrder.customer_note || primaryBadOrder.note || '';
+        
+        if (!rawReason && orderNote) {
+          const matchNote = String(orderNote).match(/\[(BOM HÀNG\vert{}LÝ DO HỦY):\s*([^\]]+)\]/i);
+          rawReason = matchNote ? matchNote[2] : orderNote;
         }
-        reason = rawReason || (primaryBadOrder.status === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');
+        reason = rawReason || (normalizeOrderStatus(primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');
       }
 
-      profileMap.set(`${key}_${currentOrd.code}`, {
+      const orderKey = currentOrd.code || currentOrd.orderId;
+      profileMap.set(`${key}_${orderKey}`, {
         isPardoned,
         hasActiveBombedRisk: !isPardoned && bombedOrders.length > 0,
         hasActiveCancelledRisk: !isPardoned && cancelledOrders.length >= 2,

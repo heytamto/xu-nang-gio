@@ -1,10 +1,10 @@
+// src/hooks/useAdminDashboard.js
 import { useState, useMemo } from 'react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { 
   buildCustomerProfileMap, 
   parseCleanMoney, 
-  parseOrderDate, 
-  parseOrderTimestamp 
+  parseOrderDate 
 } from '../utils/orderRiskUtils';
 
 export function useAdminDashboard(orders = [], depositAmount = 50000) {
@@ -67,16 +67,16 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     setEndDate(val);
   };
 
-  // Lọc danh sách đơn hàng
+  // 1. LỌC DANH SÁCH ĐƠN HÀNG (Tương thích cả snake_case và camelCase)
   const filteredOrders = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const yesterdayStart = todayStart - 86400000;
 
     return orders.filter((order) => {
-      const rawPhone = String(order.phone || '').replace(/\D/g, '');
-      const rawName = String(order.name || '').toLowerCase();
-      const rawCode = String(order.code || '').toLowerCase();
+      const rawPhone = String(order.phone || order.customer?.phone || '').replace(/\D/g, '');
+      const rawName = String(order.customer_name || order.name || order.customer?.name || '').toLowerCase();
+      const rawCode = String(order.code || order.orderId || '').toLowerCase();
       const currentStatusCode = normalizeOrderStatus(order.status);
 
       const search = searchQuery.trim().toLowerCase();
@@ -92,10 +92,20 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
       if (statusFilter !== 'all' && currentStatusCode !== statusFilter) return false;
       if (dateFilterType === 'all') return true;
 
-      const orderDate = parseOrderDate(order.createdAt);
-      if (!orderDate) return true;
+      const rawDateStr = order.created_at || order.createdAt;
+      let orderTime = null;
+      if (rawDateStr) {
+        const d = new Date(rawDateStr);
+        if (!isNaN(d.getTime())) {
+          orderTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+        } else {
+          const parsed = parseOrderDate(rawDateStr);
+          if (parsed) orderTime = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
+        }
+      }
 
-      const orderTime = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate()).getTime();
+      if (!orderTime) return true;
+
       if (dateFilterType === 'today') return orderTime === todayStart;
       if (dateFilterType === 'yesterday') return orderTime === yesterdayStart;
       if (dateFilterType === '7days') return orderTime >= todayStart - 7 * 86400000 && orderTime <= todayStart;
@@ -111,7 +121,7 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     });
   }, [orders, searchQuery, statusFilter, dateFilterType, startDate, endDate]);
 
-  // Tính toán KPI & Tỷ lệ thất thoát
+  // 2. TÍNH TOÁN KPI DOANH THU & TIỀN THỰC THU
   const metrics = useMemo(() => {
     const validOrders = filteredOrders.filter((o) => {
       const st = normalizeOrderStatus(o.status);
@@ -120,7 +130,9 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     const cancelledOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED);
     const bombedOrders = filteredOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.BOMBED);
 
-    const totalRevenue = validOrders.reduce((sum, o) => sum + parseCleanMoney(o.total), 0);
+    const getOrderTotal = (o) => parseCleanMoney(o.final_total ?? o.total ?? o.totalAmount ?? 0);
+
+    const totalRevenue = validOrders.reduce((sum, o) => sum + getOrderTotal(o), 0);
     const totalOrders = validOrders.length;
     const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
@@ -128,15 +140,17 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
       const st = normalizeOrderStatus(o.status);
       const isConfirmed = st === ORDER_STATUS.CONFIRMED || st === ORDER_STATUS.SHIPPING || st === ORDER_STATUS.COMPLETED;
       if (!isConfirmed) return sum;
-      const method = String(o.paymentMethod || '').toLowerCase();
-      const numTotal = parseCleanMoney(o.total);
+
+      const method = String(o.payment_method || o.paymentMethod || '').toLowerCase();
+      const numTotal = getOrderTotal(o);
+
       if (method.includes('100%') || method.includes('full') || st === ORDER_STATUS.COMPLETED) return sum + numTotal;
       if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
       return sum;
     }, 0);
 
     const retainedDepositFromBombed = bombedOrders.reduce((sum, o) => {
-      const method = String(o.paymentMethod || '').toLowerCase();
+      const method = String(o.payment_method || o.paymentMethod || '').toLowerCase();
       if (method.includes('cọc') || method.includes('deposit')) return sum + (Number(depositAmount) || 50000);
       return sum;
     }, 0);
@@ -152,7 +166,7 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     };
   }, [filteredOrders, depositAmount]);
 
-  // Đặc sản bán chạy
+  // 3. ĐẶC SẢN BÁN CHẠY (Hỗ trợ cả order_items quan hệ 3NF và mảng cart)
   const topProducts = useMemo(() => {
     const productStats = {};
     const validOrders = filteredOrders.filter((o) => {
@@ -161,13 +175,24 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     });
 
     validOrders.forEach((order) => {
-      if (Array.isArray(order.cart) && order.cart.length > 0) {
+      // 1. Kiểm tra mảng quan hệ 3NF order_items từ Supabase
+      if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+        order.order_items.forEach((item) => {
+          const key = item.name || 'Đặc sản';
+          if (!productStats[key]) productStats[key] = { name: key, quantity: 0 };
+          productStats[key].quantity += (Number(item.quantity) || 1);
+        });
+      } 
+      // 2. Fallback sang mảng cart (đơn vừa đặt từ client)
+      else if (Array.isArray(order.cart) && order.cart.length > 0) {
         order.cart.forEach((item) => {
           const key = item.name || 'Đặc sản';
           if (!productStats[key]) productStats[key] = { name: key, quantity: 0 };
           productStats[key].quantity += (Number(item.quantity) || 1);
         });
-      } else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
+      } 
+      // 3. Fallback sang chuỗi text
+      else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
         order.itemsSummary.split(',').forEach((p) => {
           const trimmed = p.trim();
           if (!trimmed) return;

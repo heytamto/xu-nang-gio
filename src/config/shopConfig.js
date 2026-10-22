@@ -1,7 +1,7 @@
 // src/config/shopConfig.js
 import { VIETQR_BANKS } from '../constants/vietqrBanks';
 
-// Trích xuất số điện thoại sạch (chỉ giữ lại số) để gắn link gọi điện
+// Trích xuất số điện thoại sạch (chỉ giữ lại ký tự số) để gắn link tel:
 const rawHotline = import.meta.env.VITE_HOTLINE || '0848.957.345';
 const cleanPhone = rawHotline.replace(/\D/g, '');
 const rawZalo = import.meta.env.VITE_ZALO_PHONE || '0848957345';
@@ -19,48 +19,75 @@ export const DEFAULT_SHOP_CONFIG = {
   loyaltyMaxDiscount: 50000,
 
   // 2. Thông tin liên hệ, Địa chỉ & Mạng xã hội từ .env
+  brandName: 'Xứ Nắng Gió',
+  tagline: 'Đặc sản hái giàn chuẩn đất Phan Rang',
   hotline: rawHotline,
   phoneNumber: cleanPhone || rawZalo,
   zaloPhone: rawZalo,
   email: import.meta.env.VITE_EMAIL || 'xunanggio@gmail.com',
-  address: import.meta.env.VITE_STORE_ADDRESS || 'Trường Sanh, Phước Hậu, Khánh Hoà',
-  originProvince: import.meta.env.VITE_ORIGIN_PROVINCE || 'Khánh Hoà',
+  address: import.meta.env.VITE_STORE_ADDRESS || 'Trường Sanh, Phước Hậu, Ninh Phước',
+  originProvince: import.meta.env.VITE_ORIGIN_PROVINCE || 'Ninh Thuận',
   warehousePin: '1234',
   zaloUrl: rawZalo ? `https://zalo.me/${rawZalo}` : '',
-  facebookUrl: import.meta.env.VITE_FACEBOOK_URL || '',
-  tiktokUrl: import.meta.env.VITE_TIKTOK_URL || '',
+  facebookUrl: import.meta.env.VITE_FACEBOOK_URL || 'https://facebook.com/xunanggio',
+  tiktokUrl: import.meta.env.VITE_TIKTOK_URL || 'https://tiktok.com/@xunanggio',
 
-  // 3. Google Maps (Tọa độ vườn Trường Sanh, Phước Hậu)
+  // 3. Google Maps (Tọa độ giàn vườn)
   mapDirectionsUrl: import.meta.env.VITE_MAP_DIRECTIONS_URL || 'https://www.google.com/maps/dir/?api=1&destination=11.563539,108.930892',
   mapEmbedUrl: import.meta.env.VITE_MAP_EMBED_URL || 'https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d251.61865863961202!2d108.93089242170359!3d11.563539363791506!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1svi!2s!4v1792144018447!5m2!1svi!2s',
 
-  // 4. Mã giảm giá
+  // 4. Danh mục quà tặng mặc định (Khớp bảng gifts: gft01 -> gft07)
+  giftsCatalog: [
+    { id: 'gft01', title: 'Hũ muối ớt tôm rang hạt', tag: 'Quà Quê', type: 'combo_bonus' },
+    { id: 'gft02', title: 'Hũ mứt nho sấy dẻo', tag: 'Giàn Tươi', type: 'combo_bonus' },
+    { id: 'gft03', title: 'Xấp bánh tráng mè nướng', tag: 'Đặc Sản', type: 'combo_bonus' },
+    { id: 'gft04', title: 'Hộp thiệp chúc & túi quà', tag: 'Biếu Tặng', type: 'combo_bonus' },
+    { id: 'gft05', title: 'Bánh tráng mắm ruốc nướng', tag: 'Quà Quê', type: 'combo_bonus' },
+    { id: 'gft06', title: 'Hũ muối ớt xiêm xanh', tag: 'Gió Biển', type: 'combo_bonus' },
+    { id: 'gft07', title: 'Chai mật nho mini 100ml', tag: 'Tri Ân', type: 'payment_reward' }
+  ],
+
+  // 5. Mã giảm giá (Khớp bảng vouchers PostgreSQL)
   vouchers: [
+    {
+      code: 'TRIAN10',
+      type: 'percent',
+      value: 10,
+      minOrder: 200000,
+      maxDiscount: 50000,
+      canStack: true,
+      usageLimit: 100,
+      usedCount: 0,
+      desc: 'Giảm 10% tối đa 50k cho khách thân thiết ghé vườn'
+    },
+    {
+      code: 'FREESHIP',
+      type: 'fixed',
+      value: 30000,
+      minOrder: 300000,
+      maxDiscount: 30000,
+      canStack: true,
+      usageLimit: 200,
+      usedCount: 0,
+      desc: 'Hỗ trợ 30k cước gửi xe khách đơn từ 300k'
+    },
     {
       code: 'LAMQUEN',
       type: 'fixed',
       value: 15000,
       minOrder: 100000,
-      maxDiscount: 0,
+      maxDiscount: 15000,
       canStack: true,
       usageLimit: 0,
       usedCount: 0,
       desc: 'Quà làm quen từ vườn (Giảm 15.000đ cho đơn từ 100k)'
-    },
-    {
-      code: 'XUNANGGIO',
-      type: 'fixed',
-      value: 20000,
-      minOrder: 150000,
-      maxDiscount: 0,
-      canStack: false,
-      usageLimit: 0,
-      usedCount: 0,
-      desc: 'Ưu đãi đơn từ 150k (Giảm 20.000đ)'
     }
   ]
 };
 
+/**
+ * Đọc cấu hình từ LocalStorage kèm Fallback an toàn
+ */
 export function getShopConfig() {
   try {
     const saved = localStorage.getItem('shop_config');
@@ -100,6 +127,9 @@ export function getShopConfig() {
         tiktokUrl: parsed.tiktokUrl || DEFAULT_SHOP_CONFIG.tiktokUrl,
         mapDirectionsUrl: parsed.mapDirectionsUrl || DEFAULT_SHOP_CONFIG.mapDirectionsUrl,
         mapEmbedUrl: parsed.mapEmbedUrl || DEFAULT_SHOP_CONFIG.mapEmbedUrl,
+        giftsCatalog: Array.isArray(parsed.giftsCatalog) && parsed.giftsCatalog.length > 0 
+          ? parsed.giftsCatalog 
+          : DEFAULT_SHOP_CONFIG.giftsCatalog,
         vouchers: mergedVouchers
       };
 
@@ -107,7 +137,7 @@ export function getShopConfig() {
       return updatedConfig;
     }
   } catch (e) {
-    console.error('Lỗi đọc shop_config:', e);
+    console.error('Lỗi đọc shop_config từ LocalStorage:', e);
   }
   return DEFAULT_SHOP_CONFIG;
 }

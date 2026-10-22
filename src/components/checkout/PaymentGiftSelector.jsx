@@ -1,11 +1,22 @@
-import React from 'react';
+// src/components/checkout/PaymentGiftSelector.jsx
+import React, { useEffect } from 'react';
 import { Gift, Check } from 'lucide-react';
 
 export default function PaymentGiftSelector({ paymentGifts = [], selectedGiftId, onSelectGift }) {
+  // Tự động chọn trước phần quà đầu tiên nếu chưa chọn hoặc ID đang chọn không hợp lệ
+  useEffect(() => {
+    if (paymentGifts.length > 0 && onSelectGift) {
+      const isValidSelection = paymentGifts.some((g) => g.id === selectedGiftId);
+      if (!selectedGiftId || !isValidSelection) {
+        onSelectGift(paymentGifts[0].id);
+      }
+    }
+  }, [paymentGifts, selectedGiftId, onSelectGift]);
+
   if (paymentGifts.length === 0) return null;
 
   return (
-    <div className="bg-amber-50/80 rounded-3xl p-4 sm:p-5 border border-amber-200/80 space-y-3 animate-fadeIn">
+    <div className="bg-amber-50/80 rounded-3xl p-4 sm:p-5 border border-amber-200/80 space-y-3 animate-fadeIn font-sans">
       <div className="flex items-center justify-between border-b border-amber-200/60 pb-2.5">
         <div className="flex items-center gap-2">
           <Gift className="w-4 h-4 text-amber-700 shrink-0" />
@@ -46,12 +57,12 @@ export default function PaymentGiftSelector({ paymentGifts = [], selectedGiftId,
                 </div>
 
                 <strong className="font-bold text-xs text-stone-900 block leading-snug line-clamp-2">
-                  {gift.title}
+                  {gift.title || gift.name}
                 </strong>
               </div>
 
               <p className="text-[10px] text-stone-500 line-clamp-1 leading-tight">
-                {gift.description || 'Gửi kèm thùng xốp hái tươi'}
+                {gift.description || gift.desc || 'Gửi kèm thùng xốp hái tươi'}
               </p>
             </div>
           );

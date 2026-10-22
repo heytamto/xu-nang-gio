@@ -1,5 +1,6 @@
+// src/components/admin/EditProductModal.jsx
 import React, { useState } from 'react';
-import { X, Check, Plus, Trash2 } from 'lucide-react';
+import { X, Check, Plus, Trash2, Star } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
 
 const CATEGORY_OPTIONS = [
@@ -10,63 +11,132 @@ const CATEGORY_OPTIONS = [
   { value: 'dried', label: 'Đặc Sản Phơi Nắng & Sấy Dẻo' }
 ];
 
-export default function EditProductModal({ product, uploadUrl, onClose, onSave }) {
-  const [formData, setFormData] = useState({
-    ...product,
-    name: product.name || '',
-    category: product.category || 'fresh',
-    unit: product.unit || 'kg',
-    basePrice: Number(product.basePrice || product.price || 0),
-    badge: product.badge || '',
-    source: product.source || 'Vườn nhà Ninh Thuận',
-    image: product.image || '',
-    desc: product.desc || '',
-    inStock: product.inStock ?? true,
-    weights: Array.isArray(product.weights) && product.weights.length > 0
-      ? product.weights
-      : [{ id: 'std', label: `1 ${product.unit || 'kg'}`, multiplier: 1, priceBonus: 0 }]
+export default function EditProductModal({ product, onClose, onSave }) {
+  const [formData, setFormData] = useState(() => {
+    const rawWeights = product?.product_weights || product?.weights;
+    let initialWeights = [];
+
+    if (Array.isArray(rawWeights) && rawWeights.length > 0) {
+      initialWeights = rawWeights.map((w, idx) => ({
+        id: w.id || `opt_${idx + 1}`,
+        weight_key: w.weight_key || w.key || `w_${idx + 1}`,
+        label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
+        multiplier: parseFloat(w.multiplier) || 1,
+        price_override: w.price_override ? Number(w.price_override) : null,
+        is_default: Boolean(w.is_default || idx === 0),
+        sort_order: w.sort_order ?? idx
+      }));
+    } else {
+      initialWeights = [
+        {
+          id: 'std',
+          weight_key: '1kg',
+          label: `1 ${product?.unit || 'kg'}`,
+          multiplier: 1,
+          price_override: null,
+          is_default: true,
+          sort_order: 0
+        }
+      ];
+    }
+
+    return {
+      ...product,
+      name: product?.name || '',
+      category: product?.category || 'fresh',
+      unit: product?.unit || 'kg',
+      basePrice: Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0),
+      badge: product?.badge || '',
+      source: product?.source || 'Vườn nhà Ninh Thuận',
+      image: product?.image_url || product?.image || '',
+      desc: product?.desc || product?.description || '',
+      inStock: product?.inStock ?? product?.in_stock ?? true,
+      weights: initialWeights
+    };
   });
 
   const handleWeightChange = (index, field, value) => {
     const updatedWeights = [...formData.weights];
+    let parsedVal = value;
+
+    if (field === 'multiplier') {
+      parsedVal = parseFloat(value) || 0;
+    } else if (field === 'price_override') {
+      parsedVal = value === '' ? null : Number(value) || 0;
+    }
+
     updatedWeights[index] = {
       ...updatedWeights[index],
-      [field]: (field === 'multiplier' || field === 'priceBonus') ? (Number(value) || 0) : value
+      [field]: parsedVal
     };
     setFormData({ ...formData, weights: updatedWeights });
   };
 
+  const handleSetDefaultWeight = (index) => {
+    const updatedWeights = formData.weights.map((w, i) => ({
+      ...w,
+      is_default: i === index
+    }));
+    setFormData({ ...formData, weights: updatedWeights });
+  };
+
   const handleAddWeight = () => {
+    const nextIdx = formData.weights.length;
     setFormData({
       ...formData,
       weights: [
         ...formData.weights,
-        { id: 'opt_' + Date.now(), label: 'Quy cách mới', multiplier: 1, priceBonus: 0 }
+        {
+          id: 'opt_' + Date.now(),
+          weight_key: `opt_${nextIdx + 1}`,
+          label: 'Quy cách mới',
+          multiplier: 1,
+          price_override: null,
+          is_default: formData.weights.length === 0,
+          sort_order: nextIdx
+        }
       ]
     });
   };
 
   const handleRemoveWeight = (index) => {
     if (formData.weights.length <= 1) return;
-    setFormData({
-      ...formData,
-      weights: formData.weights.filter((_, i) => i !== index)
-    });
+    const removedWasDefault = formData.weights[index].is_default;
+    const remaining = formData.weights.filter((_, i) => i !== index);
+
+    if (removedWasDefault && remaining.length > 0) {
+      remaining[0].is_default = true;
+    }
+
+    setFormData({ ...formData, weights: remaining });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({
+
+    // Chuẩn hóa payload sẵn sàng đồng bộ bảng products & product_weights
+    const payload = {
       ...formData,
-      price: formData.basePrice
-    });
+      price: formData.basePrice,
+      base_price: formData.basePrice,
+      in_stock: formData.inStock,
+      image_url: formData.image,
+      description: formData.desc,
+      product_weights: formData.weights.map((w, idx) => ({
+        ...w,
+        sort_order: idx,
+        weight_key: w.weight_key || `w_${idx + 1}`
+      }))
+    };
+
+    onSave(payload);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
       <div className="bg-white rounded-3xl p-6 max-w-xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-          <h3 className="text-sm font-black text-stone-900">Chỉnh Sửa Đặc Sản & Cập Nhật Ảnh</h3>
+          <h3 className="text-sm font-black text-stone-900">Chỉnh Sửa Đặc Sản & Quy Cách</h3>
           <button
             type="button"
             onClick={onClose}
@@ -90,7 +160,7 @@ export default function EditProductModal({ product, uploadUrl, onClose, onSave }
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Danh mục (Tab DANH_MUC)</label>
+              <label className="font-semibold text-stone-600 block mb-1">Danh mục</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -152,18 +222,21 @@ export default function EditProductModal({ product, uploadUrl, onClose, onSave }
             </div>
           </div>
 
-          {/* Cập nhật ảnh Google Drive */}
+          {/* Cập nhật ảnh qua Supabase Storage */}
           <ImageUploadField
-            label="Cập nhật ảnh đặc sản (Tải trực tiếp lên Drive hoặc dán URL)"
+            label="Cập nhật ảnh đặc sản (Supabase Storage)"
             value={formData.image}
-            uploadUrl={uploadUrl}
+            bucket="products"
             onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
           />
 
-          {/* Quy cách & Đóng gói */}
+          {/* Quy cách & Đóng gói (Bảng product_weights) */}
           <div className="bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200/80 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-stone-700 text-xs">Các quy cách đóng gói (Weights/Combo):</span>
+              <div>
+                <span className="font-bold text-stone-800 text-xs block">Quy cách & Giá bán (product_weights):</span>
+                <span className="text-[10px] text-stone-500">Bấm dấu sao để chọn quy cách mặc định khi mở xem</span>
+              </div>
               <button
                 type="button"
                 onClick={handleAddWeight}
@@ -176,15 +249,29 @@ export default function EditProductModal({ product, uploadUrl, onClose, onSave }
 
             <div className="space-y-2">
               {formData.weights.map((w, index) => (
-                <div key={w.id || index} className="flex items-center gap-2">
+                <div key={w.id || index} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-stone-200 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSetDefaultWeight(index)}
+                    className={`p-1.5 rounded-lg cursor-pointer transition-colors ${
+                      w.is_default
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'text-stone-300 hover:text-stone-500'
+                    }`}
+                    title={w.is_default ? 'Quy cách mặc định' : 'Đặt làm mặc định'}
+                  >
+                    <Star className={`w-3.5 h-3.5 ${w.is_default ? 'fill-amber-600 text-amber-600' : ''}`} />
+                  </button>
+
                   <input
                     type="text"
                     placeholder="Tên quy cách (VD: Thùng 3kg)"
                     value={w.label}
                     onChange={(e) => handleWeightChange(index, 'label', e.target.value)}
-                    className="flex-1 p-2 rounded-xl border border-stone-200 bg-white text-xs text-stone-800"
+                    className="flex-1 p-1.5 rounded-lg border border-stone-200 text-xs text-stone-800"
                   />
-                  <div className="flex items-center gap-1 w-24">
+
+                  <div className="flex items-center gap-1 w-20">
                     <span className="text-[10px] text-stone-400">Hệ số:</span>
                     <input
                       type="number"
@@ -192,14 +279,26 @@ export default function EditProductModal({ product, uploadUrl, onClose, onSave }
                       min="0.1"
                       value={w.multiplier ?? 1}
                       onChange={(e) => handleWeightChange(index, 'multiplier', e.target.value)}
-                      className="w-full p-2 rounded-xl border border-stone-200 bg-white text-xs font-mono font-bold text-center"
+                      className="w-full p-1.5 rounded-lg border border-stone-200 text-xs font-mono font-bold text-center"
                     />
                   </div>
+
+                  <div className="flex items-center gap-1 w-28">
+                    <span className="text-[10px] text-stone-400">Giá riêng:</span>
+                    <input
+                      type="number"
+                      placeholder="Tự tính"
+                      value={w.price_override ?? ''}
+                      onChange={(e) => handleWeightChange(index, 'price_override', e.target.value)}
+                      className="w-full p-1.5 rounded-lg border border-stone-200 text-xs font-mono text-emerald-800 text-right"
+                    />
+                  </div>
+
                   {formData.weights.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveWeight(index)}
-                      className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg cursor-pointer"
+                      className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

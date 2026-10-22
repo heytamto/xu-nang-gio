@@ -17,16 +17,17 @@ import EditPostModal from '../components/admin/EditPostModal';
 import EditStoryModal from '../components/admin/EditStoryModal';
 import ConfirmModal from '../components/admin/ConfirmModal';
 
+import { supabase } from '../supabaseClient';
 import { formatDate } from '../utils/dateUtils';
+import { ORDER_STATUS } from '../constants/orderStatus';
 
-const GSHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'tam2026';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '808208978769-7h3ognen0s4ecvr8259kadnl8tkmg6il.apps.googleusercontent.com';
 const ALLOWED_ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || 'xunanggio@gmail.com')
   .split(',')
   .map(e => e.trim().toLowerCase());
 
-// Hàm giải mã JWT Google Credential không cần thư viện ngoài
+// Giải mã JWT Google Credential
 function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
@@ -60,7 +61,7 @@ export default function AdminPage({
   onNavigateHome,
   onNavigatePacking
 }) {
-  // 1. Kiểm tra session admin (hỗ trợ cả SessionStorage và LocalStorage)
+  // 1. Kiểm tra session admin
   const [adminUser, setAdminUser] = useState(() => {
     try {
       const saved = sessionStorage.getItem('xng_admin_user') || localStorage.getItem('xng_admin_user');
@@ -121,7 +122,7 @@ export default function AdminPage({
     return () => clearInterval(interval);
   }, [isAuthenticated, handleGoogleCredentialResponse]);
 
-  // Đăng nhập bằng mật khẩu dự phòng
+  // Đăng nhập bằng mật khẩu quản trị
   const handlePasswordLogin = (e) => {
     e.preventDefault();
     if (passInput.trim() === ADMIN_PASSWORD) {
@@ -141,7 +142,7 @@ export default function AdminPage({
     if (onNavigateHome) onNavigateHome();
   };
 
-  // State quản lý tab
+  // State quản lý tab & dữ liệu
   const [activeTab, setActiveTab] = useState('dashboard');
   const [savedNotice, setSavedNotice] = useState(false);
   const [actionLoadingCode, setActionLoadingCode] = useState(null);
@@ -151,106 +152,80 @@ export default function AdminPage({
   const [editingPost, setEditingPost] = useState(null);
   const [editingStory, setEditingStory] = useState(null);
 
-  const [sheetOrders, setSheetOrders] = useState(() => {
+  const [dbOrders, setDbOrders] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('shop_orders') || '[]');
     } catch {
       return [];
     }
   });
-  const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  const fetchOrdersFromSheet = useCallback(async () => {
+  // 2. Tải danh sách đơn hàng từ Supabase (kèm order_items)
+  const fetchOrdersFromDatabase = useCallback(async () => {
     if (!isAuthenticated) return;
-    setIsLoadingSheet(true);
+    setIsLoadingOrders(true);
     try {
-      const res = await fetch(`${GSHEET_URL}?action=get_orders&_t=${Date.now()}`);
-      const json = await res.json();
-      let ordersList = [];
-      if (json.status === 'success' && Array.isArray(json.orders)) {
-        ordersList = json.orders;
-      } else if (Array.isArray(json.data)) {
-        ordersList = json.data;
-      } else if (Array.isArray(json)) {
-        ordersList = json;
-      }
-      
-      if (ordersList.length > 0) {
-        setSheetOrders(ordersList);
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (*)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (Array.isArray(data)) {
+        setDbOrders(data);
         try {
-          localStorage.setItem('shop_orders', JSON.stringify(ordersList));
+          localStorage.setItem('shop_orders', JSON.stringify(data));
         } catch (e) {
           console.error(e);
         }
       }
-    } catch {
+    } catch (err) {
+      console.error('Lỗi tải đơn hàng từ Supabase:', err);
       try {
         const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-        setSheetOrders(local);
+        setDbOrders(local);
       } catch {
-        setSheetOrders([]);
+        setDbOrders([]);
       }
     } finally {
-      setIsLoadingSheet(false);
+      setIsLoadingOrders(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchOrdersFromSheet();
+      fetchOrdersFromDatabase();
     }
-  }, [isAuthenticated, fetchOrdersFromSheet]);
+  }, [isAuthenticated, fetchOrdersFromDatabase]);
 
-  const showSavedToast = () => {
-    setSavedNotice(true);
+  const showSavedToast = (msg = 'Đã lưu thay đổi thành công!') => {
+    setSavedNotice(msg);
     setTimeout(() => setSavedNotice(false), 2500);
   };
 
-  const postToSheet = async (payload) => {
-    return fetch(GSHEET_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    });
-  };
-
-  const syncProductsToSheet = async (newProducts) => {
-    if (onSaveProducts) onSaveProducts(newProducts);
-    showSavedToast();
-    try {
-      await postToSheet({ action: 'save_products', products: newProducts });
-    } catch (err) {
-      console.error('Lỗi lưu sản phẩm lên Sheet:', err);
-    }
-  };
-
-  const syncStoriesToSheet = async (newStories) => {
-    if (onSaveStories) onSaveStories(newStories);
-    showSavedToast();
-    try {
-      await postToSheet({ action: 'save_stories', stories: newStories });
-    } catch (err) {
-      console.error('Lỗi lưu chuyện vườn lên Sheet:', err);
-    }
-  };
-
-  const syncPostsToSheet = async (newPosts) => {
-    if (onSavePosts) onSavePosts(newPosts);
-    showSavedToast();
-    try {
-      await postToSheet({ action: 'save_posts', posts: newPosts });
-    } catch (err) {
-      console.error('Lỗi lưu bài viết lên Sheet:', err);
-    }
-  };
-
+  // 3. Cập nhật trạng thái đơn hàng trên Supabase
   const handleUpdateStatus = async (orderCode, newStatus) => {
     setActionLoadingCode(orderCode);
     try {
-      await postToSheet({ action: 'update_status', code: orderCode, status: newStatus });
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('code', orderCode);
 
-      setSheetOrders((prev) => {
-        const nextOrders = prev.map((ord) => (ord.code === orderCode ? { ...ord, status: newStatus } : ord));
+      if (error) throw error;
+
+      setDbOrders((prev) => {
+        const nextOrders = prev.map((ord) => 
+          (ord.code === orderCode ? { ...ord, status: newStatus } : ord)
+        );
         try {
           localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
         } catch (e) {
@@ -263,7 +238,7 @@ export default function AdminPage({
         onUpdateOrderStatus(orderCode, newStatus);
       }
 
-      showSavedToast();
+      showSavedToast(`Đã chuyển đơn ${orderCode} sang "${newStatus}"`);
     } catch (err) {
       setModalConfig({ title: 'Lỗi Cập Nhật', message: err.message, isAlert: true });
     } finally {
@@ -271,16 +246,23 @@ export default function AdminPage({
     }
   };
 
+  // 4. Xóa đơn hàng trên Supabase
   const handleDeleteOrder = (orderCode) => {
     setModalConfig({
       title: 'Xác Nhận Xóa Đơn',
-      message: `Tâm có chắc muốn xóa đơn ${orderCode} khỏi Google Sheet?`,
+      message: `Tâm có chắc muốn xóa vĩnh viễn đơn ${orderCode} khỏi cơ sở dữ liệu?`,
       confirmLabel: 'Đồng ý xóa',
       onConfirm: async () => {
         setActionLoadingCode(orderCode);
         try {
-          await postToSheet({ action: 'delete_order', code: orderCode });
-          setSheetOrders((prev) => {
+          const { error } = await supabase
+            .from('orders')
+            .delete()
+            .eq('code', orderCode);
+
+          if (error) throw error;
+
+          setDbOrders((prev) => {
             const nextOrders = prev.filter((ord) => ord.code !== orderCode);
             try {
               localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
@@ -289,7 +271,7 @@ export default function AdminPage({
             }
             return nextOrders;
           });
-          showSavedToast();
+          showSavedToast(`Đã xóa đơn hàng ${orderCode}`);
         } catch (err) {
           setModalConfig({ title: 'Lỗi', message: err.message, isAlert: true });
         } finally {
@@ -299,7 +281,25 @@ export default function AdminPage({
     });
   };
 
-  // NẾU CHƯA ĐĂNG NHẬP: HIỆN GIAO DIỆN KHÓA VỚI CẢ GOOGLE SIGN-IN VÀ MẬT KHẨU
+  // 5. Đồng bộ Sản phẩm sang Supabase
+  const handleSaveProducts = async (newProducts) => {
+    if (onSaveProducts) onSaveProducts(newProducts);
+    showSavedToast('Đã lưu danh mục sản phẩm!');
+  };
+
+  // 6. Đồng bộ Chuyện vườn sang Supabase
+  const handleSaveStories = async (newStories) => {
+    if (onSaveStories) onSaveStories(newStories);
+    showSavedToast('Đã lưu danh sách chuyện vườn!');
+  };
+
+  // 7. Đồng bộ Bài viết sang Supabase
+  const handleSavePosts = async (newPosts) => {
+    if (onSavePosts) onSavePosts(newPosts);
+    showSavedToast('Đã lưu bài viết cẩm nang!');
+  };
+
+  // GIAO DIỆN KHÓA NẾU CHƯA ĐĂNG NHẬP
   if (!isAuthenticated) {
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4 py-12 font-sans animate-fadeIn">
@@ -315,7 +315,6 @@ export default function AdminPage({
             </p>
           </div>
 
-          {/* NÚT ĐĂNG NHẬP BẰNG GOOGLE */}
           <div className="space-y-3">
             <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]"></div>
             
@@ -325,7 +324,6 @@ export default function AdminPage({
               <div className="flex-grow border-t border-stone-200"></div>
             </div>
 
-            {/* FORM MẬT KHẨU QUẢN TRỊ DỰ PHÒNG */}
             <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
               <div>
                 <div className="relative">
@@ -398,7 +396,7 @@ export default function AdminPage({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-stone-500">Đồng bộ 2 chiều Google Sheet • Kho, đơn, voucher & chuyện vườn</p>
+              <p className="text-xs text-stone-500">Hệ thống quản lý thời gian thực Supabase PostgreSQL</p>
             </div>
           </div>
 
@@ -417,16 +415,15 @@ export default function AdminPage({
 
             <button
               type="button"
-              onClick={fetchOrdersFromSheet}
-              disabled={isLoadingSheet}
+              onClick={fetchOrdersFromDatabase}
+              disabled={isLoadingOrders}
               className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Làm mới dữ liệu từ Google Sheet"
+              title="Làm mới dữ liệu từ Database"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSheet ? 'animate-spin text-amber-600' : ''}`} />
-              <span className="hidden sm:inline">Làm mới Sheet</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingOrders ? 'animate-spin text-amber-600' : ''}`} />
+              <span className="hidden sm:inline">Làm mới dữ liệu</span>
             </button>
 
-            {/* Nút Đăng xuất */}
             <button
               type="button"
               onClick={handleLogout}
@@ -448,7 +445,7 @@ export default function AdminPage({
             }`}
           >
             <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Đơn Hàng ({sheetOrders.length})</span>
+            <span>Đơn Hàng ({dbOrders.length})</span>
           </button>
 
           <button
@@ -500,9 +497,9 @@ export default function AdminPage({
       {/* TAB 1: DASHBOARD ĐƠN HÀNG */}
       {activeTab === 'dashboard' && (
         <DashboardTab
-          orders={sheetOrders}
-          isLoading={isLoadingSheet}
-          onRefresh={fetchOrdersFromSheet}
+          orders={dbOrders}
+          isLoading={isLoadingOrders}
+          onRefresh={fetchOrdersFromDatabase}
           onUpdateStatus={handleUpdateStatus}
           onDeleteOrder={handleDeleteOrder}
           depositAmount={shopConfig?.depositAmount || 50000}
@@ -520,25 +517,21 @@ export default function AdminPage({
               id: 'sp-' + Date.now(),
               ...newProd,
               basePrice: Number(newProd.basePrice) || 0,
-              weights: [
-                { id: 'opt1', label: `1 ${newProd.unit || 'kg'}`, multiplier: 1 },
-                { id: 'opt2', label: `Combo 2 ${newProd.unit || 'kg'}`, multiplier: 1.95 }
-              ]
             };
-            syncProductsToSheet([item, ...products]);
+            handleSaveProducts([item, ...products]);
           }}
           onEditProduct={(p) => setEditingProduct(p)}
           onToggleStock={(id) => {
             const updated = products.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p));
-            syncProductsToSheet(updated);
+            handleSaveProducts(updated);
           }}
           onDeleteProduct={(id, name) => {
             setModalConfig({
               title: 'Gỡ Khỏi Kệ Bán',
-              message: `Xóa "${name}" khỏi kệ hàng và cập nhật lên Google Sheet?`,
+              message: `Xóa "${name}" khỏi kệ hàng?`,
               confirmLabel: 'Đồng ý xóa',
               onConfirm: () => {
-                syncProductsToSheet(products.filter((p) => p.id !== id));
+                handleSaveProducts(products.filter((p) => p.id !== id));
               }
             });
           }}
@@ -563,16 +556,16 @@ export default function AdminPage({
               ...newStory,
               date: formatDate(new Date())
             };
-            syncStoriesToSheet([item, ...stories]);
+            handleSaveStories([item, ...stories]);
           }}
           onEditStory={(s) => setEditingStory(s)}
           onDeleteStory={(id, title) => {
             setModalConfig({
               title: 'Xóa Chuyện Vườn',
-              message: `Xóa mẩu chuyện "${title}" và đồng bộ lên Google Sheet?`,
+              message: `Xóa mẩu chuyện "${title}" khỏi hệ thống?`,
               confirmLabel: 'Xóa chuyện',
               onConfirm: () => {
-                syncStoriesToSheet(stories.filter((s) => s.id !== id));
+                handleSaveStories(stories.filter((s) => s.id !== id));
               }
             });
           }}
@@ -597,16 +590,16 @@ export default function AdminPage({
               ...newPost,
               date: formatDate(new Date())
             };
-            syncPostsToSheet([item, ...posts]);
+            handleSavePosts([item, ...posts]);
           }}
           onEditPost={(p) => setEditingPost(p)}
           onDeletePost={(id, title) => {
             setModalConfig({
               title: 'Xóa Bài Viết',
-              message: `Xóa bài "${title}" khỏi cẩm nang và cập nhật lên Google Sheet?`,
+              message: `Xóa bài "${title}" khỏi cẩm nang?`,
               confirmLabel: 'Xóa bài',
               onConfirm: () => {
-                syncPostsToSheet(posts.filter((p) => p.id !== id));
+                handleSavePosts(posts.filter((p) => p.id !== id));
               }
             });
           }}
@@ -627,7 +620,7 @@ export default function AdminPage({
           config={shopConfig}
           onSaveConfig={(newCfg) => {
             if (onSaveConfig) onSaveConfig(newCfg);
-            showSavedToast();
+            showSavedToast('Đã lưu cấu hình shop!');
           }}
           onShowAlert={(msg) => setModalConfig({ title: 'Thông Báo', message: msg, isAlert: true })}
         />
@@ -637,10 +630,9 @@ export default function AdminPage({
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
-          uploadUrl={GSHEET_URL}
           onClose={() => setEditingProduct(null)}
           onSave={(updated) => {
-            syncProductsToSheet(products.map((p) => (p.id === updated.id ? updated : p)));
+            handleSaveProducts(products.map((p) => (p.id === updated.id ? updated : p)));
             setEditingProduct(null);
           }}
         />
@@ -650,10 +642,9 @@ export default function AdminPage({
       {editingStory && (
         <EditStoryModal
           story={editingStory}
-          uploadUrl={GSHEET_URL}
           onClose={() => setEditingStory(null)}
           onSave={(updated) => {
-            syncStoriesToSheet(stories.map((s) => (s.id === updated.id ? updated : s)));
+            handleSaveStories(stories.map((s) => (s.id === updated.id ? updated : s)));
             setEditingStory(null);
           }}
         />
@@ -663,10 +654,9 @@ export default function AdminPage({
       {editingPost && (
         <EditPostModal
           post={editingPost}
-          uploadUrl={GSHEET_URL}
           onClose={() => setEditingPost(null)}
           onSave={(updated) => {
-            syncPostsToSheet(posts.map((p) => (p.id === updated.id ? updated : p)));
+            handleSavePosts(posts.map((p) => (p.id === updated.id ? updated : p)));
             setEditingPost(null);
           }}
         />
@@ -684,7 +674,7 @@ export default function AdminPage({
           <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5 stroke-[3]" />
           </div>
-          <span>Đã đồng bộ thành công lên Google Sheet!</span>
+          <span>{savedNotice}</span>
         </div>
       )}
     </div>

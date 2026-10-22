@@ -1,10 +1,10 @@
 // src/components/admin/DashboardTab.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  FileSpreadsheet, Loader2, RefreshCw, Search, X, 
+  Database, Loader2, RefreshCw, Search, X, 
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
-  Lock, Edit3, CheckCircle2, ChevronDown, Check, Filter
+  Lock, Edit3, CheckCircle2, ChevronDown, Check
 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -38,14 +38,41 @@ const FORWARD_STATUS_MAP = {
 };
 
 // =========================================================================
-// HÀM TIỆN ÍCH BÓC TÁCH & HIỂN THỊ DANH SÁCH MÓN SẠCH SẼ (TRÁNH LỘ THẺ HTML)
+// HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG (HỖ TRỢ MẢNG 3NF & CHUỖI TEXT CŨ)
 // =========================================================================
-function renderItemsSummary(raw) {
-  if (!raw) return <span className="text-stone-400 italic">Chi tiết trong đơn</span>;
+function renderItemsSummary(items, rawSummary) {
+  // 1. Ưu tiên render từ quan hệ 3NF order_items của Supabase
+  if (Array.isArray(items) && items.length > 0) {
+    return (
+      <div className="space-y-1">
+        {items.map((it, idx) => {
+          const qty = it.quantity || 1;
+          const spec = it.weight_label || it.weightLabel || '';
+          const flavor = it.flavor ? ` (${it.flavor})` : '';
+          const price = Number(it.price || 0) * qty;
 
-  // Nếu chứa thẻ HTML <div> hoặc mã bullet &#8226;
-  if (typeof raw === 'string' && (raw.includes('<div') || raw.includes('<br') || raw.includes('&#8226;'))) {
-    const cleanText = raw
+          return (
+            <div key={it.id || idx} className="leading-snug text-stone-800 font-medium flex items-center justify-between gap-2">
+              <span>
+                • {it.name} {spec ? `[${spec}]` : ''}{flavor} <strong className="text-amber-900 font-mono">x{qty}</strong>
+              </span>
+              {price > 0 && (
+                <span className="font-mono text-stone-500 text-[10.5px]">
+                  {price.toLocaleString('vi-VN')}đ
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // 2. Fallback cho chuỗi rawSummary từ dữ liệu cũ
+  if (!rawSummary) return <span className="text-stone-400 italic">Chi tiết trong đơn</span>;
+
+  if (typeof rawSummary === 'string' && (rawSummary.includes('<div') || rawSummary.includes('<br') || rawSummary.includes('&#8226;'))) {
+    const cleanText = rawSummary
       .replace(/<div[^>]*>/gi, '')
       .replace(/<\/div>/gi, '\n')
       .replace(/<br\s*\/?>/gi, '\n')
@@ -57,21 +84,17 @@ function renderItemsSummary(raw) {
 
     return (
       <div className="space-y-1">
-        {lines.map((line, idx) => {
-          const formattedLine = line.startsWith('•') ? line : `• ${line}`;
-          return (
-            <div key={idx} className="leading-snug text-stone-800 font-medium">
-              {formattedLine}
-            </div>
-          );
-        })}
+        {lines.map((line, idx) => (
+          <div key={idx} className="leading-snug text-stone-800 font-medium">
+            {line.startsWith('•') ? line : `• ${line}`}
+          </div>
+        ))}
       </div>
     );
   }
 
-  // Nếu là dạng chuỗi phân cách bởi dấu phẩy
-  if (typeof raw === 'string' && raw.includes(',')) {
-    const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+  if (typeof rawSummary === 'string' && rawSummary.includes(',')) {
+    const parts = rawSummary.split(',').map((p) => p.trim()).filter(Boolean);
     return (
       <div className="space-y-1">
         {parts.map((p, idx) => (
@@ -83,11 +106,11 @@ function renderItemsSummary(raw) {
     );
   }
 
-  return <div className="leading-snug text-stone-800 font-medium">{raw}</div>;
+  return <div className="leading-snug text-stone-800 font-medium">{rawSummary}</div>;
 }
 
 // =========================================================================
-// SUB-COMPONENT: DROPDOWN CHỌN TRẠNG THÁI TÙY CHỈNH
+// SUB-COMPONENT: DROPDOWN CHỌN TRẠNG THÁI TIẾN TRÌNH 1 CHIỀU
 // =========================================================================
 function StatusSelectDropdown({ 
   ord, 
@@ -124,7 +147,7 @@ function StatusSelectDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
+        <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium font-sans">
           <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
             Chuyển trạng thái:
           </span>
@@ -173,16 +196,21 @@ function DashboardOrderRow({
 }) {
   const currentStatusCode = normalizeOrderStatus(ord.status);
   const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
-  const displayPayment = PAYMENT_LABELS[ord.paymentMethod] || ord.paymentMethod || 'Chưa chọn';
+  
+  const paymentMethodVal = ord.payment_method || ord.paymentMethod;
+  const displayPayment = PAYMENT_LABELS[paymentMethodVal] || paymentMethodVal || 'Chưa chọn';
 
   const { hasRisk, isPardoned, isBombedRisk, isCancelledRisk, primaryRefer } = riskTrace;
 
   const isFullPrepaid = 
-    String(ord.paymentMethod || '').toLowerCase().includes('100%') || 
-    ord.paymentMethod === 'full_qr';
+    String(paymentMethodVal || '').toLowerCase().includes('100%') || 
+    paymentMethodVal === 'full_qr';
 
-  const cleanTotalNum = parseCleanMoney(ord.total);
-  const formattedCreatedAt = formatDateTime(ord.createdAt, 'Vừa xong');
+  const rawTotal = ord.final_total ?? ord.total ?? 0;
+  const cleanTotalNum = parseCleanMoney(rawTotal);
+  
+  const createdAtVal = ord.created_at || ord.createdAt;
+  const formattedCreatedAt = formatDateTime(createdAtVal, 'Vừa xong');
 
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -191,7 +219,7 @@ function DashboardOrderRow({
     return () => clearInterval(timer);
   }, [currentStatusCode]);
 
-  const orderTimestamp = parseOrderTimestamp(ord.createdAt);
+  const orderTimestamp = parseOrderTimestamp(createdAtVal);
   const elapsedMs = orderTimestamp ? (now - orderTimestamp) : 0;
   const remainingMs = Math.max(0, 30 * 60 * 1000 - elapsedMs);
   const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
@@ -201,10 +229,11 @@ function DashboardOrderRow({
   const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
   const isTerminalStatus = allowedNextStatuses.length === 0;
   const isLockedStatus = isInspectingRefer || isTerminalStatus;
+  const customerName = ord.customer_name || ord.name || 'Khách đặt';
 
   return (
     <div 
-      className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs ${
+      className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans ${
         isBombedRisk 
           ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-400 shadow-2xs' 
           : isCancelledRisk
@@ -220,7 +249,7 @@ function DashboardOrderRow({
             <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
               {ord.code}
             </span>
-            <strong className="text-stone-900 text-sm">{ord.name}</strong>
+            <strong className="text-stone-900 text-sm">{customerName}</strong>
             
             {ord.phone && (
               <a
@@ -295,13 +324,13 @@ function DashboardOrderRow({
             </p>
           )}
 
-          {/* HIỂN THỊ SẢN PHẨM: ĐÃ BÓC TÁCH HTML RÕ RÀNG TỪNG DÒNG */}
-          {ord.itemsSummary && (
+          {/* HIỂN THỊ SẢN PHẨM: ƯU TIÊN 3NF ORDER_ITEMS */}
+          {(ord.order_items?.length > 0 || ord.itemsSummary) && (
             <div className="text-stone-700 text-[11px] bg-stone-50 p-2.5 rounded-xl border border-stone-100">
               <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
                 🛍️ Sản phẩm đặt mua:
               </span>
-              {renderItemsSummary(ord.itemsSummary)}
+              {renderItemsSummary(ord.order_items, ord.itemsSummary)}
             </div>
           )}
         </div>
@@ -455,7 +484,6 @@ export default function DashboardTab({
     handleEndDateChange,
     filteredOrders,
     metrics,
-    topProducts,
     getRiskTraceDetails
   } = useAdminDashboard(orders, depositAmount);
 
@@ -506,9 +534,10 @@ export default function DashboardTab({
 
   const handleSelectStatus = (order, targetStatus) => {
     const normalizedTarget = normalizeOrderStatus(targetStatus);
+    const paymentVal = order.payment_method || order.paymentMethod;
     const isFullPrepaid = 
-      String(order.paymentMethod || '').toLowerCase().includes('100%') || 
-      order.paymentMethod === 'full_qr';
+      String(paymentVal || '').toLowerCase().includes('100%') || 
+      paymentVal === 'full_qr';
 
     if (isFullPrepaid && normalizedTarget === ORDER_STATUS.BOMBED) {
       setConfirmModalConfig({
@@ -521,7 +550,8 @@ export default function DashboardTab({
 
     const currentStatusCode = normalizeOrderStatus(order.status);
     if (currentStatusCode === ORDER_STATUS.PENDING && normalizedTarget === ORDER_STATUS.CONFIRMED) {
-      const elapsed = Date.now() - parseOrderTimestamp(order.createdAt);
+      const createdAtVal = order.created_at || order.createdAt;
+      const elapsed = Date.now() - parseOrderTimestamp(createdAtVal);
       const isWithin30Mins = elapsed < 30 * 60 * 1000;
 
       if (isWithin30Mins) {
@@ -552,7 +582,7 @@ export default function DashboardTab({
     setConfirmModalConfig({
       isAlert: false,
       title: 'Xóa Đơn Hàng',
-      message: `Bạn có chắc chắn muốn xóa đơn hàng ${code} không? Dữ liệu trên Google Sheet cũng sẽ bị xóa bỏ hoàn toàn.`,
+      message: `Bạn có chắc chắn muốn xóa đơn hàng ${code} không? Dữ liệu trên hệ thống sẽ bị xóa bỏ hoàn toàn.`,
       confirmLabel: 'Xác nhận xóa',
       onConfirm: () => onDeleteOrder(code)
     });
@@ -564,12 +594,12 @@ export default function DashboardTab({
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <h2 className="text-sm font-black text-stone-900">Thống Kê Doanh Thu Từ Google Sheet</h2>
+            <Database className="w-4 h-4 text-emerald-600" />
+            <h2 className="text-sm font-black text-stone-900">Thống Kê Doanh Thu Đơn Hàng</h2>
             {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />}
           </div>
           <p className="text-[11px] text-stone-500">
-            Đồng bộ trực tiếp qua Apps Script • Tổng nhận: <strong>{orders.length}</strong> dòng
+            Dữ liệu thời gian thực Supabase PostgreSQL • Tổng đơn: <strong>{orders.length}</strong> đơn
           </p>
         </div>
 
@@ -579,7 +609,7 @@ export default function DashboardTab({
           disabled={isLoading}
           className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
           <span>Làm mới dữ liệu</span>
         </button>
       </div>
@@ -843,7 +873,7 @@ export default function DashboardTab({
           ) : (
             filteredOrders.map((ord) => (
               <DashboardOrderRow
-                key={ord.code}
+                key={ord.code || ord.id}
                 ord={ord}
                 riskTrace={getRiskTraceDetails(ord)}
                 isInspectingRefer={isInspectingRefer}

@@ -1,3 +1,4 @@
+// src/components/admin/EditPostModal.jsx
 import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
@@ -9,23 +10,27 @@ const CATEGORY_OPTIONS = [
   { value: 'meo-vat', label: 'Mẹo vặt' }
 ];
 
-export default function EditPostModal({ post, uploadUrl, onClose, onSave }) {
+export default function EditPostModal({ post, onClose, onSave }) {
   const [formData, setFormData] = useState({
     ...post,
-    category: post.category || post.tag || 'cam-nang',
-    excerpt: post.excerpt || post.desc || post.summary || '',
-    readTime: post.readTime || '3 phút đọc',
-    author: post.author || 'Tâm (Vườn Xứ Nắng Gió)',
-    image: post.image || '',
-    content: post.content || ''
+    title: post?.title || '',
+    category: post?.category || post?.tag || 'cam-nang',
+    excerpt: post?.excerpt || post?.desc || post?.summary || '',
+    readTime: post?.read_time || post?.readTime || '3 phút đọc',
+    author: post?.author || 'Tâm (Vườn Xứ Nắng Gió)',
+    image: post?.image_url || post?.image || '',
+    content: post?.content || ''
   });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       ...formData,
+      // Đảm bảo tương thích song song cả camelCase và snake_case cho DB Supabase
       desc: formData.excerpt,
-      summary: formData.excerpt
+      summary: formData.excerpt,
+      read_time: formData.readTime,
+      image_url: formData.image
     });
   };
 
@@ -57,7 +62,7 @@ export default function EditPostModal({ post, uploadUrl, onClose, onSave }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Chuyên mục (Chuẩn Sheet)</label>
+              <label className="font-semibold text-stone-600 block mb-1">Chuyên mục</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -93,11 +98,11 @@ export default function EditPostModal({ post, uploadUrl, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Cập nhật ảnh bìa Google Drive */}
+          {/* Cập nhật ảnh bìa */}
           <ImageUploadField
             label="Cập nhật ảnh bìa bài viết"
             value={formData.image}
-            uploadUrl={uploadUrl}
+            bucket="posts"
             onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
           />
 
@@ -115,7 +120,7 @@ export default function EditPostModal({ post, uploadUrl, onClose, onSave }) {
           <div>
             <label className="font-semibold text-stone-600 block mb-1">Nội dung chi tiết</label>
             <textarea
-              rows="4"
+              rows="5"
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-y"

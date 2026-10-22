@@ -1,3 +1,4 @@
+// src/components/checkout/OrderItemsList.jsx
 import React from 'react';
 import { ShoppingBag, Trash2 } from 'lucide-react';
 
@@ -7,6 +8,8 @@ export default function OrderItemsList({
   onUpdateQuantity,
   onRemoveItem
 }) {
+  const safeTotal = Number(totalAmount) || 0;
+
   const handleQtyChange = (item, delta) => {
     const currentQty = Number(item.quantity) || 1;
     const newQty = currentQty + delta;
@@ -33,15 +36,17 @@ export default function OrderItemsList({
           </h3>
         </div>
         <span className="text-xs font-bold text-amber-900 font-mono">
-          Tạm tính: {totalAmount.toLocaleString('vi-VN')}đ
+          Tạm tính: {safeTotal.toLocaleString('vi-VN')}đ
         </span>
       </div>
 
       <div className="divide-y divide-stone-200/70 max-h-72 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
         {cart.map((item, idx) => {
           const qty = Number(item.quantity) || 1;
-          const itemTotal = (Number(item.price) || 0) * qty;
-          const uniqueKey = item.cartItemId || item.id || `${item.productId || idx}_${item.weightId || 'std'}`;
+          const unitPrice = Number(item.price ?? item.base_price ?? 0);
+          const itemTotal = unitPrice * qty;
+          const specLabel = item.weight_label || item.weightLabel || item.weight || item.unit || 'Tiêu chuẩn';
+          const uniqueKey = item.cartItemId || item.id || `${item.product_id || item.productId || idx}_${item.weight_id || item.weightId || 'std'}`;
 
           return (
             <div key={uniqueKey} className="py-3 flex items-center justify-between gap-3 text-xs">
@@ -60,7 +65,7 @@ export default function OrderItemsList({
                 <div className="min-w-0 flex-1">
                   <span className="font-bold text-stone-900 block leading-snug truncate">{item.name}</span>
                   <span className="text-[11px] text-stone-500 block mt-0.5 truncate">
-                    Quy cách: <strong className="text-stone-700">{item.weightLabel || item.weight || item.unit || 'Tiêu chuẩn'}</strong>
+                    Quy cách: <strong className="text-stone-700">{specLabel}</strong>
                     {item.flavor ? ` • ${item.flavor}` : ''}
                   </span>
                   <div className="text-[11px] font-bold text-amber-700 font-mono mt-0.5 sm:hidden">
@@ -69,7 +74,7 @@ export default function OrderItemsList({
                 </div>
               </div>
 
-              {/* Cụm điều khiển số lượng tích hợp nút xóa trực tiếp khi về 1 */}
+              {/* Cụm điều khiển số lượng */}
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex items-center bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
                   <button
@@ -97,7 +102,7 @@ export default function OrderItemsList({
                   </button>
                 </div>
 
-                {/* Thành tiền trên Desktop */}
+                {/* Thành tiền Desktop */}
                 <span className="hidden sm:inline-block font-mono font-black text-stone-900 whitespace-nowrap text-sm w-24 text-right">
                   {itemTotal.toLocaleString('vi-VN')}đ
                 </span>

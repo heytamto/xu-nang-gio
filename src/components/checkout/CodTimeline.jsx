@@ -1,11 +1,14 @@
+// src/components/checkout/CodTimeline.jsx
 import React from 'react';
 
-export default function CodTimeline({ finalTotalAmount }) {
+export default function CodTimeline({ finalTotalAmount = 0 }) {
+  const safeTotal = Number(finalTotalAmount) || 0;
+
   return (
     <div className="p-4 bg-white rounded-2xl border border-stone-200 shadow-2xs space-y-3.5 animate-fadeIn">
       <div className="flex items-center justify-between border-b border-stone-100 pb-2">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
           <span className="text-xs font-black text-stone-900 uppercase tracking-wide">
             Quy Trình Giao Xe Thu COD
           </span>
@@ -35,8 +38,8 @@ export default function CodTimeline({ finalTotalAmount }) {
           <div>
             <div className="flex items-center justify-between">
               <strong className="text-stone-900 font-bold text-[11px]">Đóng thùng xốp dán tem COD</strong>
-              <span className="text-[10px] text-amber-700 font-mono font-bold bg-amber-50 px-1 rounded border border-amber-200/60">
-                {finalTotalAmount.toLocaleString('vi-VN')}đ
+              <span className="text-[10px] text-amber-700 font-mono font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/60">
+                {safeTotal.toLocaleString('vi-VN')}đ
               </span>
             </div>
             <p className="text-[10px] text-stone-500 leading-tight mt-0.5">

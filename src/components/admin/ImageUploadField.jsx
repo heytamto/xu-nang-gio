@@ -1,13 +1,64 @@
+// src/components/admin/ImageUploadField.jsx
 import React, { useState } from 'react';
 import { Loader2, UploadCloud, X, Check } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
 
-const DEFAULT_GSHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx4uOPteTl5vmfBU5vH5cFjfNdBMAptKMal58Vh9lHofoTYIZeQqfxrICrNxLTGWlKy/exec';
+// Hàm nén ảnh về JPEG max 1200px dưới dạng Blob nhị phân
+function compressImageToBlob(file, maxWidth = 1200, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Không thể nén tệp ảnh'));
+            }
+          },
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+}
+
+// Chuẩn hóa tên file không dấu tiếng Việt
+function sanitizeFileName(fileName) {
+  return fileName
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9.]/g, '-')
+    .replace(/-+/g, '-');
+}
 
 export default function ImageUploadField({ 
   value = '', 
   onChange, 
   label = "Ảnh", 
-  uploadUrl = DEFAULT_GSHEET_URL 
+  bucket = "images" 
 }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -20,63 +71,41 @@ export default function ImageUploadField({
     setUploadError(null);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async (event) => {
-        try {
-          const img = new Image();
-          img.src = event.target.result;
-          img.onload = async () => {
-            let width = img.width;
-            let height = img.height;
-            const maxWidth = 1200;
+      // 1. Nén ảnh phía trình duyệt
+      const compressedBlob = await compressImageToBlob(file);
 
-            if (width > maxWidth) {
-              height = Math.round((height * maxWidth) / width);
-              width = maxWidth;
-            }
+      // 2. Tạo đường dẫn lưu trữ file trên Supabase Storage
+      const cleanName = sanitizeFileName(file.name.replace(/\.[^/.]+$/, ""));
+      const filePath = `${cleanName}_${Date.now()}.jpg`;
 
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, width, height);
+      // 3. Tải trực tiếp lên bucket
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, compressedBlob, {
+          contentType: 'image/jpeg',
+          cacheControl: '31536000', // Cache CDN 1 năm
+          upsert: true
+        });
 
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            const base64 = dataUrl.split(',')[1];
+      if (error) throw error;
 
-            const payload = {
-              action: 'upload_image',
-              fileName: file.name.replace(/\.[^/.]+$/, "") + '_' + Date.now() + '.jpg',
-              mimeType: 'image/jpeg',
-              base64: base64,
-              base64Data: base64 // Tương thích cả 2 chuẩn đọc trong Apps Script
-            };
+      // 4. Lấy Public URL của ảnh
+      const { data: publicUrlData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(data.path);
 
-            const response = await fetch(uploadUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify(payload)
-            });
-
-            const resJson = await response.json();
-            const isSuccess = resJson.status === 'success' || resJson.success;
-
-            if (isSuccess && resJson.url) {
-              onChange(resJson.url);
-            } else {
-              throw new Error(resJson.error || resJson.message || 'Lỗi lưu tệp lên Google Drive');
-            }
-            setIsUploading(false);
-          };
-        } catch (innerErr) {
-          setUploadError(innerErr.message);
-          setIsUploading(false);
-        }
-      };
+      if (publicUrlData?.publicUrl) {
+        onChange(publicUrlData.publicUrl);
+      } else {
+        throw new Error('Không lấy được đường dẫn URL công khai từ Storage');
+      }
     } catch (err) {
-      setUploadError('Lỗi xử lý tệp: ' + err.message);
+      console.error('Lỗi tải ảnh lên Supabase Storage:', err);
+      setUploadError(err.message || 'Lỗi khi tải ảnh lên máy chủ lưu trữ');
+    } finally {
       setIsUploading(false);
+      // Reset input file để có thể chọn lại cùng 1 file nếu muốn
+      e.target.value = '';
     }
   };
 
@@ -92,12 +121,12 @@ export default function ImageUploadField({
           {isUploading ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-              <span>Đang lưu Drive...</span>
+              <span>Đang tải lên...</span>
             </>
           ) : (
             <>
               <UploadCloud className="w-3.5 h-3.5 text-amber-600" />
-              <span>Tải từ máy lên Drive</span>
+              <span>Tải ảnh lên Storage</span>
             </>
           )}
           <input
@@ -140,11 +169,11 @@ export default function ImageUploadField({
             src={value}
             alt="Thumbnail preview"
             className="w-12 h-12 rounded-xl object-cover border border-stone-200 bg-stone-100 shadow-2xs"
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
           <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-semibold border border-emerald-200 flex items-center gap-1">
             <Check className="w-3 h-3 text-emerald-600" />
-            <span>Đã liên kết ảnh thành công</span>
+            <span>Đã liên kết ảnh</span>
           </span>
         </div>
       )}

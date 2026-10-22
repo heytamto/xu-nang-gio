@@ -1,34 +1,40 @@
+// src/components/checkout/OrderSummaryCard.jsx
 import React from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 
 export default function OrderSummaryCard({
-  totalAmount,
-  discountAmount,
-  finalTotalAmount,
-  paymentMethod,
-  depositAmount,
-  isSubmitting,
+  totalAmount = 0,
+  discountAmount = 0,
+  finalTotalAmount = 0,
+  paymentMethod = 'deposit',
+  depositAmount = 50000,
+  isSubmitting = false,
 }) {
-  const qrTransferAmount = paymentMethod === 'full_qr' ? finalTotalAmount : depositAmount;
+  const safeTotal = Number(totalAmount) || 0;
+  const safeDiscount = Number(discountAmount) || 0;
+  const safeFinalTotal = Number(finalTotalAmount) || 0;
+  const safeDeposit = Math.min(Number(depositAmount) || 50000, safeFinalTotal);
+
+  const qrTransferAmount = paymentMethod === 'full_qr' ? safeFinalTotal : safeDeposit;
 
   return (
     <div className="space-y-3 pt-2 font-sans">
       <div className="bg-white p-3.5 rounded-2xl border border-stone-200/80 space-y-2 text-xs">
         <div className="flex justify-between text-stone-600">
           <span>Tạm tính tiền hàng:</span>
-          <span className="font-mono font-bold">{totalAmount.toLocaleString('vi-VN')}đ</span>
+          <span className="font-mono font-bold">{safeTotal.toLocaleString('vi-VN')}đ</span>
         </div>
 
-        {discountAmount > 0 && (
+        {safeDiscount > 0 && (
           <div className="flex justify-between text-emerald-700 font-semibold">
             <span>Giảm ưu đãi:</span>
-            <span className="font-mono font-bold">-{discountAmount.toLocaleString('vi-VN')}đ</span>
+            <span className="font-mono font-bold">-{safeDiscount.toLocaleString('vi-VN')}đ</span>
           </div>
         )}
 
         <div className="flex justify-between text-stone-900 font-black border-t border-stone-100 pt-2 text-sm">
           <span>Tổng thanh toán:</span>
-          <span className="font-mono text-amber-900">{finalTotalAmount.toLocaleString('vi-VN')}đ</span>
+          <span className="font-mono text-amber-900">{safeFinalTotal.toLocaleString('vi-VN')}đ</span>
         </div>
 
         <div className="flex justify-between text-stone-500 text-[11px] pt-0.5">

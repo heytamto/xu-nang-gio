@@ -1,62 +1,21 @@
+// src/components/admin/EditStoryModal.jsx
 import React, { useState } from 'react';
 import { X, Check, Calendar, MapPin } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
 
-export default function EditStoryModal({ story = {}, uploadUrl, onClose, onSave }) {
-  // Hàm tự động sửa sai khi các cột Sheet bị lệch vị trí
-  const resolveInitialData = () => {
-    let rawDate = story.date || '';
-    let rawSeason = story.season || '';
-    let rawQuote = story.quote || '';
-    let rawStory = story.story || story.content || '';
-    let rawImage = story.image || '';
-    let rawLocation = story.location || 'Giàn nho Thái An';
-    let rawAuthor = story.author || 'Tâm Xứ Nắng';
-
-    const isTimeStr = (str) => {
-      if (!str) return false;
-      const s = String(str);
-      return /GMT|\d{4}|(0[1-9]|[12]\d|3[01])\//i.test(s) && !s.includes('nho') && !s.includes('nắng');
-    };
-
-    const isImageUrl = (str) => /^https?:\/\/|^\/|data:image/i.test(String(str || '').trim());
-
-    // 1. Nếu rawStory chứa chuỗi GMT/ngày tháng -> Đó chính là Date thật
-    if (isTimeStr(rawStory) && !isTimeStr(rawDate)) {
-      const realQuote = rawDate; // rawDate đang giữ câu văn tiếng Việt
-      rawDate = rawStory;
-      rawStory = realQuote;
-      if (!rawQuote) rawQuote = realQuote;
-    }
-
-    // 2. Nếu rawImage chứa chữ như "Vụ Thu Đông" -> Đó là Season, không phải Image
-    if (!isImageUrl(rawImage) && rawImage.trim() !== '') {
-      if (!rawSeason || rawSeason === 'std') {
-        rawSeason = rawImage;
-      }
-      rawImage = ''; // Xóa chữ tiếng Việt khỏi ô URL ảnh
-    }
-
-    // 3. Nếu rawQuote bị rỗng nhưng rawStory có câu văn ngắn
-    if (!rawQuote && rawStory && !isTimeStr(rawStory)) {
-      rawQuote = rawStory;
-    }
-
-    return {
-      id: story.id || '',
-      title: story.title || '',
-      date: formatDate(rawDate, '15/10/2026'),
-      season: rawSeason || 'Vụ Thu Đông',
-      quote: rawQuote,
-      story: rawStory,
-      image: rawImage,
-      location: rawLocation,
-      author: rawAuthor
-    };
-  };
-
-  const [formData, setFormData] = useState(resolveInitialData);
+export default function EditStoryModal({ story = {}, onClose, onSave }) {
+  const [formData, setFormData] = useState(() => ({
+    id: story.id || '',
+    title: story.title || '',
+    date: formatDate(story.created_at || story.date || new Date(), '15/10/2026'),
+    season: story.season || 'Vụ Thu Đông',
+    quote: story.quote || story.desc || '',
+    story: story.story || story.content || '',
+    image: story.image_url || story.image || '',
+    location: story.location || 'Giàn nho Thái An',
+    author: story.author || 'Tâm Xứ Nắng'
+  }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -64,9 +23,10 @@ export default function EditStoryModal({ story = {}, uploadUrl, onClose, onSave 
 
     onSave({
       ...formData,
-      // Đảm bảo tương thích ngược cho cả content và story
+      // Đảm bảo tương thích song song cả Postgres schema và frontend
       content: formData.story || formData.quote,
-      desc: formData.quote
+      desc: formData.quote,
+      image_url: formData.image
     });
   };
 
@@ -137,10 +97,11 @@ export default function EditStoryModal({ story = {}, uploadUrl, onClose, onSave 
             </div>
           </div>
 
+          {/* Cập nhật ảnh qua Supabase Storage */}
           <ImageUploadField
-            label="Ảnh đại diện mẩu chuyện (Tải trực tiếp lên Google Drive hoặc dán URL)"
+            label="Ảnh đại diện mẩu chuyện (Supabase Storage)"
             value={formData.image}
-            uploadUrl={uploadUrl}
+            bucket="stories"
             onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
           />
 

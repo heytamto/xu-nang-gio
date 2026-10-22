@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Clock, AlertTriangle, Loader2, XCircle } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../../constants/orderStatus';
+import { orderService } from '../../services/orderService';
 
 function parseOrderTimestamp(dateStr) {
   if (!dateStr) return 0;
@@ -22,7 +23,6 @@ export default function SelfCancelButton({
   order,
   onCancelSuccess,
   hotline = '0848.957.345',
-  scriptUrl
 }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,8 +31,11 @@ export default function SelfCancelButton({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const orderTimestamp = useMemo(() => parseOrderTimestamp(order.createdAt), [order.createdAt]);
-  const currentStatus = normalizeOrderStatus(order.status);
+  const orderTimestamp = useMemo(() => {
+    return parseOrderTimestamp(order?.created_at || order?.createdAt);
+  }, [order?.created_at, order?.createdAt]);
+
+  const currentStatus = normalizeOrderStatus(order?.status);
   const isPending = currentStatus === ORDER_STATUS.PENDING;
 
   // Cập nhật bộ đếm lùi 30 phút mỗi giây
@@ -54,13 +57,13 @@ export default function SelfCancelButton({
     return () => clearInterval(timer);
   }, [orderTimestamp, isPending]);
 
-  // Không hiển thị nếu đơn đã duyệt hoặc đã hủy/bom
+  // Không hiển thị nếu đơn đã duyệt sang khâu đóng gói hoặc đã hủy/hoàn
   if (!isPending) return null;
 
-  // Định dạng mm:ss
   const minutes = Math.floor(timeLeft / 60000);
   const seconds = Math.floor((timeLeft % 60000) / 1000);
   const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const orderCode = order?.code || order?.orderId;
 
   const handleConfirmCancel = async () => {
     setIsSubmitting(true);
@@ -71,34 +74,27 @@ export default function SelfCancelButton({
       : cancelReason;
 
     try {
-      const targetApi = scriptUrl || import.meta.env.VITE_SCRIPT_URL;
-      const res = await fetch(targetApi, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action: 'customer_cancel_order',
-          code: order.code,
-          reason: finalReason
-        })
-      });
+      // Gọi service cập nhật trực tiếp qua Supabase RPC / Update
+      if (orderService?.cancelOrder) {
+        await orderService.cancelOrder(orderCode, finalReason);
+      } else if (orderService?.updateOrderStatus) {
+        await orderService.updateOrderStatus(orderCode, ORDER_STATUS.CANCELLED, finalReason);
+      }
 
-      const data = await res.json();
-      if (data.success || data.status === 'success') {
-        setIsModalOpen(false);
-        if (onCancelSuccess) onCancelSuccess(order.code, finalReason);
-      } else {
-        setErrorMsg(data.message || 'Không thể hủy đơn.');
+      setIsModalOpen(false);
+      if (onCancelSuccess) {
+        onCancelSuccess(orderCode, finalReason);
       }
     } catch (err) {
-      console.error(err);
-      setErrorMsg('Lỗi kết nối máy chủ, vui lòng thử lại hoặc gọi Hotline!');
+      console.error('Lỗi hủy đơn:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Lỗi cập nhật máy chủ. Vui lòng gọi Hotline!');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="pt-2">
+    <div className="pt-2 font-sans">
       {timeLeft > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-xs">
           <div className="flex items-center gap-1.5 text-amber-900 font-medium">
@@ -116,7 +112,7 @@ export default function SelfCancelButton({
         </div>
       ) : (
         <p className="text-[10.5px] text-stone-500 italic">
-          ⏳ Đã hết hạn tự hủy (30 phút). Để đổi thông tin hoặc hủy, vui lòng gọi Hotline:{' '}
+          ⏳ Đã hết hạn tự hủy (30 phút). Để đổi thông tin hoặc hủy đơn, vui lòng gọi Hotline:{' '}
           <a href={`tel:${hotline.replace(/\./g, '')}`} className="font-bold text-amber-800 underline">
             {hotline}
           </a>.
@@ -125,7 +121,7 @@ export default function SelfCancelButton({
 
       {/* MODAL XÁC NHẬN HỦY DÀNH CHO KHÁCH */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm border border-stone-200 shadow-2xl space-y-3.5">
             <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
               <div className="flex items-center gap-2 text-rose-700">
@@ -133,12 +129,12 @@ export default function SelfCancelButton({
                 <h4 className="font-black text-sm text-stone-900">Xác Nhận Hủy Đơn</h4>
               </div>
               <span className="font-mono text-xs text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded-md">
-                {order.code}
+                {orderCode}
               </span>
             </div>
 
             <p className="text-xs text-stone-600 leading-relaxed">
-              Bạn có chắc chắn muốn hủy đơn hàng này không? Sau khi hủy, voucher đã dùng (nếu có) sẽ được hoàn lại.
+              Bạn có chắc chắn muốn hủy đơn hàng này không? Sau khi hủy, hệ thống nhà vườn sẽ dừng chuẩn bị kiện hàng này.
             </p>
 
             <div className="space-y-2 text-xs">
@@ -146,7 +142,7 @@ export default function SelfCancelButton({
               <select
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-stone-50 font-medium text-stone-800 focus:bg-white focus:outline-none focus:border-amber-600"
+                className="w-full p-2 rounded-xl border border-stone-200 bg-stone-50 font-medium text-stone-800 focus:bg-white focus:outline-none focus:border-amber-600 cursor-pointer"
               >
                 <option value="Đổi ý / Đặt nhầm sản phẩm">Đổi ý / Đặt nhầm sản phẩm</option>
                 <option value="Trùng đơn hàng vừa đặt">Trùng đơn hàng vừa đặt</option>

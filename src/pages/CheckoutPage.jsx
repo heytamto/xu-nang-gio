@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ArrowLeft, ShoppingBag, ArrowRight } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
-import { useServerReconcile } from '../hooks/useServerReconcile';
 
 import { 
   validateName, 
@@ -89,10 +88,9 @@ export default function CheckoutPage({
 
   const cleanPhone = useMemo(() => customer.phone.trim().replace(/[^0-9]/g, ''), [customer.phone]);
   const prevPhoneRef = useRef(cleanPhone);
-  const voucherCodeString = useMemo(() => appliedVouchers.map((v) => v.code).join(', '), [appliedVouchers]);
-
   const isPhoneValid = useMemo(() => isValidVietnamesePhone(cleanPhone), [cleanPhone]);
 
+  // Xóa mã giảm giá nếu số điện thoại thay đổi hoặc không hợp lệ
   useEffect(() => {
     if (!isPhoneValid) {
       if (appliedVouchers.length > 0) {
@@ -108,24 +106,25 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
+  // Phân tích hồ sơ khách hàng dựa trên danh sách đơn hàng đã có
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
     try {
       const localOrders = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-      const sheetOrders = Array.isArray(shopConfig?.orders) ? shopConfig.orders : [];
+      const currentOrders = Array.isArray(shopConfig?.orders) ? shopConfig.orders : [];
       const allOrdersMap = new Map();
-      sheetOrders.forEach((o) => { if (o?.code || o?.orderId) allOrdersMap.set(o.code || o.orderId, o); });
+      currentOrders.forEach((o) => { if (o?.code || o?.orderId) allOrdersMap.set(o.code || o.orderId, o); });
       localOrders.forEach((o) => { if (o?.code || o?.orderId) allOrdersMap.set(o.code || o.orderId, o); });
       const combinedOrders = Array.from(allOrdersMap.values());
 
       const matchedOrders = combinedOrders.filter((ord) => {
-        const ordPhone = String(ord.phone || ord['Số Điện Thoại'] || ord.customer?.phone || '').replace(/[^0-9]/g, '');
+        const ordPhone = String(ord.phone || ord.customer?.phone || '').replace(/[^0-9]/g, '');
         return ordPhone && (ordPhone.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(ordPhone.slice(-8)));
       });
 
       if (matchedOrders.length > 0) {
-        matchedOrders.sort((a, b) => parseDateForSort(b.createdAt) - parseDateForSort(a.createdAt));
+        matchedOrders.sort((a, b) => parseDateForSort(b.created_at || b.createdAt) - parseDateForSort(a.created_at || a.createdAt));
         const latestOrder = matchedOrders[0];
         const isLatestSuccess = latestOrder && !isBadOrderStatus(latestOrder.status);
 
@@ -135,7 +134,8 @@ export default function CheckoutPage({
         const bombedOrders = matchedOrders.filter((ord) => {
           const norm = normalizeOrderStatus(ord.status);
           const raw = String(ord.status || '').toLowerCase();
-          const isPrepaid100 = String(ord.paymentMethod || '').toLowerCase().includes('100%') || ord.paymentMethod === 'full_qr';
+          const pMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
+          const isPrepaid100 = pMethod.includes('100%') || pMethod === 'full_qr';
           return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
         });
 
@@ -165,15 +165,16 @@ export default function CheckoutPage({
           latestOrderCode: latestSuccessOrder ? (latestSuccessOrder.code || latestSuccessOrder.orderId) : null,
           canUseOldCode: hasUnusedOldCode,
           previousInfo: latestSuccessOrder ? {
-            name: String(latestSuccessOrder.customerName || latestSuccessOrder.name || latestSuccessOrder.customer?.name || ''),
+            name: String(latestSuccessOrder.customer_name || latestSuccessOrder.name || latestSuccessOrder.customer?.name || ''),
             address: String(latestSuccessOrder.address || latestSuccessOrder.customer?.address || ''),
-            email: String(latestSuccessOrder.email || latestSuccessOrder['Email'] || latestSuccessOrder.customer?.email || '')
+            email: String(latestSuccessOrder.email || latestSuccessOrder.customer?.email || '')
           } : null,
         };
       }
     } catch (e) {
-      console.error(e);
+      console.error('Lỗi tính toán lịch sử khách hàng:', e);
     }
+
     return { 
       isOldCustomer: false, 
       isPardoned: false, 
@@ -188,43 +189,60 @@ export default function CheckoutPage({
     };
   }, [cleanPhone, isPhoneValid, shopConfig?.orders]);
 
-  // Đối soát giá và chữ ký bảo mật âm thầm từ Edge Worker Proxy
-  const { serverState } = useServerReconcile({
-    cart,
-    cleanPhone: isPhoneValid ? cleanPhone : '',
-    voucherCode: voucherCodeString,
-    shopConfig,
-    customerHistory
-  });
+  // Tính tổng tiền sản phẩm (Subtotal)
+  const clientSubtotal = useMemo(() => {
+    return cart.reduce((sum, item) => sum + (Number(item.price || item.base_price || 0) * Number(item.quantity || 1)), 0);
+  }, [cart]);
 
-  const clientSubtotal = useMemo(() => cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0), [cart]);
+  // Tính toán giảm giá theo Voucher
+  const activeDiscount = useMemo(() => {
+    if (!appliedVouchers.length) return 0;
+    let totalDisc = 0;
 
-  const activeSubtotal = serverState ? serverState.subtotal : clientSubtotal;
-  const activeDiscount = serverState ? serverState.totalDiscount : 0;
-  const activeFinalTotal = serverState ? serverState.finalTotal : clientSubtotal;
+    appliedVouchers.forEach((v) => {
+      const voucherDef = (shopConfig.vouchers || []).find((def) => def.code === v.code);
+      if (voucherDef) {
+        if (clientSubtotal >= (Number(voucherDef.minOrder || voucherDef.min_order) || 0)) {
+          if (voucherDef.type === 'percent') {
+            const disc = Math.round((clientSubtotal * Number(voucherDef.value)) / 100);
+            const maxDisc = Number(voucherDef.maxDiscount || voucherDef.max_discount) || Infinity;
+            totalDisc += Math.min(disc, maxDisc);
+          } else {
+            totalDisc += Number(voucherDef.value || 0);
+          }
+        }
+      } else if (v.isLoyalty) {
+        // Mã tri ân khách cũ
+        const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
+        const disc = Math.round((clientSubtotal * rate) / 100);
+        const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
+        totalDisc += Math.min(disc, maxDisc);
+      }
+    });
 
-  const activeCart = useMemo(() => {
-    if (!cart || cart.length === 0) return [];
-    if (serverState?.cart && serverState.cart.length === cart.length) {
-      return serverState.cart;
-    }
-    return cart;
-  }, [cart, serverState?.cart]);
+    return Math.min(totalDisc, clientSubtotal);
+  }, [appliedVouchers, clientSubtotal, shopConfig.vouchers, shopConfig.loyaltyDiscountPercent, shopConfig.loyaltyMaxDiscount]);
 
-  const paymentGifts = useMemo(() => Array.isArray(shopConfig?.paymentGifts) ? shopConfig.paymentGifts : [], [shopConfig?.paymentGifts]);
+  const activeFinalTotal = Math.max(0, clientSubtotal - activeDiscount);
+  const activeSubtotal = clientSubtotal;
+  const activeCart = cart;
+
+  const paymentGifts = useMemo(() => Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : (shopConfig?.paymentGifts || []), [shopConfig]);
   const depositAmount = Number(shopConfig?.depositAmount) || 50000;
 
+  // Ràng buộc thanh toán an toàn cho khách rủi ro
   useEffect(() => {
-    if (customerHistory?.hasBombedHistory || serverState?.isRiskCustomer) {
+    if (customerHistory?.hasBombedHistory) {
       if (paymentMethod !== 'full_qr') setPaymentMethod('full_qr');
     } else if (customerHistory?.isFrequentCanceller && paymentMethod === 'cod') {
       setPaymentMethod('deposit');
     }
-  }, [customerHistory, serverState?.isRiskCustomer, paymentMethod]);
+  }, [customerHistory, paymentMethod]);
 
-  const isLoyaltyCodeApplied = useMemo(() => appliedVouchers.some((v) => v.code === customerHistory?.latestOrderCode || v.usedPreviousOrderCode || v.code.startsWith('XNG')), [appliedVouchers, customerHistory?.latestOrderCode]);
+  const isLoyaltyCodeApplied = useMemo(() => appliedVouchers.some((v) => v.code === customerHistory?.latestOrderCode || v.isLoyalty), [appliedVouchers, customerHistory?.latestOrderCode]);
   const isWelcomeCodeApplied = useMemo(() => appliedVouchers.some((v) => v.code === 'LAMQUEN'), [appliedVouchers]);
 
+  // Gợi ý mã giảm giá thông minh
   const singleSuggestedVoucher = useMemo(() => {
     if (!customerHistory || !isPhoneValid) return null;
     
@@ -235,14 +253,14 @@ export default function CheckoutPage({
           isLoyalty: true, 
           code: customerHistory.latestOrderCode, 
           title: `Tri ân khách quen (Đơn thứ ${customerHistory.orderCount + 1})`, 
-          desc: `Giảm ${rate}% từ đơn thành công ${customerHistory.latestOrderCode}` 
+          desc: `Giảm ${rate}% từ mã đơn thành công ${customerHistory.latestOrderCode}` 
         };
       }
       return null;
     }
 
     if (!isWelcomeCodeApplied) {
-      const welcomeVoucher = shopConfig?.vouchers?.find((v) => v.code === 'LAMQUEN');
+      const welcomeVoucher = (shopConfig?.vouchers || []).find((v) => v.code === 'LAMQUEN');
       if (welcomeVoucher) {
         return { 
           isLoyalty: false, 
@@ -265,7 +283,21 @@ export default function CheckoutPage({
       return;
     }
 
-    setAppliedVouchers((prev) => [...prev, { code }]);
+    const matchedDef = (shopConfig.vouchers || []).find((v) => v.code === code);
+    const isLoyalty = Boolean(customerHistory?.canUseOldCode && customerHistory?.latestOrderCode === code);
+
+    if (!matchedDef && !isLoyalty) {
+      setVoucherError(`Mã "${code}" không hợp lệ hoặc đã hết hạn.`);
+      return;
+    }
+
+    const minReq = matchedDef ? Number(matchedDef.minOrder || matchedDef.min_order || 0) : 0;
+    if (clientSubtotal < minReq) {
+      setVoucherError(`Đơn hàng cần đạt tối thiểu ${minReq.toLocaleString('vi-VN')}đ để dùng mã này.`);
+      return;
+    }
+
+    setAppliedVouchers((prev) => [...prev, { code, isLoyalty }]);
     setVoucherInput('');
   };
 
@@ -290,7 +322,7 @@ export default function CheckoutPage({
       return;
     }
 
-    if ((customerHistory?.hasBombedHistory || serverState?.isRiskCustomer) && paymentMethod !== 'full_qr') {
+    if (customerHistory?.hasBombedHistory && paymentMethod !== 'full_qr') {
       alert('Đơn hàng này cần thanh toán chuyển khoản 100% trước khi nhà vườn cắt hái!');
       setPaymentMethod('full_qr');
       return;
@@ -302,7 +334,7 @@ export default function CheckoutPage({
     setTimeout(() => setPrintStage(3), 1200);
 
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
-    const previousOrderCodeUsed = appliedVouchers.find((v) => v.code.startsWith('XNG'))?.code || '';
+    const previousOrderCodeUsed = appliedVouchers.find((v) => v.isLoyalty)?.code || '';
 
     try {
       localStorage.setItem('shop_last_customer', JSON.stringify(customer));
@@ -324,19 +356,17 @@ export default function CheckoutPage({
 
         subtotal: activeSubtotal,
         finalTotal: activeFinalTotal,
-        edgeSignature: serverState?.signature || '',
-
         total: activeFinalTotal,
         rawTotal: activeSubtotal,
         discount: activeDiscount,
 
         voucherCode: appliedVouchers.map((v) => v.code).filter(Boolean).join(', '),
         usedPreviousOrderCode: previousOrderCodeUsed,
-        appliedVouchers: serverState?.appliedVouchers || appliedVouchers,
+        appliedVouchers,
         cart: activeCart,
       });
     } catch (err) {
-      alert('Lỗi tạo đơn hàng!');
+      alert('Lỗi tạo đơn hàng! Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
     }
@@ -461,8 +491,8 @@ export default function CheckoutPage({
                 voucherInput={voucherInput}
                 setVoucherInput={setVoucherInput}
                 appliedVouchers={appliedVouchers}
-                calculatedVouchers={serverState?.appliedVouchers || appliedVouchers}
-                voucherError={voucherError || (serverState?.rejectedVouchers?.length ? `Mã không áp dụng được: ${serverState.rejectedVouchers.join(', ')}` : '')}
+                calculatedVouchers={appliedVouchers}
+                voucherError={voucherError}
                 isValidating={false}
                 onApplyVoucher={() => applySpecificCode(voucherInput)}
                 onRemoveVoucher={handleRemoveVoucher}

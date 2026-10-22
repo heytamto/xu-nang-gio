@@ -32,7 +32,7 @@ export default function PackingPage({
   const [isBackgroundPolling, setIsBackgroundPolling] = useState(false);
   const [countdown, setCountdown] = useState(POLLING_INTERVAL_SECONDS);
 
-  // Tạo map tra cứu mã quà -> tên quà tiếng Việt từ catalog quà tặng (Fallback)
+  // Map tra cứu quà tặng từ catalog (Fallback nếu đơn chỉ lưu ID quà)
   const giftCatalogMap = useMemo(() => {
     const map = new Map();
     const giftsList = [
@@ -47,10 +47,9 @@ export default function PackingPage({
     return map;
   }, [shopConfig?.giftsCatalog, shopConfig?.paymentGifts]);
 
-  // Hàm chuyển đổi chuỗi mã quà raw thành tên tiếng Việt (Fallback nếu có đơn cũ sót lại)
   const resolveGiftString = (str) => {
     if (!str) return '';
-    return str.replace(/(gift_[a-zA-Z0-9_]+)/g, (matchedId) => {
+    return str.replace(/(gft\d+|gift_[a-zA-Z0-9_]+)/g, (matchedId) => {
       return giftCatalogMap.get(matchedId) || matchedId;
     });
   };
@@ -185,13 +184,10 @@ export default function PackingPage({
     setPickedItems({});
   };
 
+  // Tính số tiền cần thu khi giao kiện (COD / Đã cọc / Đã chuyển 100%)
   const getCollectInfo = (order) => {
-    const method = String(order.paymentMethod || '').toLowerCase();
-    const rawTotal = typeof order.total === 'number' 
-      ? order.total 
-      : (typeof order.totalAmount === 'number'
-          ? order.totalAmount
-          : (Number(String(order.total || order.totalAmount || '').replace(/[^0-9]/g, '')) || 0));
+    const method = String(order.payment_method || order.paymentMethod || '').toLowerCase();
+    const rawTotal = Number(order.final_total ?? order.total ?? order.totalAmount ?? 0);
 
     if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
@@ -228,7 +224,7 @@ export default function PackingPage({
     };
   };
 
-  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói)
+  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói - tận dụng partial index Supabase)
   const packableOrders = useMemo(() => {
     return effectiveOrders.filter((o) => {
       const statusCode = normalizeOrderStatus(o.status);
@@ -236,12 +232,23 @@ export default function PackingPage({
     });
   }, [effectiveOrders]);
 
-  // PARSE VÀ MAP TÊN QUÀ TẶNG CHUẨN XÁC
+  // PARSE DANH SÁCH MÓN: Hỗ trợ 3NF order_items từ Supabase, fallback cart/itemsSummary
   const parseOrderItems = (order) => {
-    let items = [];
+    const items = [];
 
-    if (Array.isArray(order.cart) && order.cart.length > 0) {
-      // 1. Thêm các món chính
+    // 1. Ưu tiên mảng quan hệ 3NF order_items từ PostgreSQL Supabase
+    if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+      order.order_items.forEach((oi) => {
+        items.push({
+          name: oi.name,
+          spec: oi.weight_label || oi.spec || 'Tiêu chuẩn',
+          quantity: Number(oi.quantity) || 1,
+          isGift: Boolean(oi.is_gift)
+        });
+      });
+    }
+    // 2. Fallback sang mảng cart (khi vừa đặt hàng từ UI)
+    else if (Array.isArray(order.cart) && order.cart.length > 0) {
       order.cart.forEach((c) => {
         items.push({
           name: c.name,
@@ -250,7 +257,6 @@ export default function PackingPage({
           isGift: false
         });
 
-        // 2. Bóc tách quà combo từ item trong cart
         const giftId = c.campaign_gift;
         if (giftId) {
           const resolvedTitle = c.campaign_gift_title || giftCatalogMap.get(giftId) || giftId;
@@ -262,7 +268,9 @@ export default function PackingPage({
           });
         }
       });
-    } else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
+    }
+    // 3. Fallback sang chuỗi tổng hợp
+    else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
       const parts = order.itemsSummary.split(',');
       parts.forEach((str) => {
         const trimmed = str.trim();
@@ -291,31 +299,38 @@ export default function PackingPage({
       });
     }
 
-    // Quà tặng thanh toán
-    const giftTitle = order.giftTitle || order.paymentGift;
+    // Quà tặng chuyển khoản
+    const giftTitle = order.payment_gift || order.giftTitle || order.paymentGift;
     if (giftTitle && giftTitle !== 'Không áp dụng (COD)' && giftTitle.trim() !== '') {
       const resolvedPaymentGift = giftCatalogMap.get(giftTitle) || giftTitle;
-      items.push({
-        name: `[QUÀ TẶNG] ${resolvedPaymentGift}`,
-        spec: 'Tặng kèm chuyển khoản',
-        quantity: 1,
-        isGift: true
-      });
+      const isAlreadyAdded = items.some((it) => it.name.includes(resolvedPaymentGift));
+      if (!isAlreadyAdded) {
+        items.push({
+          name: `[QUÀ TẶNG] ${resolvedPaymentGift}`,
+          spec: 'Tặng kèm chuyển khoản',
+          quantity: 1,
+          isGift: true
+        });
+      }
     }
 
-    // Quà combo nếu đọc từ chuỗi campaignGifts trên Sheet
-    if ((!Array.isArray(order.cart) || order.cart.length === 0) && order.campaignGifts && typeof order.campaignGifts === 'string') {
-      const campGifts = order.campaignGifts.split('|');
+    // Quà combo từ chuỗi campaign_gifts
+    const rawCampGifts = order.campaign_gifts || order.campaignGifts;
+    if (rawCampGifts && typeof rawCampGifts === 'string') {
+      const campGifts = rawCampGifts.split('|');
       campGifts.forEach((gStr) => {
         const trimmedG = gStr.trim();
         if (trimmedG && !trimmedG.includes('Không áp dụng')) {
           const resolvedG = resolveGiftString(trimmedG);
-          items.push({
-            name: resolvedG.startsWith('[QUÀ') ? resolvedG : `[QUÀ TẶNG] ${resolvedG}`,
-            spec: 'Quà quê tặng kèm',
-            quantity: 1,
-            isGift: true
-          });
+          const isAlreadyIn = items.some((it) => it.name.includes(resolvedG));
+          if (!isAlreadyIn) {
+            items.push({
+              name: resolvedG.startsWith('[QUÀ') ? resolvedG : `[QUÀ TẶNG] ${resolvedG}`,
+              spec: 'Quà quê tặng kèm',
+              quantity: 1,
+              isGift: true
+            });
+          }
         }
       });
     }
@@ -356,7 +371,7 @@ export default function PackingPage({
     const MAX_ITEMS = 6;
     const visibleItems = allItems.slice(0, MAX_ITEMS);
     const hasMoreItems = allItems.length > MAX_ITEMS;
-    const cleanNote = String(order.note || '').trim();
+    const cleanNote = String(order.customer_note || order.note || '').trim();
 
     const itemsRowsHtml = visibleItems.map((it, idx) => `
       <tr style="${it.isGift ? 'background: #fffbeb;' : ''}">
@@ -394,7 +409,7 @@ export default function PackingPage({
             <div class="recipient-box">
               <div style="font-size: 9.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
               <div class="recipient-name-phone">
-                <span class="recipient-name">${order.name || order.customerName || ''}</span>
+                <span class="recipient-name">${order.customer_name || order.name || order.customerName || ''}</span>
                 <span class="recipient-phone">${order.phone || ''}</span>
               </div>
               <div class="recipient-address">
@@ -709,7 +724,7 @@ export default function PackingPage({
             <Lock className="w-6 h-6" />
           </div>
           <h2 className="text-base font-black text-stone-900">Mã PIN Kho Đóng Hàng</h2>
-          <p className="text-xs text-stone-500">Mã PIN quản trị viên cấp qua Google Sheet (Cột H: warehousePin)</p>
+          <p className="text-xs text-stone-500">Nhập mã PIN kho để mở bảng kiểm tra & in tem giao hàng</p>
           <input
             type="password"
             maxLength={8}
@@ -931,7 +946,7 @@ export default function PackingPage({
               const isPackingNow = currentStatusCode === ORDER_STATUS.PACKING;
               const collectInfo = getCollectInfo(ord);
               const items = parseOrderItems(ord);
-              const cleanNote = String(ord.note || '').trim();
+              const cleanNote = String(ord.customer_note || ord.note || '').trim();
 
               return (
                 <div 
@@ -948,7 +963,7 @@ export default function PackingPage({
                         <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md text-xs">
                           {orderCode}
                         </span>
-                        <strong className="text-stone-900 text-sm">{ord.name || ord.customerName || ''}</strong>
+                        <strong className="text-stone-900 text-sm">{ord.customer_name || ord.name || ord.customerName || ''}</strong>
                         {ord.phone && (
                           <span className="text-xs font-mono font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-lg">
                             {ord.phone}
@@ -999,7 +1014,7 @@ export default function PackingPage({
                       {!isPackingNow ? (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(orderCode, 'Đang đóng gói')}
+                          onClick={() => onUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
                           className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <Package className="w-4 h-4" />
@@ -1008,7 +1023,7 @@ export default function PackingPage({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(orderCode, 'Đang giao')}
+                          onClick={() => onUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
                           className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />
@@ -1045,7 +1060,7 @@ export default function PackingPage({
                                   ? 'bg-emerald-600 border-emerald-600 text-white' 
                                   : 'border-stone-300 bg-white'
                               }`}>
-                                {isBoxChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                {isBoxChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                               </div>
 
                               <div className="min-w-0">
