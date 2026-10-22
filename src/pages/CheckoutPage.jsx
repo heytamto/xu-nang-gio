@@ -1,6 +1,7 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ArrowLeft, ShoppingBag, ArrowRight } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { 
   verifyPreviousOrderVoucher, 
@@ -113,7 +114,7 @@ export default function CheckoutPage({
   const prevPhoneRef = useRef(cleanPhone);
   const isPhoneValid = useMemo(() => isValidVietnamesePhone(cleanPhone), [cleanPhone]);
 
-  // Debounce kiểm tra lịch sử bom hàng & hủy đơn trực tiếp từ Supabase
+  // Debounce kiểm tra lịch sử bom hàng & hủy đơn trực tiếp từ Supabase (400ms)
   useEffect(() => {
     if (!isPhoneValid || cleanPhone.length < 10) {
       setDbRiskData({
@@ -176,7 +177,6 @@ export default function CheckoutPage({
         return ordPhone && (ordPhone.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(ordPhone.slice(-8)));
       });
 
-      // Lấy cờ rủi ro từ Supabase (ưu tiên cao nhất) hoặc tính từ local
       let activeBombedRisk = dbRiskData.lastOrderBombed;
       let activeFrequentCanceller = dbRiskData.twoRecentCancelled;
 
@@ -194,7 +194,6 @@ export default function CheckoutPage({
         hasSuccess = validOrders.length > 0;
         latestSuccessOrder = hasSuccess ? validOrders[0] : null;
 
-        // Nếu DB chưa trả về, tính tạm từ local
         if (!activeBombedRisk) {
           const bombedOrders = matchedOrders.filter((ord) => {
             const norm = normalizeOrderStatus(ord.status);
@@ -445,7 +444,7 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  // Submit đơn hàng
+  // Submit đơn hàng (App.jsx sẽ chịu trách nhiệm lưu DB, mở Modal thành công và gửi Email)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -505,6 +504,7 @@ export default function CheckoutPage({
     }
 
     try {
+      // Bàn giao toàn bộ quy trình xử lý đơn hàng & kích hoạt gửi mail cho App.jsx
       if (onSubmitOrder) {
         await onSubmitOrder(orderPayload);
       }

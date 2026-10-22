@@ -721,7 +721,7 @@ export async function checkOrderReviewStatus(orderCode) {
 export async function findEligiblePreviousOrderVoucher(validOrders = [], combinedOrders = []) {
   if (!Array.isArray(validOrders) || validOrders.length === 0) return null;
 
-  // Tập hợp các mã đơn đã bị dùng trước đó (bỏ qua đơn bị hủy/bom)
+  // 1. Thu thập các mã đã dùng từ state/props cục bộ (bỏ qua đơn bị hủy/bom)
   const usedCodesSet = new Set();
   combinedOrders.forEach((o) => {
     const usedCode = o.used_previous_order_code || o.usedPreviousOrderCode;
@@ -731,7 +731,7 @@ export async function findEligiblePreviousOrderVoucher(validOrders = [], combine
     }
   });
 
-  // Lọc ra các đơn hoàn thành mà chưa từng bị dùng làm voucher
+  // Lọc sơ bộ các đơn đã hoàn thành
   const candidateOrders = validOrders.filter((ord) => {
     const code = String(ord.code || ord.orderId || '').trim().toUpperCase();
     const isCompleted = normalizeOrderStatus(ord.status) === ORDER_STATUS.COMPLETED;
@@ -743,20 +743,46 @@ export async function findEligiblePreviousOrderVoucher(validOrders = [], combine
   const candidateCodes = candidateOrders.map((o) => String(o.code || o.orderId).trim().toUpperCase());
 
   try {
-    const { data: reviews, error } = await supabase
+    // 2. TRUY VẤN SUPABASE: Kiểm tra các mã này đã từng được lưu vào used_previous_order_code trên DB chưa
+    const { data: dbUsedOrders, error: usedOrdersError } = await supabase
+      .from('orders')
+      .select('used_previous_order_code, status')
+      .in('used_previous_order_code', candidateCodes);
+
+    if (!usedOrdersError && Array.isArray(dbUsedOrders)) {
+      dbUsedOrders.forEach((row) => {
+        const st = normalizeOrderStatus(row.status);
+        if (row.used_previous_order_code && st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED) {
+          usedCodesSet.add(String(row.used_previous_order_code).trim().toUpperCase());
+        }
+      });
+    }
+
+    // Lọc lại danh sách ứng viên sau khi đã đối soát với database
+    const strictlyUnusedOrders = candidateOrders.filter((ord) => {
+      const code = String(ord.code || ord.orderId || '').trim().toUpperCase();
+      return !usedCodesSet.has(code);
+    });
+
+    if (strictlyUnusedOrders.length === 0) return null;
+
+    const strictlyUnusedCodes = strictlyUnusedOrders.map((o) => String(o.code || o.orderId).trim().toUpperCase());
+
+    // 3. Lấy đánh giá của các đơn thực sự chưa dùng
+    const { data: reviews, error: reviewError } = await supabase
       .from('reviews')
       .select('order_code, rating')
-      .in('order_code', candidateCodes);
+      .in('order_code', strictlyUnusedCodes);
 
-    if (error || !Array.isArray(reviews)) return null;
+    if (reviewError || !Array.isArray(reviews)) return null;
 
     const reviewMap = new Map();
     reviews.forEach((r) => {
       reviewMap.set(String(r.order_code).trim().toUpperCase(), Number(r.rating) || 0);
     });
 
-    // Quét từ đơn mới nhất đến cũ nhất
-    for (const ord of candidateOrders) {
+    // 4. Quét từ đơn mới nhất đến cũ nhất
+    for (const ord of strictlyUnusedOrders) {
       const code = String(ord.code || ord.orderId).trim().toUpperCase();
       const rating = reviewMap.get(code) || 0;
       if (rating >= 4) {

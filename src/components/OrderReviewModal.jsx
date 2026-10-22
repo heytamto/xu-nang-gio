@@ -41,7 +41,7 @@ export default function OrderReviewModal({
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [content, setContent] = useState('');
-  const [imageUrls, setImageUrls] = useState([]); // Mảng URL ảnh đã nén lưu trên Supabase Storage
+  const [imageUrls, setImageUrls] = useState([]); // Mảng URL ảnh đính kèm
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -90,7 +90,7 @@ export default function OrderReviewModal({
       customerName: name,
       rating,
       content,
-      imageUrls // Lưu link ảnh đính kèm
+      imageUrls
     });
 
     if (!res.success) {
@@ -99,50 +99,46 @@ export default function OrderReviewModal({
       return;
     }
 
-    // Gửi email tri ân nếu đánh giá >= 4 sao và đơn có email
+    // Kích hoạt gửi email tri ân nếu đánh giá >= 4 sao
     let sentEmail = false;
-    if (rating >= 4 && email && email.includes('@')) {
+    if (rating >= 4) {
       try {
-        const { data: tplData } = await supabase
-          .from('email_templates')
-          .select('subject, body')
-          .eq('name', 'Tri ân đánh giá & Tặng Voucher')
-          .maybeSingle();
+        let recipientEmail = email?.trim();
 
-        let emailSubject = `[Xứ Nắng Gió] Cảm ơn bạn ${name} đã đánh giá đơn hàng ${orderCode}`;
-        let emailHtml = '';
+        // Nếu modal chưa có sẵn email, tra cứu nhanh từ bảng orders
+        if (!recipientEmail || !recipientEmail.includes('@')) {
+          const { data: orderData } = await supabase
+            .from('orders')
+            .select('email')
+            .eq('code', orderCode)
+            .maybeSingle();
 
-        if (tplData?.body) {
-          emailSubject = (tplData.subject || emailSubject)
-            .replace(/{{CUSTOMER_NAME}}/g, name)
-            .replace(/{{ORDER_CODE}}/g, orderCode);
-
-          emailHtml = tplData.body
-            .replace(/{{CUSTOMER_NAME}}/g, name)
-            .replace(/{{ORDER_CODE}}/g, orderCode);
-        } else {
-          emailHtml = `
-            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e5e5; border-radius: 16px; padding: 24px; background-color: #ffffff;">
-              <h2 style="color: #92400e; margin-top: 0;">Cảm ơn ${name} đã đánh giá ${rating} sao!</h2>
-              <p>Nhà vườn Xứ Nắng Gió rất vui khi bạn hài lòng với nông sản.</p>
-              <div style="background-color: #fffbeb; border: 1px dashed #d97706; padding: 16px; border-radius: 12px; margin: 20px 0; text-align: center;">
-                <span style="font-size: 13px; color: #78350f;">Mã voucher tri ân của bạn chính là mã đơn cũ:</span>
-                <div style="font-size: 24px; font-weight: bold; color: #92400e; font-family: monospace; letter-spacing: 2px; margin-top: 6px;">${orderCode}</div>
-                <p style="margin: 6px 0 0 0; font-size: 12px; color: #b45309;">(Nhập mã này ở lần mua tiếp theo để được giảm giá trực tiếp)</p>
-              </div>
-              <p style="font-size: 12px; color: #888;">Hotline / Zalo: 0848.957.345 • Xứ Nắng Gió Ninh Thuận</p>
-            </div>
-          `;
+          if (orderData?.email && orderData.email.includes('@')) {
+            recipientEmail = orderData.email.trim();
+          }
         }
 
-        await supabase.functions.invoke('send-order-email', {
-          body: {
-            to: email.trim(),
-            subject: emailSubject,
-            html: emailHtml
+        if (recipientEmail && recipientEmail.includes('@')) {
+          const { error: mailError } = await supabase.functions.invoke('send-order-email', {
+            body: {
+              to: recipientEmail,
+              template_id: 'tpl0003', // Sử dụng template tpl0003 đã chuẩn hóa
+              customer_name: name.trim(),
+              order_code: orderCode.trim(),
+              data: {
+                CUSTOMER_NAME: name.trim(),
+                ORDER_CODE: orderCode.trim(),
+                VOUCHER_CODE: orderCode.trim()
+              }
+            }
+          });
+
+          if (!mailError) {
+            sentEmail = true;
+          } else {
+            console.warn('Lỗi khi gửi mail tri ân qua Edge Function:', mailError);
           }
-        });
-        sentEmail = true;
+        }
       } catch (mailErr) {
         console.warn('Không thể gửi mail tri ân:', mailErr);
       }
@@ -202,7 +198,7 @@ export default function OrderReviewModal({
                 {reviewResult.sentEmail && (
                   <p className="text-[10.5px] text-emerald-700 flex items-center gap-1 pt-1 border-t border-amber-200/60 font-semibold">
                     <MailCheck className="w-3.5 h-3.5 shrink-0" />
-                    <span>Hệ thống đã gửi mã xác nhận qua email của bạn!</span>
+                    <span>Hệ thống đã gửi email tri ân kèm mã xác nhận đến bạn!</span>
                   </p>
                 )}
               </div>

@@ -244,7 +244,6 @@ export default function App() {
             total: raw.final_total ?? raw.total,
             paymentMethod: raw.payment_method || raw.paymentMethod,
             createdAt: raw.created_at || raw.createdAt,
-            // Chuẩn hóa status theo ORDER_STATUS tiếng Anh
             status: normalizeOrderStatus(raw.status)
           };
 
@@ -393,7 +392,7 @@ export default function App() {
           return item;
         })
         .filter(Boolean)
-    );
+      );
   };
 
   const handleRemoveCartItem = (target, weightId = null) => {
@@ -412,7 +411,7 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION NGAY 0MS (LƯU ORDER_STATUS.PENDING)
+  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION VÀ GỬI EMAIL THÔNG BÁO TỨC THÌ
   // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
@@ -428,24 +427,30 @@ export default function App() {
     // Trạng thái khởi tạo luôn là key tiếng Anh 'pending'
     const initialStatus = ORDER_STATUS.PENDING;
 
+    const recipientEmail = (orderData.email || orderData.customer?.email || '').trim();
+    const recipientName = (orderData.customer?.name || orderData.name || '').trim();
+    const recipientPhone = (orderData.customer?.phone || orderData.phone || '').trim();
+    const recipientAddress = (orderData.address || orderData.customer?.address || '').trim();
+    const recipientNote = (orderData.customer?.note || orderData.note || '').trim();
+
     const orderPayload = {
       code: orderCode,
       orderId: orderCode,
       created_at: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       customer: {
-        name: (orderData.customer?.name || orderData.name || '').trim(),
-        phone: (orderData.customer?.phone || orderData.phone || '').trim(),
-        email: (orderData.email || orderData.customer?.email || '').trim(),
-        address: (orderData.address || orderData.customer?.address || '').trim(),
-        note: (orderData.customer?.note || orderData.note || '').trim()
+        name: recipientName,
+        phone: recipientPhone,
+        email: recipientEmail,
+        address: recipientAddress,
+        note: recipientNote
       },
-      customer_name: (orderData.customer?.name || orderData.name || '').trim(),
-      name: (orderData.customer?.name || orderData.name || '').trim(),
-      phone: (orderData.customer?.phone || orderData.phone || '').trim(),
-      email: (orderData.email || orderData.customer?.email || '').trim(),
-      address: (orderData.address || orderData.customer?.address || '').trim(),
-      note: (orderData.customer?.note || orderData.note || '').trim(),
+      customer_name: recipientName,
+      name: recipientName,
+      phone: recipientPhone,
+      email: recipientEmail,
+      address: recipientAddress,
+      note: recipientNote,
       cart: sourceCart.map((item) => ({
         productId: item.productId || item.id,
         id: item.productId || item.id,
@@ -493,7 +498,7 @@ export default function App() {
       localStorage.removeItem('shop_cart');
     } catch (e) { console.error(e); }
 
-    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE CHẠY NGẦM SONG SONG
+    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE VÀ KÍCH HOẠT GỬI EMAIL CHẠY NGẦM SONG SONG
     try {
       submitOrderToSupabase(orderPayload)
         .then((res) => {
@@ -504,6 +509,54 @@ export default function App() {
         .catch((err) => {
           console.error('Lỗi network khi gửi đơn ngầm:', err);
         });
+
+      // KÍCH HOẠT GỬI EMAIL XÁC NHẬN NẾU CÓ EMAIL HỢP LỆ
+      if (recipientEmail && recipientEmail.includes('@')) {
+        const depositAmt = Number(shopConfig?.depositAmount) || 50000;
+        const paymentMethodLabel = 
+          orderPayload.paymentMethod === 'full_qr' ? 'Chuyển khoản 100% (VietQR)' :
+          orderPayload.paymentMethod === 'deposit' ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
+          'Thanh toán khi nhận hàng (COD)';
+
+        // TẠO TRỰC TIẾP HTML DANH SÁCH SẢN PHẨM KHỚP KHUÔN KHỔ TEMPLATE TPL0001
+        const itemsSummaryHtml = orderPayload.cart.length > 0
+          ? orderPayload.cart.map((it) => {
+              const qty = Number(it.quantity) || 1;
+              const lineTotal = (Number(it.price) || 0) * qty;
+              const weight = it.weightLabel ? ` (${it.weightLabel})` : '';
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px dashed #fde68a;">
+                  <span style="color: #292524; font-size: 14px;">• <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span></span>
+                  <span style="font-weight: 700; color: #78350f; font-size: 14px;">${lineTotal.toLocaleString('vi-VN')}đ</span>
+                </div>
+              `;
+            }).join('')
+          : 'Đặc sản Ninh Thuận hái tươi tại giàn';
+
+        supabase.functions.invoke('send-order-email', {
+          body: {
+            to: recipientEmail,
+            email: recipientEmail,
+            customer_email: recipientEmail,
+            recipient_email: recipientEmail,
+            template_id: 'tpl0001',
+            customer_name: recipientName,
+            order_code: orderCode,
+            cart: orderPayload.cart,
+            data: {
+              CUSTOMER_NAME: recipientName,
+              ORDER_CODE: orderCode,
+              FINAL_TOTAL: `${finalTotalAmount.toLocaleString('vi-VN')} đ`,
+              TOTAL: finalTotalAmount.toLocaleString('vi-VN'),
+              PAYMENT_METHOD: paymentMethodLabel,
+              SHIPPING_ADDRESS: recipientAddress,
+              ADDRESS: recipientAddress,
+              GIFT_TITLE: orderPayload.paymentGift || 'Nông sản biếu tặng',
+              ITEMS_SUMMARY: itemsSummaryHtml
+            }
+          }
+        })
+      }
     } catch (err) {
       console.error('Lỗi khởi tạo đồng bộ đơn ngầm:', err);
     }
