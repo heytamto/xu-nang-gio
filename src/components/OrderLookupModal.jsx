@@ -7,10 +7,50 @@ import {
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
 import { lookupOrderDirect, cancelOrderDirect } from '../services/orderService';
+import { formatDateTime, isRecentOrder } from '../utils/dateUtils';
 
-function parseOrderTimestamp(dateStr) {
-  if (!dateStr) return 0;
-  return new Date(dateStr).getTime() || 0;
+// Helper parse timestamp chống lệch múi giờ UTC/Local
+function parseOrderTimeToMs(val) {
+  if (!val) return 0;
+  try {
+    let str = String(val).trim().replace(/\s*\(.*?\)\s*/g, '');
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
+      const [dPart, tPart = '00:00:00'] = str.split(' ');
+      const [d, m, y] = dPart.split('/');
+      const [h = '00', min = '00', s = '00'] = tPart.split(':');
+      return new Date(Number(y), Number(m) - 1, Number(d), Number(h), Number(min), Number(s)).getTime();
+    }
+    if (str.includes('-') && !str.endsWith('Z') && !str.includes('+') && !str.slice(10).includes('-')) {
+      str = str.replace(' ', 'T') + 'Z';
+    }
+    const t = new Date(str).getTime();
+    return isNaN(t) ? 0 : t;
+  } catch {
+    return 0;
+  }
+}
+
+// Helper tính số mili-giây còn lại (không bị kẹt 30:00 khi đồng hồ lệch)
+function calcRemainingCancelMs(createdAtStr, currentNow) {
+  const orderTime = parseOrderTimeToMs(createdAtStr);
+  if (!orderTime) return 0;
+
+  const thirtyMinMs = 30 * 60 * 1000;
+  const expireTime = orderTime + thirtyMinMs;
+  const remaining = expireTime - currentNow;
+
+  if (remaining <= 0) return 0;
+  // Chặn trần tối đa 30 phút, nhưng để thời gian tự nhiên giảm dần
+  return Math.min(remaining, thirtyMinMs);
+}
+
+// Helper định dạng hiển thị mm:ss
+function formatCountdown(ms) {
+  if (!ms || ms <= 0) return '00:00';
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export default function OrderLookupModal({ 
@@ -33,34 +73,19 @@ export default function OrderLookupModal({
   const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
 
+  // Nhịp đếm mỗi giây khi modal mở
   useEffect(() => {
     if (!isOpen) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    setNow(Date.now());
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
     return () => clearInterval(interval);
   }, [isOpen]);
 
   const hotline = shopConfig?.hotline || '0848.957.345';
   const cleanHotline = String(hotline).replace(/\D/g, '');
   const zaloPhone = String(shopConfig?.zaloPhone || cleanHotline || '0848957345').replace(/\D/g, '');
-
-  const getRemainingCancelTime = (createdAtStr) => {
-    const orderTime = parseOrderTimestamp(createdAtStr);
-    if (!orderTime) return 0;
-    const remaining = 30 * 60 * 1000 - (now - orderTime);
-    return remaining > 0 ? remaining : 0;
-  };
-
-  const formatRemainingTimer = (ms) => {
-    const totalSec = Math.floor(ms / 1000);
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-
-  const checkIsNew = (createdAtStr) => {
-    const t = parseOrderTimestamp(createdAtStr);
-    return t > 0 && (Date.now() - t) <= 24 * 60 * 60 * 1000;
-  };
 
   const handleCopyCode = (code) => {
     if (!code) return;
@@ -69,21 +94,11 @@ export default function OrderLookupModal({
     setTimeout(() => setCopiedCode(''), 2000);
   };
 
-  const formatDateTime = (str) => {
-    if (!str) return 'Gần đây';
-    try {
-      const d = new Date(str);
-      return `${d.toLocaleDateString('vi-VN')} ${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
-    } catch {
-      return String(str);
-    }
-  };
-
-  // Tra cứu qua Service Layer Supabase
+  // Tra cứu đơn hàng
   const performLookup = useCallback(async (queryValue) => {
     setErrorMessage('');
     setCancelSuccessNote('');
-    const rawVal = String(queryValue || '').trim();
+    const rawVal = String(queryValue || '').trim().replace(/\s+/g, '');
 
     if (!rawVal) {
       setErrorMessage("Vui lòng nhập số điện thoại hoặc mã đơn hàng!");
@@ -91,7 +106,8 @@ export default function OrderLookupModal({
     }
 
     const cleanDigits = rawVal.replace(/\D/g, '');
-    const isPhoneSearch = cleanDigits.length >= 8;
+    const hasLetters = /[A-Z]/i.test(rawVal);
+    const isPhoneSearch = !hasLetters && cleanDigits.length >= 8;
 
     if (!isPhoneSearch && rawVal.length < 4) {
       setErrorMessage("Vui lòng nhập tối thiểu 4 ký tự mã đơn hoặc 8 chữ số điện thoại!");
@@ -122,8 +138,9 @@ export default function OrderLookupModal({
   useEffect(() => {
     if (isOpen) {
       if (initialCode) {
-        setSearchTerm(initialCode);
-        performLookup(initialCode);
+        const cleanInitial = String(initialCode).trim().replace(/\s+/g, '');
+        setSearchTerm(cleanInitial);
+        performLookup(cleanInitial);
       } else if (!searchTerm) {
         setOrders(null);
         setErrorMessage('');
@@ -160,11 +177,11 @@ export default function OrderLookupModal({
     };
   }, [isOpen, orders]);
 
-  // Hủy đơn trực tiếp vào Database qua hàm Service
+  // Xác nhận hủy đơn
   const handleConfirmCancelOrder = async () => {
     if (!cancellingOrder) return;
 
-    const remainingMs = getRemainingCancelTime(cancellingOrder.created_at);
+    const remainingMs = calcRemainingCancelMs(cancellingOrder.created_at, now);
     if (remainingMs <= 0) {
       alert("Đã qua thời gian 30 phút đổi ý, đơn hàng đã được lên lịch cắt giàn đóng thùng.");
       setCancellingOrder(null);
@@ -234,7 +251,7 @@ export default function OrderLookupModal({
                   setSearchTerm(e.target.value);
                   if (errorMessage) setErrorMessage('');
                 }}
-                placeholder="VD: 0848957345 hoặc XNG123456"
+                placeholder="VD: 0848957345 hoặc XNG261022-X31G"
                 className="w-full rounded-2xl border border-stone-200 pl-4 pr-9 py-2.5 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-mono uppercase tracking-wider"
               />
               {searchTerm && (
@@ -258,6 +275,10 @@ export default function OrderLookupModal({
             </button>
           </div>
 
+          <p className="text-[11px] text-stone-400 px-1 font-sans">
+            Gợi ý: Nhập số điện thoại người nhận hoặc mã đơn dạng <span className="font-mono text-stone-600 font-semibold">XNG...</span>
+          </p>
+
           {errorMessage && (
             <p className="text-[11px] text-rose-600 font-semibold pl-1">{errorMessage}</p>
           )}
@@ -270,10 +291,10 @@ export default function OrderLookupModal({
           )}
         </form>
 
-        {/* Kết quả */}
+        {/* Kết quả danh sách đơn hàng */}
         <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
           {orders && orders.map((ord) => {
-            const isNew = checkIsNew(ord.created_at);
+            const isNew = isRecentOrder(ord.created_at);
             const isCopied = copiedCode === ord.code;
             const hasPaymentGift = ord.payment_gift && ord.payment_gift !== 'Không áp dụng (COD)';
             const hasCampaignGifts = Boolean(ord.campaign_gifts && String(ord.campaign_gifts).trim());
@@ -281,7 +302,8 @@ export default function OrderLookupModal({
             const statusCode = normalizeOrderStatus(ord.status);
             const statusMeta = ORDER_STATUS_MAP[statusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
             
-            const remainingCancelMs = getRemainingCancelTime(ord.created_at);
+            // Tính số ms còn lại dựa theo state now đang nhảy mỗi giây
+            const remainingCancelMs = calcRemainingCancelMs(ord.created_at, now);
             const canCancelDirectly = statusCode === ORDER_STATUS.PENDING && remainingCancelMs > 0;
             const displayTotal = Number(ord.final_total ?? ord.total ?? 0);
 
@@ -329,7 +351,7 @@ export default function OrderLookupModal({
                   <div className="truncate"><strong>Điểm giao:</strong> {ord.address}</div>
                 </div>
 
-                {/* Danh sách sản phẩm từ PostgreSQL hoặc fallback tóm tắt */}
+                {/* Danh sách sản phẩm */}
                 <div className="bg-white/80 p-2.5 rounded-xl border border-stone-200/70 text-xs text-stone-700 space-y-1">
                   <span className="font-bold text-stone-500 text-[10px] uppercase block">Sản phẩm:</span>
                   <div className="space-y-1">
@@ -388,7 +410,7 @@ export default function OrderLookupModal({
                     <div className="flex items-center justify-between w-full gap-2">
                       <span className="text-[11px] text-amber-900 flex items-center gap-1.5 font-medium bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200/70">
                         <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0 animate-spin" />
-                        <span>Đổi ý hủy đơn trong: <strong className="font-mono font-black text-amber-950 text-xs">{formatRemainingTimer(remainingCancelMs)}</strong></span>
+                        <span>Đổi ý hủy đơn trong: <strong className="font-mono font-black text-amber-950 text-xs">{formatCountdown(remainingCancelMs)}</strong></span>
                       </span>
                       <button
                         type="button"

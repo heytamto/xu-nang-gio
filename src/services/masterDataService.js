@@ -45,8 +45,8 @@ export async function fetchAllMasterDataFromSupabase() {
       supabase.from('stories').select('*').order('created_at', { ascending: false }),
       supabase.from('vouchers').select('*'),
       supabase.from('gifts').select('*'),
-      // Safe Query cho shop_config: Tránh crash nếu bảng chưa tồn tại
-      supabase.from('shop_config').select('*').then(res => res).catch(() => ({ data: null, error: null })),
+      // Đã sửa đúng tên bảng: shop_configs (có s)
+      supabase.from('shop_configs').select('*').then(res => res).catch(() => ({ data: null, error: null })),
       // Safe Query cho reviews đã duyệt
       supabase.from('reviews').select('*').eq('is_approved', true).order('created_at', { ascending: false }).limit(8).then(res => res).catch(() => ({ data: null, error: null }))
     ]);
@@ -54,23 +54,34 @@ export async function fetchAllMasterDataFromSupabase() {
     if (errCats) console.warn('Lưu ý categories:', errCats.message);
     if (errProds) console.warn('Lưu ý products:', errProds.message);
 
-    // Chuẩn hóa cấu hình shop an toàn
-    let parsedConfig = {};
+    // Chuẩn hóa cấu hình shop an toàn (xử lý cả dạng Flat Row lẫn dạng Key-Value JSON của bảng shop_configs)
+    let parsedConfig = {
+      hotline: '0848.957.345',
+      zaloPhone: '0848957345',
+      bankBin: '970422',
+      bankName: 'MBBank',
+      accountNo: '0848957345',
+      accountName: 'TO THANH TAM',
+      depositAmount: 50000,
+      vouchers: []
+    };
+
     const configs = configRes?.data;
     if (Array.isArray(configs) && configs.length > 0) {
       if (configs[0].bank_bin || configs[0].bank_name || configs[0].hotline) {
         // Cấu hình dạng 1 row (main_config / default_config)
         const row = configs[0];
         parsedConfig = {
-          bankBin: row.bank_bin,
-          bankName: row.bank_name,
-          accountNo: row.account_no || row.bank_account,
-          accountName: row.account_name || row.bank_holder,
-          depositAmount: row.deposit_amount,
-          hotline: row.hotline,
+          ...parsedConfig,
+          bankBin: row.bank_bin || parsedConfig.bankBin,
+          bankName: row.bank_name || parsedConfig.bankName,
+          accountNo: row.account_no || row.bank_account || parsedConfig.accountNo,
+          accountName: row.account_name || row.bank_holder || parsedConfig.accountName,
+          depositAmount: row.deposit_amount ?? parsedConfig.depositAmount,
+          hotline: row.hotline || parsedConfig.hotline,
           address: row.address,
           announcement: row.announcement,
-          zaloPhone: row.zalo_phone,
+          zaloPhone: row.zalo_phone || parsedConfig.zaloPhone,
           warehousePin: row.warehouse_pin,
           loyaltyDiscountPercent: row.loyalty_discount_percent,
           loyaltyMaxDiscount: row.loyalty_max_discount,
@@ -78,10 +89,41 @@ export async function fetchAllMasterDataFromSupabase() {
           vouchers: row.vouchers || []
         };
       } else {
-        // Cấu hình dạng key-value
+        // Cấu hình dạng key-value JSON (như bảng shop_configs thực tế)
+        const rawMap = {};
         configs.forEach((item) => {
-          if (item.key) parsedConfig[item.key] = item.value;
+          if (!item.key) return;
+          try {
+            rawMap[item.key] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+          } catch {
+            rawMap[item.key] = item.value;
+          }
         });
+
+        const gen = rawMap.general || rawMap.general_config || {};
+        const pay = rawMap.payment || rawMap.payment_config || {};
+        const ship = rawMap.shipping || {};
+
+        parsedConfig = {
+          ...parsedConfig,
+          ...rawMap, // giữ lại các object lồng nhau: general, payment, shipping
+          // Trải phẳng các trường thông dụng để component dùng trực tiếp shopConfig.hotline, v.v.
+          hotline: gen.hotline || parsedConfig.hotline,
+          zaloPhone: gen.zaloPhone || parsedConfig.zaloPhone,
+          address: gen.address,
+          brandName: gen.brandName,
+          tagline: gen.tagline,
+          warehousePin: gen.warehousePin,
+          autoSendEmail: gen.autoSendEmail,
+          bankBin: pay.bankBin || parsedConfig.bankBin,
+          bankName: pay.bankName || parsedConfig.bankName,
+          accountNo: pay.accountNo || parsedConfig.accountNo,
+          accountName: pay.accountName || parsedConfig.accountName,
+          depositAmount: pay.depositAmount ?? parsedConfig.depositAmount,
+          shippingCarrier: ship.carrier,
+          standardFee: ship.standardFee,
+          freeShippingMin: ship.freeShippingMin
+        };
       }
     }
 

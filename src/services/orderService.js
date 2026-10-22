@@ -1,5 +1,6 @@
 // src/services/orderService.js
 import { supabase } from '../supabaseClient';
+import { parseOrderTimestampToMs } from '../utils/dateUtils';
 
 /**
  * 1. TẠO ĐƠN HÀNG NGUYÊN TỬ VÀO POSTGRESQL (GỌI RPC create_order_atomic)
@@ -152,26 +153,55 @@ export async function fetchCustomerHistory(phone) {
  * Tách độc lập 2 query orders & order_items để triệt tiêu lỗi PGRST201
  */
 export async function lookupOrderDirect(queryValue) {
-  const rawVal = String(queryValue || '').trim();
+  const rawVal = String(queryValue || '').trim().replace(/\s+/g, '');
   if (!rawVal) return [];
 
   const cleanDigits = rawVal.replace(/\D/g, '');
-  const isPhoneSearch = cleanDigits.length >= 8;
   const upperCode = rawVal.toUpperCase();
 
+  // CHUẨN ĐOÁN CHÍNH XÁC:
+  // Chỉ coi là tìm số điện thoại nếu:
+  // 1. Không chứa tiền tố 'XNG'
+  // 2. Không chứa ký tự chữ cái alphabet
+  // 3. Có ít nhất 8 chữ số
+  const hasLetters = /[A-Z]/i.test(rawVal);
+  const isPhoneSearch = !hasLetters && cleanDigits.length >= 8;
+
   try {
-    let orderQuery = supabase.from('orders').select('*');
+    let ordersData = null;
 
     if (isPhoneSearch) {
+      // Nhánh tìm theo SỐ ĐIỆN THOẠI
       const suffix = cleanDigits.slice(-8);
-      orderQuery = orderQuery.or(`phone.ilike.%${suffix}%,phone.ilike.%${cleanDigits}%`);
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or(`phone.ilike."%${suffix}%",phone.ilike."%${cleanDigits}%"`)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      ordersData = data;
     } else {
-      orderQuery = orderQuery.or(`code.eq.${upperCode},code.ilike.%${upperCode}%`);
+      // Nhánh tìm theo MÃ ĐƠN HÀNG (VD: XNG261022-X31G)
+      let { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('code', upperCode);
+
+      // Nếu không khớp tuyệt đối, tìm gần đúng
+      if (!error && (!data || data.length === 0)) {
+        const fallbackRes = await supabase
+          .from('orders')
+          .select('*')
+          .ilike('code', `%${upperCode}%`);
+        data = fallbackRes.data;
+        error = fallbackRes.error;
+      }
+
+      if (error) throw error;
+      ordersData = data;
     }
 
-    const { data: ordersData, error: ordersErr } = await orderQuery.order('created_at', { ascending: false });
-
-    if (ordersErr) throw ordersErr;
     if (!Array.isArray(ordersData) || ordersData.length === 0) return [];
 
     // Lấy items cho các đơn tìm được
@@ -179,12 +209,12 @@ export async function lookupOrderDirect(queryValue) {
     let itemsByOrder = {};
 
     if (orderCodes.length > 0) {
-      const { data: itemsData } = await supabase
+      const { data: itemsData, error: itemsErr } = await supabase
         .from('order_items')
         .select('*')
         .in('order_code', orderCodes);
 
-      if (Array.isArray(itemsData)) {
+      if (!itemsErr && Array.isArray(itemsData)) {
         itemsData.forEach((it) => {
           const key = it.order_code;
           if (!itemsByOrder[key]) itemsByOrder[key] = [];
@@ -214,8 +244,29 @@ export async function lookupOrderDirect(queryValue) {
 
 /**
  * 4. HỦY ĐƠN HÀNG (Khách tự hủy trong cửa sổ 30 phút đầu)
+ * Kiểm tra chặt thời gian created_at trước khi cập nhật
  */
 export async function cancelOrderDirect(orderCode, cancelReason) {
+  // 1. Kiểm tra đơn và thời gian tạo đơn
+  const { data: ord, error: fetchErr } = await supabase
+    .from('orders')
+    .select('code, status, created_at')
+    .eq('code', orderCode)
+    .single();
+
+  if (fetchErr || !ord) {
+    throw new Error('Không tìm thấy đơn hàng cần hủy.');
+  }
+
+  const orderTimeMs = parseOrderTimestampToMs(ord.created_at);
+  const elapsedMs = Date.now() - orderTimeMs;
+  const thirtyMinutesMs = 30 * 60 * 1000;
+
+  if (orderTimeMs > 0 && elapsedMs > thirtyMinutesMs) {
+    throw new Error('Đã quá thời gian 30 phút đổi ý. Đơn hàng đã được chốt đóng thùng.');
+  }
+
+  // 2. Cập nhật trạng thái
   const { data, error } = await supabase
     .from('orders')
     .update({
@@ -237,11 +288,9 @@ export async function cancelOrderDirect(orderCode, cancelReason) {
 
 /**
  * 5. TẢI ĐƠN HÀNG ĐANG VẬN HÀNH (KHẮC PHỤC TRIỆT ĐỂ LỖI PGRST201)
- * Truy vấn orders và order_items độc lập, không dùng embedded join gây xung đột Foreign Key
  */
 export async function fetchActiveProcessingOrders() {
   try {
-    // 1. Lấy đơn hàng theo danh sách trạng thái vận hành
     const { data: ordersData, error: ordersErr } = await supabase
       .from('orders')
       .select('*')
@@ -258,7 +307,6 @@ export async function fetchActiveProcessingOrders() {
       return [];
     }
 
-    // 2. Lấy order_items độc lập theo order_code
     const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
     let itemsByOrder = {};
 
@@ -286,7 +334,6 @@ export async function fetchActiveProcessingOrders() {
       }
     }
 
-    // 3. Chuẩn hóa dữ liệu tương thích ngược giữa Postgres snake_case và UI
     return ordersData.map((ord) => {
       const cCode = ord.code || ord.order_code || ord.id;
       const itemsList = itemsByOrder[cCode] || ord.cart || [];
@@ -321,13 +368,11 @@ export async function fetchActiveProcessingOrders() {
 /**
  * 6. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM XÁC THỰC MÃ ĐƠN
  */
-// Gửi đánh giá đơn hàng kèm kiểm tra: Đơn phải ở trạng thái "Đã nhận hàng" mới được đánh giá
 export async function submitOrderReview({ orderCode, phone, customerName, rating, content, productTags }) {
   try {
     const cleanCode = String(orderCode || '').trim().toUpperCase();
     const cleanPhone = String(phone || '').trim();
 
-    // 1. Kiểm tra đơn hàng có tồn tại và đúng số điện thoại không
     const { data: existingOrder, error: orderErr } = await supabase
       .from('orders')
       .select('code, phone, status')
@@ -338,7 +383,6 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
       return { success: false, error: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
     }
 
-    // 2. CHẶN NẾU CHƯA NHẬN HÀNG: Đảm bảo khách đã nhận hàng thực tế mới được review lấy mã
     const currentStatus = String(existingOrder.status || '').toLowerCase();
     const isCompleted = currentStatus.includes('đã nhận hàng') || currentStatus.includes('completed') || currentStatus.includes('hoàn tất');
     
@@ -349,13 +393,11 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
       };
     }
 
-    // 3. Kiểm tra khớp 4 số cuối điện thoại để bảo mật danh tính
     const orderPhone = String(existingOrder.phone || '').trim();
     if (orderPhone && cleanPhone && !orderPhone.endsWith(cleanPhone.slice(-4))) {
       return { success: false, error: 'Số điện thoại không khớp với thông tin đặt đơn.' };
     }
 
-    // 4. Ghi nhận đánh giá vào bảng reviews
     const ratingNum = Number(rating) || 5;
     const { data, error: insertErr } = await supabase
       .from('reviews')
@@ -367,7 +409,7 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
           rating: ratingNum,
           content: content.trim(),
           product_tags: productTags || '',
-          is_approved: true // Duyệt hiển thị ngay
+          is_approved: true
         }
       ])
       .select()
@@ -380,7 +422,6 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
       return { success: false, error: insertErr.message };
     }
 
-    // 5. Nếu đánh giá 5*, sinh mã voucher phần thưởng khích lệ khách đã nhận hàng thành công
     let rewardedVoucher = null;
     if (ratingNum === 5) {
       rewardedVoucher = {
@@ -475,9 +516,11 @@ export async function fetchApprovedReviews(limit = 6) {
   }
 }
 
+/**
+ * 11. ĐẾM SỐ ĐƠN THỰC TẾ
+ */
 export async function fetchTotalOrdersCount() {
   try {
-    // count: 'exact' giúp lấy con số chính xác, head: true để không tải payload dữ liệu
     const { count, error } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true });

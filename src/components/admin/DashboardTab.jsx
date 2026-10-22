@@ -6,9 +6,9 @@ import {
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
   Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift
 } from 'lucide-react';
-import { formatDateTime } from '../../utils/dateUtils';
+import { formatDateTime, getRemainingCancelMs, formatCountdownTimer } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
-import { parseCleanMoney, parseOrderTimestamp } from '../../utils/orderRiskUtils';
+import { parseCleanMoney } from '../../utils/orderRiskUtils';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import ConfirmModal from './ConfirmModal';
 
@@ -242,12 +242,9 @@ function DashboardOrderRow({
     return () => clearInterval(timer);
   }, [currentStatusCode]);
 
-  const orderTimestamp = parseOrderTimestamp(createdAtVal);
-  const elapsedMs = orderTimestamp ? (now - orderTimestamp) : 0;
-  const remainingMs = Math.max(0, 30 * 60 * 1000 - elapsedMs);
+  // Áp dụng helper chuẩn hóa UTC, loại trừ hoàn toàn độ lệch 7 tiếng (+420p)
+  const remainingMs = getRemainingCancelMs(createdAtVal, now, 30);
   const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
-  const cancelMinutes = Math.floor(remainingMs / 60000);
-  const cancelSeconds = Math.floor((remainingMs % 60000) / 1000);
 
   const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
   const isTerminalStatus = allowedNextStatuses.length === 0;
@@ -324,7 +321,7 @@ function DashboardOrderRow({
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/90 text-amber-950 border border-amber-300 shadow-2xs">
                 <Clock className="w-3 h-3 text-amber-600 animate-spin" />
                 <span>
-                  Khách còn <strong>{String(cancelMinutes).padStart(2, '0')}:{String(cancelSeconds).padStart(2, '0')}</strong> đổi ý
+                  Khách còn <strong>{formatCountdownTimer(remainingMs)}</strong> đổi ý
                 </span>
               </span>
             ) : currentStatusCode === ORDER_STATUS.PENDING ? (
@@ -560,7 +557,7 @@ export default function DashboardTab({
     const paymentVal = order.payment_method || order.paymentMethod;
     const isFullPrepaid = 
       String(paymentVal || '').toLowerCase().includes('100%') || 
-      paymentVal === 'full_qr';
+      paymentMethodVal === 'full_qr';
 
     if (isFullPrepaid && normalizedTarget === ORDER_STATUS.BOMBED) {
       setConfirmModalConfig({
@@ -574,11 +571,11 @@ export default function DashboardTab({
     const currentStatusCode = normalizeOrderStatus(order.status);
     if (currentStatusCode === ORDER_STATUS.PENDING && normalizedTarget === ORDER_STATUS.CONFIRMED) {
       const createdAtVal = order.created_at || order.createdAt;
-      const elapsed = Date.now() - parseOrderTimestamp(createdAtVal);
-      const isWithin30Mins = elapsed < 30 * 60 * 1000;
+      // Dùng hàm getRemainingCancelMs chuẩn UTC để kiểm tra
+      const remainingCancelMs = getRemainingCancelMs(createdAtVal, Date.now(), 30);
 
-      if (isWithin30Mins) {
-        const remainingMin = Math.ceil((30 * 60 * 1000 - elapsed) / 60000);
+      if (remainingCancelMs > 0) {
+        const remainingMin = Math.ceil(remainingCancelMs / 60000);
         setConfirmModalConfig({
           isAlert: false,
           title: 'Khách Còn Thời Gian Đổi Ý',
@@ -613,10 +610,10 @@ export default function DashboardTab({
 
   return (
     <div className="space-y-4 animate-fadeIn font-sans">
-      {/* ================= 1. CARD TỔNG HỢP DOANH THU & KPI (GỌN GÀNG, KHÔNG KHOẢNG TRẮNG DƯ) ================= */}
+      {/* ================= 1. CARD TỔNG HỢP DOANH THU & KPI ================= */}
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs overflow-hidden">
         
-        {/* HEADER: TIÊU ĐỀ + CHỈ SỐ VẬN HÀNH (ĐÃ BỎ NÚT LÀM MỚI DỮ LIỆU) */}
+        {/* HEADER */}
         <div className="px-5 py-3.5 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-stone-50/50 to-white">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0">
@@ -638,7 +635,6 @@ export default function DashboardTab({
             </div>
           </div>
 
-          {/* Dải tỷ lệ rủi ro đơn hàng gọn gàng bên góc phải */}
           <div className="flex items-center gap-2 text-xs">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-stone-50 border border-stone-200/70">
               <span className="text-[11px] text-stone-500 font-medium">Tỷ lệ hủy/bom:</span>
@@ -649,14 +645,10 @@ export default function DashboardTab({
           </div>
         </div>
 
-        {/* LƯỚI 4 CHỈ SỐ KPI ĐỒNG ĐỀU, VIỀN NGĂN TINH TẾ */}
+        {/* LƯỚI 4 CHỈ SỐ KPI */}
         <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-stone-100 p-1 bg-white">
-          
-          {/* KPI 1: Doanh Thu Dự Kiến */}
           <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-stone-50/50 transition-colors">
-            <span className="text-xs font-bold text-stone-500 flex items-center gap-1.5">
-              <span>Doanh Thu Dự Kiến</span>
-            </span>
+            <span className="text-xs font-bold text-stone-500">Doanh Thu Dự Kiến</span>
             <div>
               <p className="text-lg sm:text-xl font-black text-stone-900 font-mono tracking-tight">
                 {metrics.totalRevenue.toLocaleString('vi-VN')}đ
@@ -667,7 +659,6 @@ export default function DashboardTab({
             </div>
           </div>
 
-          {/* KPI 2: Tiền Thực Nhận */}
           <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-emerald-50/30 transition-colors">
             <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -683,11 +674,8 @@ export default function DashboardTab({
             </div>
           </div>
 
-          {/* KPI 3: Số Đơn Hàng Thành Công */}
           <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-stone-50/50 transition-colors">
-            <span className="text-xs font-bold text-stone-500">
-              Số Đơn Hiệu Lực
-            </span>
+            <span className="text-xs font-bold text-stone-500">Số Đơn Hiệu Lực</span>
             <div>
               <p className="text-lg sm:text-xl font-black text-stone-900 font-mono tracking-tight">
                 {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
@@ -698,11 +686,8 @@ export default function DashboardTab({
             </div>
           </div>
 
-          {/* KPI 4: AOV Giá Trị Trung Bình */}
           <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-amber-50/30 transition-colors">
-            <span className="text-xs font-bold text-amber-900/80">
-              Giá Trị TB / Đơn (AOV)
-            </span>
+            <span className="text-xs font-bold text-amber-900/80">Giá Trị TB / Đơn (AOV)</span>
             <div>
               <p className="text-lg sm:text-xl font-black text-amber-900 font-mono tracking-tight">
                 {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
@@ -712,10 +697,9 @@ export default function DashboardTab({
               </span>
             </div>
           </div>
-
         </div>
 
-        {/* FOOTER: DẢI THỐNG KÊ ĐƠN HỦY / BOM & TIỀN CỌC GIỮ LẠI (LIỀN MẠCH, TIẾT KIỆM KHÔNG GIAN) */}
+        {/* FOOTER */}
         <div className="px-5 py-2.5 bg-[#faf8f5] border-t border-stone-100 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-4 text-stone-600">
             <div className="flex items-center gap-1.5">
@@ -744,16 +728,13 @@ export default function DashboardTab({
             Chỉ số cập nhật tự động theo trạng thái đơn
           </span>
         </div>
-
       </div>
 
       {/* ================= 2. KHU VỰC QUẢN LÝ ĐƠN HÀNG ================= */}
       <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-3.5">
         
-        {/* HÀNG 1: TÌM KIẾM MỞ RỘNG + CHỌN THỜI GIAN CUSTOM */}
+        {/* HÀNG 1: TÌM KIẾM + BỘ LỌC NGÀY */}
         <div className="flex items-center gap-2">
-          
-          {/* Ô Tìm Kiếm */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -774,7 +755,7 @@ export default function DashboardTab({
             )}
           </div>
 
-          {/* Bộ chọn Ngày Popup Custom */}
+          {/* Dropdown ngày */}
           <div ref={dateDropdownRef} className="relative shrink-0">
             <button
               type="button"
@@ -817,7 +798,7 @@ export default function DashboardTab({
             )}
           </div>
 
-          {/* Nút Reset Bộ Lọc */}
+          {/* Reset Bộ Lọc */}
           {(statusFilter !== ORDER_STATUS.PENDING || dateFilterType !== 'all' || searchQuery) && (
             <button
               type="button"
@@ -834,7 +815,7 @@ export default function DashboardTab({
           )}
         </div>
 
-        {/* HÀNG 2: THANH TAB TRẠNG THÁI TRƯỢT NGANG */}
+        {/* HÀNG 2: THANH TAB TRẠNG THÁI */}
         <div className="pt-2 border-t border-stone-100 flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
           <button
             type="button"
@@ -902,7 +883,7 @@ export default function DashboardTab({
           </div>
         )}
 
-        {/* BANNER KHI ĐANG SOI ĐƠN GỐC */}
+        {/* BANNER SOI ĐƠN GỐC */}
         {isInspectingRefer && (
           <div className="p-2.5 bg-amber-500/10 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fadeIn">
             <div className="flex items-center gap-2 text-amber-950 font-medium">
