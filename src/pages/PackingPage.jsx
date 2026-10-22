@@ -1,19 +1,21 @@
 // src/pages/PackingPage.jsx
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   PackageCheck, Printer, 
   CheckCircle2, Lock, ArrowLeft, Banknote, 
   ShieldCheck, AlertCircle, Gift, Check, RotateCcw,
-  Layers, Package, Wifi, WifiOff
+  Layers, Package, LogOut, RefreshCw, Loader2
 } from 'lucide-react';
-import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
+import { 
+  ORDER_STATUS, 
+  normalizeOrderStatus, 
+  getOrderStatusLabel 
+} from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
 
 export default function PackingPage({ 
-  orders = [], 
+  orders: propOrders = [], 
   shopConfig = {}, 
-  onRefresh, 
-  onUpdateStatus, 
   onNavigateHome 
 }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -27,7 +29,12 @@ export default function PackingPage({
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [activeTab, setActiveTab] = useState('picking');
-  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+
+  const [warehouseOrders, setWarehouseOrders] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
+  const depositConfigAmount = Number(shopConfig?.depositAmount) || 100000;
 
   // Map tra cứu quà tặng từ catalog (Fallback nếu đơn chỉ lưu ID quà)
   const giftCatalogMap = useMemo(() => {
@@ -51,17 +58,99 @@ export default function PackingPage({
     });
   };
 
-  const effectiveOrders = useMemo(() => {
-    if (Array.isArray(orders) && orders.length > 0) {
-      return orders;
-    }
+  // 1. TẢI ĐƠN HÀNG HỢP LỆ TRỰC TIẾP TỪ SUPABASE
+  const fetchPackableOrders = useCallback(async () => {
+    if (!isAuthenticated) return;
+    setIsLoading(true);
     try {
-      return JSON.parse(localStorage.getItem('shop_orders') || '[]');
-    } catch {
-      return [];
-    }
-  }, [orders]);
+      const { data: ordersData, error: ordersErr } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
 
+      if (ordersErr) throw ordersErr;
+
+      if (!Array.isArray(ordersData) || ordersData.length === 0) {
+        setWarehouseOrders([]);
+        return;
+      }
+
+      // Kéo chi tiết order_items tương ứng theo order_code
+      const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
+      let itemsMap = {};
+
+      if (orderCodes.length > 0) {
+        const { data: itemsData, error: itemsErr } = await supabase
+          .from('order_items')
+          .select('*')
+          .in('order_code', orderCodes);
+
+        if (!itemsErr && Array.isArray(itemsData)) {
+          itemsData.forEach((it) => {
+            const key = it.order_code;
+            if (!itemsMap[key]) itemsMap[key] = [];
+            itemsMap[key].push(it);
+          });
+        }
+      }
+
+      const merged = ordersData.map((ord) => ({
+        ...ord,
+        order_items: itemsMap[ord.code] || ord.cart || []
+      }));
+
+      setWarehouseOrders(merged);
+    } catch (err) {
+      console.error('Lỗi tải đơn hàng kho:', err);
+      if (Array.isArray(propOrders) && propOrders.length > 0) {
+        setWarehouseOrders(propOrders);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, propOrders]);
+
+  // Realtime subscription từ Supabase
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchPackableOrders();
+
+    const channel = supabase
+      .channel('public:orders:warehouse-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        () => {
+          fetchPackableOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, fetchPackableOrders]);
+
+  // Cập nhật trạng thái đơn hàng (Tự map qua getOrderStatusLabel)
+  const handleUpdateStatus = async (orderCode, targetStatusCode) => {
+    const finalLabel = getOrderStatusLabel(targetStatusCode);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: finalLabel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('code', orderCode);
+
+      if (error) throw error;
+      await fetchPackableOrders();
+    } catch (err) {
+      alert('Không thể cập nhật trạng thái đơn: ' + err.message);
+    }
+  };
+
+  // State lưu vết checklist
   const [pickedItems, setPickedItems] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem('warehouse_picked_items') || '{}');
@@ -94,101 +183,46 @@ export default function PackingPage({
     }
   }, [checkedBoxItems]);
 
-  const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
-  const depositConfigAmount = Number(shopConfig?.depositAmount) || 100000;
-
-  const onRefreshRef = useRef(onRefresh);
-  useEffect(() => {
-    onRefreshRef.current = onRefresh;
-  }, [onRefresh]);
-
-  // SUPABASE REALTIME & AUTO-RECONNECT: Tự động bắt sự kiện DB và phục hồi khi có mạng lại
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    if (onRefreshRef.current) {
-      onRefreshRef.current();
-    }
-
-    const handleOnline = () => {
-      setIsOnline(true);
-      // Mạng vừa thông lại -> tự động kéo dữ liệu mới nhất ngay lập tức
-      if (onRefreshRef.current) {
-        onRefreshRef.current();
-      }
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const channel = supabase
-      .channel('warehouse-orders-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-        },
-        () => {
-          if (onRefreshRef.current) {
-            onRefreshRef.current();
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED' && onRefreshRef.current) {
-          onRefreshRef.current();
-        }
-      });
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated]);
-
   const handlePinSubmit = (e) => {
     e.preventDefault();
     if (pinInput.trim() === validWarehousePin) {
       setIsAuthenticated(true);
       setPinError(false);
-      try {
-        sessionStorage.setItem('warehouse_authenticated', 'true');
-      } catch (err) {
-        console.error(err);
-      }
+      sessionStorage.setItem('warehouse_authenticated', 'true');
     } else {
       setPinError(true);
       setPinInput('');
     }
   };
 
+  const handleLogoutWarehouse = () => {
+    sessionStorage.removeItem('warehouse_authenticated');
+    setIsAuthenticated(false);
+    setPinInput('');
+  };
+
   const togglePickedItem = (key) => {
-    setPickedItems((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setPickedItems((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const toggleBoxItem = (orderCode, itemIdx) => {
     const key = `${orderCode}_${itemIdx}`;
-    setCheckedBoxItems((prev) => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setCheckedBoxItems((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleResetPickingTicks = () => {
     setPickedItems({});
   };
 
-  // Tính số tiền cần thu khi giao kiện (COD / Đã cọc / Đã chuyển 100%)
+  // Lọc chính xác các đơn "Đã xác nhận" và "Đang đóng gói" bằng normalizeOrderStatus
+  const packableOrders = useMemo(() => {
+    return warehouseOrders.filter((o) => {
+      const statusCode = normalizeOrderStatus(o.status);
+      return statusCode === ORDER_STATUS.CONFIRMED || statusCode === ORDER_STATUS.PACKING;
+    });
+  }, [warehouseOrders]);
+
+  // Tính số tiền cần thu khi giao hàng
   const getCollectInfo = (order) => {
     const method = String(order.payment_method || order.paymentMethod || '').toLowerCase();
     const rawTotal = Number(order.final_total ?? order.total ?? order.totalAmount ?? 0);
@@ -197,7 +231,7 @@ export default function PackingPage({
       return {
         type: 'PAID_FULL',
         collectAmount: 0,
-        badgeText: 'ĐÃ CHUYỂN FULL 100% (Thu 0đ)',
+        badgeText: 'ĐÃ CHUYỂN 100% (Thu 0đ)',
         badgeStyle: 'text-emerald-800 bg-emerald-50 border-emerald-300',
         printTitle: '✓ ĐÃ THANH TOÁN ĐỦ 100%',
         printSub: 'TUYỆT ĐỐI KHÔNG THU THÊM TIỀN'
@@ -211,7 +245,7 @@ export default function PackingPage({
         type: 'DEPOSIT_REMAINING',
         collectAmount: remaining,
         depositAmount: deposit,
-        badgeText: `ĐÃ CỌC ${deposit.toLocaleString('vi-VN')}đ • THU CÒN LẠI: ${remaining.toLocaleString('vi-VN')}đ`,
+        badgeText: `ĐÃ CỌC ${deposit.toLocaleString('vi-VN')}đ • THU: ${remaining.toLocaleString('vi-VN')}đ`,
         badgeStyle: 'text-amber-900 bg-amber-50 border-amber-300',
         printTitle: `ĐÃ CỌC ${deposit.toLocaleString('vi-VN')} đ (THU CÒN LẠI):`,
         printSub: `Tổng đơn: ${rawTotal.toLocaleString('vi-VN')}đ - Khách đã cọc: ${deposit.toLocaleString('vi-VN')}đ`
@@ -228,34 +262,35 @@ export default function PackingPage({
     };
   };
 
-  // Lọc đơn hợp lệ vào kho (Đã xác nhận hoặc Đang đóng gói)
-  const packableOrders = useMemo(() => {
-    return effectiveOrders.filter((o) => {
-      const statusCode = normalizeOrderStatus(o.status);
-      return statusCode === ORDER_STATUS.CONFIRMED || statusCode === ORDER_STATUS.PACKING;
-    });
-  }, [effectiveOrders]);
-
-  // PARSE DANH SÁCH MÓN: Hỗ trợ 3NF order_items, mảng cart và chuỗi regex itemsSummary
+  // Phân tích chi tiết danh sách món kèm quà tặng
   const parseOrderItems = (order) => {
     const items = [];
 
-    // 1. Ưu tiên mảng quan hệ 3NF order_items từ Supabase
+    // 1. Mảng quan hệ 3NF order_items
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
       order.order_items.forEach((oi) => {
         items.push({
-          name: oi.name,
+          name: oi.name || oi.product_name || 'Đặc sản Ninh Thuận',
           spec: oi.weight_label || oi.spec || 'Tiêu chuẩn',
           quantity: Number(oi.quantity) || 1,
           isGift: Boolean(oi.is_gift)
         });
+
+        if (oi.campaign_gift_title) {
+          items.push({
+            name: `[QUÀ TẶNG] ${oi.campaign_gift_title}`,
+            spec: 'Quà quê tặng kèm',
+            quantity: Number(oi.quantity) || 1,
+            isGift: true
+          });
+        }
       });
     }
-    // 2. Fallback sang mảng cart
+    // 2. Mảng cart từ client
     else if (Array.isArray(order.cart) && order.cart.length > 0) {
       order.cart.forEach((c) => {
         items.push({
-          name: c.name,
+          name: c.name || c.product_name || 'Đặc sản Ninh Thuận',
           spec: c.weightLabel || c.unit || 'Tiêu chuẩn',
           quantity: Number(c.quantity) || 1,
           isGift: false
@@ -273,7 +308,7 @@ export default function PackingPage({
         }
       });
     }
-    // 3. Fallback sang chuỗi tổng hợp itemsSummary
+    // 3. Fallback chuỗi itemsSummary
     else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
       const parts = order.itemsSummary.split(',');
       parts.forEach((str) => {
@@ -303,7 +338,7 @@ export default function PackingPage({
       });
     }
 
-    // Quà tặng chuyển khoản
+    // Quà tặng thanh toán
     const giftTitle = order.payment_gift || order.giftTitle || order.paymentGift;
     if (giftTitle && giftTitle !== 'Không áp dụng (COD)' && giftTitle.trim() !== '') {
       const resolvedPaymentGift = giftCatalogMap.get(giftTitle) || giftTitle;
@@ -318,7 +353,7 @@ export default function PackingPage({
       }
     }
 
-    // Quà combo từ chuỗi campaign_gifts
+    // Quà combo chiến dịch
     const rawCampGifts = order.campaign_gifts || order.campaignGifts;
     if (rawCampGifts && typeof rawCampGifts === 'string') {
       const campGifts = rawCampGifts.split('|');
@@ -407,7 +442,7 @@ export default function PackingPage({
           <div class="info-grid">
             <div class="sender-box">
               <strong>Người gửi:</strong> Xứ Nắng Gió • Hotline: <strong>${shopConfig.hotline || '0848.957.345'}</strong><br/>
-              <strong>Địa chỉ gửi:</strong> ${shopConfig.address || 'Trường Sanh, Phước Hậu, Ninh Thuận'}
+              <strong>Địa chỉ gửi:</strong> ${shopConfig.address || 'Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận'}
             </div>
 
             <div class="recipient-box">
@@ -711,7 +746,7 @@ export default function PackingPage({
               window.print();
               setTimeout(function() {
                 window.close();
-              }, 300);
+              }, 400);
             };
           </script>
         </body>
@@ -722,26 +757,29 @@ export default function PackingPage({
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4 font-sans">
+      <div className="min-h-[80vh] flex items-center justify-center p-4 font-sans animate-fadeIn">
         <form onSubmit={handlePinSubmit} className="bg-white p-7 rounded-3xl border border-stone-200/90 shadow-xl max-w-sm w-full text-center space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
             <Lock className="w-6 h-6" />
           </div>
           <h2 className="text-base font-black text-stone-900">Mã PIN Kho Đóng Hàng</h2>
-          <p className="text-xs text-stone-500">Nhập mã PIN kho để mở bảng kiểm tra & in tem giao hàng</p>
+          <p className="text-xs text-stone-500">Nhập mã PIN kho để mở bảng gom nông sản & in tem giao nhà xe</p>
           <input
             type="password"
             maxLength={8}
             value={pinInput}
             autoFocus
-            onChange={(e) => setPinInput(e.target.value)}
+            onChange={(e) => {
+              setPinInput(e.target.value);
+              if (pinError) setPinError(false);
+            }}
             placeholder="Nhập mã PIN kho"
             className="w-full text-center text-lg tracking-widest font-mono py-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:border-amber-600 focus:outline-none font-black"
           />
           {pinError && <p className="text-xs text-rose-600 font-semibold">Mã PIN không đúng, thử lại!</p>}
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-amber-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
           >
             Mở Bảng Đóng Hàng
           </button>
@@ -768,25 +806,46 @@ export default function PackingPage({
               <PackageCheck className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base sm:text-lg font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
+                {isLoading && <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />}
+              </div>
               <p className="text-xs text-stone-500">
                 Có <strong className="text-amber-800 font-mono">{packableOrders.length}</strong> đơn hợp lệ chờ đóng thùng
               </p>
             </div>
           </div>
 
-          {/* Góc phải chỉ giữ lại nút In Hết nếu có đơn chờ đóng */}
-          {packableOrders.length > 0 && (
+          <div className="flex items-center gap-2">
+            {packableOrders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
+                title="In hàng loạt tất cả tem chờ đóng"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>In Hết ({packableOrders.length} Tem)</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
-              title="In hàng loạt tất cả tem chờ đóng"
+              onClick={fetchPackableOrders}
+              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors cursor-pointer"
+              title="Làm mới dữ liệu từ Supabase"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>In Hết ({packableOrders.length} Tem)</span>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={handleLogoutWarehouse}
+              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
+              title="Khóa lại giao diện kho"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tab chuyển đổi */}
@@ -999,7 +1058,7 @@ export default function PackingPage({
                       {!isPackingNow ? (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
+                          onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
                           className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <Package className="w-4 h-4" />
@@ -1008,7 +1067,7 @@ export default function PackingPage({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
+                          onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
                           className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
                         >
                           <CheckCircle2 className="w-4 h-4" />

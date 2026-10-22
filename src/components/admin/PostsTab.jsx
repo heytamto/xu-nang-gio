@@ -1,7 +1,7 @@
 // src/components/admin/PostsTab.jsx
 import React, { useState } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Calendar, Clock } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
 
 const CATEGORY_OPTIONS = [

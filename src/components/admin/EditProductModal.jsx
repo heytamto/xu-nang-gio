@@ -1,7 +1,7 @@
 // src/components/admin/EditProductModal.jsx
 import React, { useState, useEffect } from 'react';
 import { X, Check, Plus, Trash2, Star, Layers } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
 // Danh mục chuẩn khớp 100% với Database Supabase

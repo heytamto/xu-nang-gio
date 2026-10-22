@@ -38,12 +38,26 @@ export default function CustomerInfoForm({
     if (hasSavedAddress && addressMode === 'saved') {
       if (prevInfo?.address && shippingAddress !== prevInfo.address) {
         setShippingAddress(prevInfo.address);
+        if (formErrors?.address) {
+          setFormErrors((prev) => ({ ...prev, address: '' }));
+        }
       }
       if (prevInfo?.name && !customer.name?.trim()) {
         setCustomer((prev) => ({ ...prev, name: prevInfo.name }));
       }
     }
-  }, [hasSavedAddress, addressMode, prevInfo?.address, prevInfo?.name]);
+  }, [
+    hasSavedAddress, 
+    addressMode, 
+    prevInfo?.address, 
+    prevInfo?.name, 
+    shippingAddress, 
+    customer.name, 
+    setShippingAddress, 
+    setCustomer, 
+    formErrors?.address, 
+    setFormErrors
+  ]);
 
   const handlePhoneChange = (e) => {
     const formatted = sanitizeVietnamesePhone(e.target.value);
@@ -64,6 +78,14 @@ export default function CustomerInfoForm({
     if (formatted.length === 10) {
       const err = validatePhone(formatted);
       setFormErrors((prev) => ({ ...prev, phone: err }));
+    }
+  };
+
+  // Hàm trung gian nhận địa chỉ từ AddressField & xóa lỗi nếu đã điền
+  const handleAddressChange = (newAddr) => {
+    setShippingAddress(newAddr);
+    if (newAddr && formErrors?.address) {
+      setFormErrors((prev) => ({ ...prev, address: '' }));
     }
   };
 
@@ -168,6 +190,12 @@ export default function CustomerInfoForm({
             }`}
           />
         </div>
+        {formErrors?.email && (
+          <p className="text-[10.5px] text-rose-600 font-medium flex items-center gap-1 mt-1 pl-1">
+            <AlertCircle className="w-3 h-3 shrink-0" />
+            <span>{formErrors.email}</span>
+          </p>
+        )}
       </div>
 
       {/* Cảnh báo rủi ro Bom hàng */}
@@ -233,7 +261,7 @@ export default function CustomerInfoForm({
             <div
               onClick={() => {
                 setAddressMode('saved');
-                setShippingAddress(prevInfo.address);
+                handleAddressChange(prevInfo.address);
               }}
               className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${
                 addressMode === 'saved'
@@ -247,7 +275,7 @@ export default function CustomerInfoForm({
                 checked={addressMode === 'saved'}
                 onChange={() => {
                   setAddressMode('saved');
-                  setShippingAddress(prevInfo.address);
+                  handleAddressChange(prevInfo.address);
                 }}
                 className="mt-0.5 text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
@@ -266,7 +294,7 @@ export default function CustomerInfoForm({
             <div
               onClick={() => {
                 setAddressMode('new');
-                setShippingAddress('');
+                handleAddressChange('');
               }}
               className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center gap-2.5 ${
                 addressMode === 'new'
@@ -280,7 +308,7 @@ export default function CustomerInfoForm({
                 checked={addressMode === 'new'}
                 onChange={() => {
                   setAddressMode('new');
-                  setShippingAddress('');
+                  handleAddressChange('');
                 }}
                 className="text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
@@ -293,12 +321,28 @@ export default function CustomerInfoForm({
             {/* Render AddressField khi chọn nhập mới */}
             {addressMode === 'new' && (
               <div className="pt-1 animate-fadeIn">
-                <AddressField value={shippingAddress} onChange={setShippingAddress} />
+                <AddressField 
+                  value={shippingAddress} 
+                  onChange={handleAddressChange}
+                  error={formErrors?.address}
+                />
               </div>
+            )}
+
+            {/* Hiển thị lỗi nếu đang ở tab địa chỉ cũ mà địa chỉ không hợp lệ */}
+            {addressMode === 'saved' && formErrors?.address && (
+              <p className="text-[10.5px] text-rose-600 font-medium flex items-center gap-1 pl-1">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>{formErrors.address}</span>
+              </p>
             )}
           </div>
         ) : (
-          <AddressField value={shippingAddress} onChange={setShippingAddress} />
+          <AddressField 
+            value={shippingAddress} 
+            onChange={handleAddressChange}
+            error={formErrors?.address}
+          />
         )}
       </div>
 

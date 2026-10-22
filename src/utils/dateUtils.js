@@ -14,6 +14,9 @@ const MONTH_MAP = {
  */
 export function parseOrderTimestampToMs(val) {
   if (!val) return 0;
+  if (val instanceof Date) return isNaN(val.getTime()) ? 0 : val.getTime();
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+
   try {
     let str = String(val).trim().replace(/\s*\(.*?\)\s*/g, '');
 
@@ -32,10 +35,20 @@ export function parseOrderTimestampToMs(val) {
       if (!isNaN(d.getTime())) return d.getTime();
     }
 
-    // 1.3 Dạng ISO chuẩn hoặc từ Supabase (vd: "2026-10-22 08:30:00" hoặc "2026-10-22T08:30:00")
-    // Nếu chuỗi không có offset (+07) hoặc Z ở đuôi -> thêm 'Z' để ép JS parse theo chuẩn UTC
-    if (str.includes('-') && !str.endsWith('Z') && !str.includes('+') && !str.slice(10).includes('-')) {
-      str = str.replace(' ', 'T') + 'Z';
+    // 1.3 Dạng ISO hoặc từ Supabase (vd: "2026-10-22 08:30:00" hoặc "2026-10-22T08:30:00")
+    // Nếu chuỗi ISO chưa có chỉ thị timezone (Z hoặc +/ - sau phần giờ) -> ép đuôi 'Z' để coi là UTC chuẩn
+    if (str.includes('-')) {
+      const hasT = str.includes('T');
+      const normalizedStr = hasT ? str : str.replace(' ', 'T');
+      const timeComponent = normalizedStr.split('T')[1] || '';
+
+      const hasTimezone = timeComponent.includes('Z') || 
+                          timeComponent.includes('+') || 
+                          (timeComponent.includes('-') && timeComponent.indexOf('-') > 2);
+
+      const finalIso = hasTimezone ? normalizedStr : `${normalizedStr}Z`;
+      const t = new Date(finalIso).getTime();
+      if (!isNaN(t)) return t;
     }
 
     const t = new Date(str).getTime();
@@ -65,8 +78,7 @@ export function getRemainingCancelMs(createdAtStr, currentNow = Date.now(), wind
   // Đã quá 30 phút -> hết hạn hủy
   if (remaining <= 0) return 0;
 
-  // Giới hạn trần tối đa không vượt quá windowMinutes (chống lỗi tràn giờ)
-  // và cho phép đếm ngược lùi từng giây theo nhịp của currentNow
+  // Giới hạn trần tối đa không vượt quá windowMinutes (chống lỗi tràn giờ do lệch đồng hồ máy khách)
   return Math.min(remaining, maxWindowMs);
 }
 
@@ -83,45 +95,22 @@ export function formatCountdownTimer(ms) {
 
 /**
  * 4. FORMAT NGÀY: dd/MM/yyyy (VD: 22/10/2026)
+ * Đã chuẩn hóa qua Local Time để không bị tụt ngày khi lưu UTC ở server
  */
 export function formatDate(val, fallback = '') {
   if (!val) return fallback;
-  let str = String(val).trim();
+  try {
+    const ms = parseOrderTimestampToMs(val);
+    if (!ms) return fallback;
 
-  // Đã chuẩn dạng dd/MM/yyyy hoặc d/M/yyyy
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split('/');
-    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
-  }
-
-  // Định dạng YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
-    const [y, m, d] = str.split('T')[0].split('-');
-    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
-  }
-
-  // Google Sheet: "Thu Oct 15 2026 00:00:00 GMT+0700 (Giờ Đông Dương)"
-  const cleanStr = str.replace(/\s*\(.*?\)\s*/g, '');
-  const d = new Date(cleanStr);
-  if (!isNaN(d.getTime())) {
+    const d = new Date(ms);
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
+  } catch {
+    return fallback;
   }
-
-  // Fallback Regex tách trực tiếp tháng tiếng Anh: "Thu Oct 15 2026"
-  const match = str.match(/([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/);
-  if (match) {
-    const mStr = match[1];
-    const dayStr = match[2].padStart(2, '0');
-    const yearStr = match[3];
-    if (MONTH_MAP[mStr]) {
-      return `${dayStr}/${MONTH_MAP[mStr]}/${yearStr}`;
-    }
-  }
-
-  return str.split('T')[0] || fallback;
 }
 
 /**
@@ -134,16 +123,13 @@ export function formatDateTime(val, fallback = 'Gần đây') {
     if (!ms) return formatDate(val, fallback);
 
     const d = new Date(ms);
-    const date = d.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    const time = d.toLocaleTimeString('vi-VN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    return `${date} ${time}`;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
   } catch {
     return formatDate(val, fallback);
   }

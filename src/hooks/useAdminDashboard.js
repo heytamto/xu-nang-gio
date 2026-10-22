@@ -3,9 +3,9 @@ import { useState, useMemo } from 'react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { 
   buildCustomerProfileMap, 
-  parseCleanMoney, 
-  parseOrderDate 
+  parseCleanMoney 
 } from '../utils/orderRiskUtils';
+import { parseOrderTimestampToMs } from '../utils/dateUtils';
 
 export function useAdminDashboard(orders = [], depositAmount = 50000) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,11 +67,13 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     setEndDate(val);
   };
 
-  // 1. LỌC DANH SÁCH ĐƠN HÀNG (Tương thích cả snake_case và camelCase)
+  // 1. LỌC DANH SÁCH ĐƠN HÀNG (Tương thích snake_case, camelCase và chuẩn hóa múi giờ)
   const filteredOrders = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const todayEnd = todayStart + 86400000 - 1;
     const yesterdayStart = todayStart - 86400000;
+    const yesterdayEnd = todayStart - 1;
 
     return orders.filter((order) => {
       const rawPhone = String(order.phone || order.customer?.phone || '').replace(/\D/g, '');
@@ -93,29 +95,27 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
       if (dateFilterType === 'all') return true;
 
       const rawDateStr = order.created_at || order.createdAt;
-      let orderTime = null;
-      if (rawDateStr) {
-        const d = new Date(rawDateStr);
-        if (!isNaN(d.getTime())) {
-          orderTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        } else {
-          const parsed = parseOrderDate(rawDateStr);
-          if (parsed) orderTime = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime();
-        }
+      const orderMs = parseOrderTimestampToMs(rawDateStr);
+      if (!orderMs) return true;
+
+      if (dateFilterType === 'today') {
+        return orderMs >= todayStart && orderMs <= todayEnd;
       }
-
-      if (!orderTime) return true;
-
-      if (dateFilterType === 'today') return orderTime === todayStart;
-      if (dateFilterType === 'yesterday') return orderTime === yesterdayStart;
-      if (dateFilterType === '7days') return orderTime >= todayStart - 7 * 86400000 && orderTime <= todayStart;
-      if (dateFilterType === '30days') return orderTime >= todayStart - 30 * 86400000 && orderTime <= todayStart;
+      if (dateFilterType === 'yesterday') {
+        return orderMs >= yesterdayStart && orderMs <= yesterdayEnd;
+      }
+      if (dateFilterType === '7days') {
+        return orderMs >= (todayStart - 7 * 86400000) && orderMs <= todayEnd;
+      }
+      if (dateFilterType === '30days') {
+        return orderMs >= (todayStart - 30 * 86400000) && orderMs <= todayEnd;
+      }
       if (dateFilterType === 'custom') {
         const startTimestamp = startDate ? new Date(startDate).setHours(0, 0, 0, 0) : null;
         const endTimestamp = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : null;
-        if (startTimestamp && endTimestamp) return orderTime >= startTimestamp && orderTime <= endTimestamp;
-        if (startTimestamp) return orderTime >= startTimestamp;
-        if (endTimestamp) return orderTime <= endTimestamp;
+        if (startTimestamp && endTimestamp) return orderMs >= startTimestamp && orderMs <= endTimestamp;
+        if (startTimestamp) return orderMs >= startTimestamp;
+        if (endTimestamp) return orderMs <= endTimestamp;
       }
       return true;
     });
@@ -160,13 +160,18 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
     const lossRate = grandTotalOrders > 0 ? Math.round((badOrderCount / grandTotalOrders) * 100) : 0;
 
     return { 
-      totalRevenue, totalOrders, avgOrderValue, realReceivedMoney,
-      cancelledCount: cancelledOrders.length, bombedCount: bombedOrders.length,
-      retainedDeposit: retainedDepositFromBombed, lossRate
+      totalRevenue, 
+      totalOrders, 
+      avgOrderValue, 
+      realReceivedMoney,
+      cancelledCount: cancelledOrders.length, 
+      bombedCount: bombedOrders.length,
+      retainedDeposit: retainedDepositFromBombed, 
+      lossRate
     };
   }, [filteredOrders, depositAmount]);
 
-  // 3. ĐẶC SẢN BÁN CHẠY (Hỗ trợ cả order_items quan hệ 3NF và mảng cart)
+  // 3. ĐẶC SẢN BÁN CHẠY (Hỗ trợ cả order_items 3NF, cart mảng object và chuỗi itemsSummary)
   const topProducts = useMemo(() => {
     const productStats = {};
     const validOrders = filteredOrders.filter((o) => {
@@ -178,7 +183,7 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
       // 1. Kiểm tra mảng quan hệ 3NF order_items từ Supabase
       if (Array.isArray(order.order_items) && order.order_items.length > 0) {
         order.order_items.forEach((item) => {
-          const key = item.name || 'Đặc sản';
+          const key = item.name || item.product_name || 'Đặc sản';
           if (!productStats[key]) productStats[key] = { name: key, quantity: 0 };
           productStats[key].quantity += (Number(item.quantity) || 1);
         });
@@ -186,7 +191,7 @@ export function useAdminDashboard(orders = [], depositAmount = 50000) {
       // 2. Fallback sang mảng cart (đơn vừa đặt từ client)
       else if (Array.isArray(order.cart) && order.cart.length > 0) {
         order.cart.forEach((item) => {
-          const key = item.name || 'Đặc sản';
+          const key = item.name || item.product_name || 'Đặc sản';
           if (!productStats[key]) productStats[key] = { name: key, quantity: 0 };
           productStats[key].quantity += (Number(item.quantity) || 1);
         });

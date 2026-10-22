@@ -1,7 +1,7 @@
 // src/components/admin/EditPostModal.jsx
 import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 
 const CATEGORY_OPTIONS = [
   { value: 'cam-nang', label: 'Cẩm nang' },

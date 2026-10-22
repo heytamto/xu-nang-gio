@@ -1,7 +1,7 @@
 // src/components/admin/StoriesTab.jsx
 import React, { useState } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
 
 export default function StoriesTab({

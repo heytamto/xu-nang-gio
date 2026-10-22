@@ -242,7 +242,7 @@ function DashboardOrderRow({
     return () => clearInterval(timer);
   }, [currentStatusCode]);
 
-  // Áp dụng helper chuẩn hóa UTC, loại trừ hoàn toàn độ lệch 7 tiếng (+420p)
+  // Áp dụng helper chuẩn hóa UTC, loại trừ hoàn toàn độ lệch múi giờ
   const remainingMs = getRemainingCancelMs(createdAtVal, now, 30);
   const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
 
@@ -557,7 +557,7 @@ export default function DashboardTab({
     const paymentVal = order.payment_method || order.paymentMethod;
     const isFullPrepaid = 
       String(paymentVal || '').toLowerCase().includes('100%') || 
-      paymentMethodVal === 'full_qr';
+      paymentVal === 'full_qr';
 
     if (isFullPrepaid && normalizedTarget === ORDER_STATUS.BOMBED) {
       setConfirmModalConfig({

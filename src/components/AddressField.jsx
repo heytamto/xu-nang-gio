@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   MapPin, Navigation, Loader2, ChevronDown, 
-  AlertTriangle, Search, Check, X, Edit3, CheckCircle2 
+  AlertTriangle, Search, Check, X, Edit3, CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import rawData from '../data/administrative_units.json';
 
@@ -145,7 +146,7 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
   );
 }
 
-export default function AddressField({ value = '', onChange }) {
+export default function AddressField({ value = '', onChange, error = '' }) {
   // Nếu có địa chỉ truyền vào từ trước -> mở thẳng tab manual để không đè dữ liệu
   const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'gps'));
 
@@ -179,6 +180,7 @@ export default function AddressField({ value = '', onChange }) {
 
   const [selectedWard, setSelectedWard] = useState(() => wards[0] || '');
   const [detailAddress, setDetailAddress] = useState('');
+  const [detailTouched, setDetailTouched] = useState(false);
   const [autoDetectedText, setAutoDetectedText] = useState('');
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
@@ -204,20 +206,31 @@ export default function AddressField({ value = '', onChange }) {
     }
   }, [wards]);
 
+  // Kiểm tra tính hợp lệ của địa chỉ chi tiết
+  const isDetailEmpty = !detailAddress.trim();
+  const isDetailTooShort = detailAddress.trim().length > 0 && detailAddress.trim().length < 5;
+  const showDetailError = detailTouched && (isDetailEmpty || isDetailTooShort);
+
   // Đồng bộ giá trị trả về cho Checkout Form
   useEffect(() => {
     let full = '';
     if (inputMode === 'gps' && autoDetectedText) {
       full = autoDetectedText;
     } else if (inputMode === 'manual') {
-      full = [
-        detailAddress.trim(),
-        selectedWard,
-        selectedProvince
-      ].filter(Boolean).join(', ');
+      // Chỉ phát ra địa chỉ hoàn chỉnh khi ĐÃ ĐIỀN ĐỊA CHỈ CHI TIẾT
+      const cleanDetail = detailAddress.trim();
+      if (cleanDetail.length >= 4) {
+        full = [
+          cleanDetail,
+          selectedWard,
+          selectedProvince
+        ].filter(Boolean).join(', ');
+      } else {
+        full = ''; // Chặn không cho tạo đơn nếu thiếu số nhà/tên đường
+      }
     }
 
-    if (full && full !== lastEmittedValue.current) {
+    if (full !== lastEmittedValue.current) {
       lastEmittedValue.current = full;
       if (onChange) onChange(full);
     }
@@ -450,18 +463,53 @@ export default function AddressField({ value = '', onChange }) {
             />
           </div>
 
-          <div className="relative">
-            <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
-            <input
-              type="text"
-              required
-              placeholder="Số nhà, tên đường hoặc tên Nhà xe / Chành xe nhận hàng..."
-              value={detailAddress}
-              onChange={(e) => setDetailAddress(e.target.value)}
-              className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-stone-200 bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 shadow-2xs"
-            />
+          <div>
+            <label className="text-[11px] font-semibold text-stone-600 block mb-1">
+              Địa chỉ chi tiết / Điểm gửi xe <span className="text-rose-500 font-bold">*</span>
+            </label>
+            <div className="relative">
+              <MapPin className={`w-4 h-4 absolute left-3 top-3 transition-colors ${
+                showDetailError ? 'text-rose-500' : 'text-stone-400'
+              }`} />
+              <input
+                type="text"
+                required
+                placeholder="Số nhà, ngõ/hẻm, tên đường hoặc Bến xe / Nhà xe nhận hàng..."
+                value={detailAddress}
+                onBlur={() => setDetailTouched(true)}
+                onChange={(e) => {
+                  setDetailAddress(e.target.value);
+                  if (!detailTouched) setDetailTouched(true);
+                }}
+                className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border font-medium transition-all shadow-2xs focus:outline-none ${
+                  showDetailError
+                    ? 'border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-500 ring-2 ring-rose-500/10'
+                    : 'border-stone-200 bg-white text-stone-800 focus:border-amber-600 ring-2 ring-amber-500/10'
+                }`}
+              />
+            </div>
+
+            {/* Thông báo lỗi yêu cầu điền cụ thể */}
+            {showDetailError && (
+              <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1 animate-fadeIn">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {isDetailEmpty
+                    ? 'Bắt buộc điền số nhà, tên đường hoặc bến xe để gửi hàng.'
+                    : 'Địa chỉ quá ngắn, vui lòng nhập rõ ràng hơn (tối thiểu 5 ký tự).'}
+                </span>
+              </p>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Cảnh báo lỗi chung từ form Checkout nếu khách chưa hoàn thành */}
+      {error && !showDetailError && (
+        <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 animate-fadeIn">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
       )}
     </div>
   );

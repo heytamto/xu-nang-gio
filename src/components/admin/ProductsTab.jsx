@@ -1,7 +1,7 @@
 // src/components/admin/ProductsTab.jsx
 import React, { useState, useEffect } from 'react';
 import { Plus, RotateCcw, Pencil, ToggleLeft, ToggleRight, Trash2, Layers } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
 // Danh mục chuẩn khớp 100% với database Supabase

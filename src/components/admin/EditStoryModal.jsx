@@ -1,7 +1,7 @@
 // src/components/admin/EditStoryModal.jsx
 import React, { useState } from 'react';
 import { X, Check, Calendar, MapPin } from 'lucide-react';
-import ImageUploadField from './ImageUploadField';
+import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
 
 export default function EditStoryModal({ story = {}, onClose, onSave }) {

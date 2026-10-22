@@ -4,7 +4,7 @@ import {
   ArrowLeft, LayoutDashboard, ShoppingBag, 
   Settings, BookOpen, Check, Feather, PackageCheck,
   Lock, KeyRound, LogOut, ShieldAlert, MessageSquare,
-  Search, Star, EyeOff, CheckCircle2, Trash2, Loader2
+  RefreshCw
 } from 'lucide-react';
 
 import DashboardTab from '../components/admin/DashboardTab';
@@ -21,6 +21,11 @@ import ConfirmModal from '../components/admin/ConfirmModal';
 
 import { supabase } from '../supabaseClient';
 import { formatDate } from '../utils/dateUtils';
+import { 
+  ORDER_STATUS, 
+  ORDER_STATUS_MAP, 
+  normalizeOrderStatus 
+} from '../constants/orderStatus';
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'tam2026';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '808208978769-7h3ognen0s4ecvr8259kadnl8tkmg6il.apps.googleusercontent.com';
@@ -49,14 +54,14 @@ export default function AdminPage({
   products = [], 
   onSaveProducts, 
   onResetProducts,
-  posts = [],
-  onSavePosts,
+  posts = [], 
+  onSavePosts, 
   onResetPosts,
-  stories = [],
-  onSaveStories,
+  stories = [], 
+  onSaveStories, 
   onResetStories,
-  shopConfig = {},
-  onSaveConfig,
+  shopConfig = {}, 
+  onSaveConfig, 
   onResetConfig,
   onUpdateOrderStatus,
   onNavigateHome,
@@ -162,12 +167,11 @@ export default function AdminPage({
   });
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // 2. Tải danh sách đơn hàng an toàn (Khắc phục lỗi PGRST201)
+  // 2. Tải danh sách đơn hàng an toàn (chuẩn hóa status về key tiếng Anh)
   const fetchOrdersFromDatabase = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoadingOrders(true);
     try {
-      // Bóc tách orders trước
       const { data: ordersData, error: ordersErr } = await supabase
         .from('orders')
         .select('*')
@@ -180,7 +184,7 @@ export default function AdminPage({
         return;
       }
 
-      // Lấy order_items độc lập để không phụ thuộc vào tên constraint foreign key
+      // Lấy order_items theo order_code
       const orderCodes = ordersData.map(o => o.code).filter(Boolean);
       let itemsMap = {};
 
@@ -201,6 +205,7 @@ export default function AdminPage({
 
       const mergedOrders = ordersData.map(ord => ({
         ...ord,
+        status: normalizeOrderStatus(ord.status),
         order_items: itemsMap[ord.code] || ord.cart || []
       }));
 
@@ -234,23 +239,39 @@ export default function AdminPage({
     setTimeout(() => setSavedNotice(false), 2500);
   };
 
-  // 3. Cập nhật trạng thái đơn hàng trên Supabase
-  const handleUpdateStatus = async (orderCode, newStatus) => {
+  // 3. Cập nhật trạng thái đơn hàng trên Supabase (LUÔN CHUẨN HÓA VỀ KEY TIẾNG ANH)
+  const handleUpdateStatus = async (orderCode, newStatusRaw, reason = null) => {
+    // Ép chuẩn hóa về enum key tiếng Anh: 'pending', 'confirmed', 'packing', 'shipping', 'completed', 'cancelled', 'bombed'
+    const normalizedStatus = normalizeOrderStatus(newStatusRaw);
+
     setActionLoadingCode(orderCode);
     try {
-      const { error } = await supabase
+      const updatePayload = { 
+        status: normalizedStatus,
+        updated_at: new Date().toISOString()
+      };
+
+      if (reason) {
+        updatePayload.cancel_reason = reason;
+      }
+
+      const { data, error } = await supabase
         .from('orders')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('code', orderCode);
+        .update(updatePayload)
+        .eq('code', orderCode)
+        .select();
 
       if (error) throw error;
 
+      if (!data || data.length === 0) {
+        throw new Error('Cập nhật thất bại. Bạn có thể chưa có quyền UPDATE do chính sách RLS trên Supabase.');
+      }
+
       setDbOrders((prev) => {
         const nextOrders = prev.map((ord) => 
-          (ord.code === orderCode ? { ...ord, status: newStatus } : ord)
+          (ord.code === orderCode 
+            ? { ...ord, status: normalizedStatus, ...(reason ? { cancel_reason: reason } : {}) } 
+            : ord)
         );
         try {
           localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
@@ -261,12 +282,18 @@ export default function AdminPage({
       });
       
       if (onUpdateOrderStatus) {
-        onUpdateOrderStatus(orderCode, newStatus);
+        onUpdateOrderStatus(orderCode, normalizedStatus, reason);
       }
 
-      showSavedToast(`Đã chuyển đơn ${orderCode} sang "${newStatus}"`);
+      const statusLabel = ORDER_STATUS_MAP[normalizedStatus]?.label || normalizedStatus;
+      showSavedToast(`Đã chuyển đơn ${orderCode} sang "${statusLabel}"`);
     } catch (err) {
-      setModalConfig({ title: 'Lỗi Cập Nhật', message: err.message, isAlert: true });
+      console.error('Lỗi cập nhật trạng thái đơn:', err);
+      setModalConfig({ 
+        title: 'Lỗi Cập Nhật Trạng Thái', 
+        message: err.message || 'Không thể lưu trạng thái vào cơ sở dữ liệu. Vui lòng kiểm tra quyền RLS.', 
+        isAlert: true 
+      });
     } finally {
       setActionLoadingCode(null);
     }
@@ -401,7 +428,7 @@ export default function AdminPage({
   // GIAO DIỆN QUẢN TRỊ KHI ĐÃ ĐĂNG NHẬP
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 font-sans animate-fadeIn">
-      {/* Header điều hướng 6 Tab: ĐÃ BỎ LÀM MỚI DỮ LIỆU */}
+      {/* Header điều hướng 6 Tab */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -438,6 +465,16 @@ export default function AdminPage({
                 <span>Kho Đóng Kiện</span>
               </button>
             )}
+            
+            <button
+              type="button"
+              disabled={isLoadingOrders}
+              onClick={fetchOrdersFromDatabase}
+              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Làm mới dữ liệu từ Supabase"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-amber-700' : ''}`} />
+            </button>
 
             <button
               type="button"
@@ -450,7 +487,7 @@ export default function AdminPage({
           </div>
         </div>
 
-        {/* 6 Tab chuyển đổi mượt mà */}
+        {/* 6 Tab chuyển đổi */}
         <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5">
           <button
             type="button"
@@ -640,7 +677,7 @@ export default function AdminPage({
         />
       )}
 
-      {/* TAB 5: KIỂM DUYỆT ĐÁNH GIÁ (MỚI) */}
+      {/* TAB 5: KIỂM DUYỆT ĐÁNH GIÁ */}
       {activeTab === 'reviews' && (
         <ReviewManagementTab onShowToast={showSavedToast} />
       )}

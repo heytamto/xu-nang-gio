@@ -21,6 +21,7 @@ import { getShopConfig, DEFAULT_SHOP_CONFIG } from './config/shopConfig';
 import { submitOrderToSupabase, fetchActiveProcessingOrders } from './services/orderService';
 import { fetchAllMasterDataFromSupabase } from './services/masterDataService';
 import { supabase } from './supabaseClient';
+import { ORDER_STATUS, normalizeOrderStatus } from './constants/orderStatus';
 
 export default function App() {
   // Giữ nguyên trang hiện tại khi F5 bằng sessionStorage
@@ -78,9 +79,14 @@ export default function App() {
     } catch { return []; }
   });
 
+  // Luôn chuẩn hóa status sang key tiếng Anh (ORDER_STATUS)
   const [orders, setOrders] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('shop_orders') || '[]');
+      const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
+      return local.map((ord) => ({
+        ...ord,
+        status: normalizeOrderStatus(ord.status)
+      }));
     } catch { return []; }
   });
 
@@ -192,11 +198,15 @@ export default function App() {
         });
       }
 
-      // Tải các đơn hàng vận hành
+      // Tải các đơn hàng vận hành & chuẩn hóa status về key tiếng Anh
       const activeOrders = await fetchActiveProcessingOrders();
       if (Array.isArray(activeOrders)) {
-        setOrders(activeOrders);
-        localStorage.setItem('shop_orders', JSON.stringify(activeOrders));
+        const normalizedOrders = activeOrders.map((o) => ({
+          ...o,
+          status: normalizeOrderStatus(o.status)
+        }));
+        setOrders(normalizedOrders);
+        localStorage.setItem('shop_orders', JSON.stringify(normalizedOrders));
       }
     } catch (err) {
       console.warn('Lỗi kết nối tải dữ liệu Supabase:', err);
@@ -233,7 +243,9 @@ export default function App() {
             name: raw.customer_name || raw.name,
             total: raw.final_total ?? raw.total,
             paymentMethod: raw.payment_method || raw.paymentMethod,
-            createdAt: raw.created_at || raw.createdAt
+            createdAt: raw.created_at || raw.createdAt,
+            // Chuẩn hóa status theo ORDER_STATUS tiếng Anh
+            status: normalizeOrderStatus(raw.status)
           };
 
           if (payload.eventType === 'INSERT') {
@@ -254,11 +266,15 @@ export default function App() {
     };
   }, []);
 
-  // CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG TRỰC TIẾP LÊN SUPABASE
-  const handleUpdateOrderStatus = async (orderCode, newStatus) => {
+  // CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG TRỰC TIẾP LÊN SUPABASE (LƯU MÃ TIẾNG ANH)
+  const handleUpdateOrderStatus = async (orderCode, newStatus, reason = null) => {
+    const statusCode = normalizeOrderStatus(newStatus);
+
     setOrders((prev) => {
       const updated = prev.map((ord) => 
-        ((ord.code === orderCode || ord.orderId === orderCode) ? { ...ord, status: newStatus } : ord)
+        ((ord.code === orderCode || ord.orderId === orderCode) 
+          ? { ...ord, status: statusCode, ...(reason ? { cancel_reason: reason } : {}) } 
+          : ord)
       );
       try {
         localStorage.setItem('shop_orders', JSON.stringify(updated));
@@ -267,12 +283,17 @@ export default function App() {
     });
 
     try {
+      const updatePayload = { 
+        status: statusCode,
+        updated_at: new Date().toISOString()
+      };
+      if (reason) {
+        updatePayload.cancel_reason = reason;
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('code', orderCode);
 
       if (error) console.warn('Lỗi update trạng thái Supabase:', error);
@@ -391,7 +412,7 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION NGAY 0MS (OPTIMISTIC UI)
+  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION NGAY 0MS (LƯU ORDER_STATUS.PENDING)
   // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
@@ -404,9 +425,13 @@ export default function App() {
       .map((item) => `${item.name}: ${item.campaign_gift_title}`)
       .join(' | ');
 
+    // Trạng thái khởi tạo luôn là key tiếng Anh 'pending'
+    const initialStatus = ORDER_STATUS.PENDING;
+
     const orderPayload = {
       code: orderCode,
       orderId: orderCode,
+      created_at: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       customer: {
         name: (orderData.customer?.name || orderData.name || '').trim(),
@@ -447,7 +472,7 @@ export default function App() {
       voucher: orderData.voucherCode || '',
       usedPreviousOrderCode: orderData.usedPreviousOrderCode || '',
       edgeSignature: orderData.edgeSignature || '',
-      status: 'Chờ xác nhận'
+      status: initialStatus
     };
 
     // ⚡ BƯỚC 1: KÍCH HOẠT HIỆU ỨNG MÁY IN VÀ MODAL TỨC THÌ (0ms)
@@ -468,7 +493,7 @@ export default function App() {
       localStorage.removeItem('shop_cart');
     } catch (e) { console.error(e); }
 
-    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE CHẠY NGẦM SONG SONG TRONG LÚC MÁY IN ĐANG ĐÙN GIẤY
+    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE CHẠY NGẦM SONG SONG
     try {
       submitOrderToSupabase(orderPayload)
         .then((res) => {
@@ -603,7 +628,6 @@ export default function App() {
           }>
             <AdminPage
               products={products}
-              categories={categories}
               orders={orders}
               onSaveProducts={(newList) => {
                 setProducts(newList);
@@ -642,8 +666,6 @@ export default function App() {
             <PackingPage
               orders={orders}
               shopConfig={shopConfig}
-              onRefresh={loadSupabaseData}
-              onUpdateStatus={handleUpdateOrderStatus}
               onNavigateHome={() => navigateTo('home')}
             />
           </Suspense>

@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
   Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp, MapPin,
-  Megaphone, PlusCircle, AlertCircle
+  Megaphone, PlusCircle
 } from 'lucide-react';
 import { VIETQR_BANKS } from '../../config/shopConfig';
 import { supabase } from '../../supabaseClient';
+import ConfirmModal from './ConfirmModal';
 
 export default function ConfigVoucherTab({
   config = {},
@@ -18,11 +19,11 @@ export default function ConfigVoucherTab({
     bankName: config.bankName || 'MBBank',
     accountNo: config.accountNo || '0848957345',
     accountName: config.accountName || 'TO THANH TAM',
-    depositAmount: config.depositAmount || 100000,
+    depositAmount: config.depositAmount || 50000,
     hotline: config.hotline || '0848.957.345',
     zaloPhone: config.zaloPhone || config.hotline || '0848957345',
     warehousePin: config.warehousePin || '1234',
-    address: config.address || 'Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận',
+    address: config.address || 'Thôn Thái An, Xã Vĩnh Hải, Huyện Ninh Hải, Tỉnh Ninh Thuận',
     announcement: config.announcement || 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
     loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
     loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
@@ -36,10 +37,10 @@ export default function ConfigVoucherTab({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Modal tạo template mới (Dùng Sequence DB tự sinh ID)
   const [isNewTemplateModalOpen, setIsNewTemplateModalOpen] = useState(false);
   const [newTemplateForm, setNewTemplateForm] = useState({ name: '', subject: '' });
   const [isCreatingTpl, setIsCreatingTpl] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [testEmailInput, setTestEmailInput] = useState('');
@@ -57,7 +58,7 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 1. Tải danh sách templates từ Supabase
+  // 1. Tải danh sách templates từ bảng email_templates
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
@@ -78,27 +79,58 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  useEffect(() => {
-    loadTemplatesFromDb();
-  }, [loadTemplatesFromDb]);
+  // 2. Tải cấu hình từ bảng shop_configs (Key-Value)
+  const loadShopConfigsFromDb = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shop_configs')
+        .select('*');
+
+      if (error) throw error;
+      if (Array.isArray(data) && data.length > 0) {
+        let merged = {};
+        data.forEach((row) => {
+          let val = row.value;
+          if (typeof val === 'string') {
+            try { val = JSON.parse(val); } catch { val = {}; }
+          }
+          if (row.key === 'general') {
+            merged = { ...merged, ...val };
+          } else if (row.key === 'general_config') {
+            merged = { ...merged, ...val };
+          } else if (row.key === 'payment' || row.key === 'payment_config') {
+            merged = { ...merged, ...val };
+          } else if (row.key === 'loyalty') {
+            merged.loyaltyDiscountPercent = val?.percent ?? 10;
+            merged.loyaltyMaxDiscount = val?.maxDiscount ?? 50000;
+          } else if (row.key === 'vouchers') {
+            merged.vouchers = Array.isArray(val) ? val : [];
+          } else if (row.key === 'announcement') {
+            merged.announcement = val?.text || '';
+          }
+        });
+
+        setCfg((prev) => ({
+          ...prev,
+          ...merged,
+          vouchers: (merged.vouchers || prev.vouchers || []).map((v) => ({
+            ...v,
+            canStack: v.canStack ?? true,
+            maxDiscount: v.maxDiscount || 0,
+            usageLimit: v.usageLimit !== undefined ? v.usageLimit : 0,
+            usedCount: v.usedCount || 0
+          }))
+        }));
+      }
+    } catch (err) {
+      console.error('Lỗi load shop_configs:', err);
+    }
+  }, []);
 
   useEffect(() => {
-    if (config) {
-      setCfg((prev) => ({
-        ...prev,
-        ...config,
-        address: config.address || prev.address,
-        announcement: config.announcement || prev.announcement,
-        vouchers: (config.vouchers || []).map((v) => ({
-          ...v,
-          canStack: v.canStack ?? true,
-          maxDiscount: v.maxDiscount || 0,
-          usageLimit: v.usageLimit !== undefined ? v.usageLimit : 0,
-          usedCount: v.usedCount || 0
-        }))
-      }));
-    }
-  }, [config]);
+    loadTemplatesFromDb();
+    loadShopConfigsFromDb();
+  }, [loadTemplatesFromDb, loadShopConfigsFromDb]);
 
   const activeTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || {
     id: 'empty',
@@ -113,7 +145,6 @@ export default function ConfigVoucherTab({
     );
   };
 
-  // Tạo template mới: Bỏ qua ID để Sequence PostgreSQL tự sinh
   const handleCreateNewTemplate = async (e) => {
     e.preventDefault();
     const tplName = newTemplateForm.name.trim();
@@ -154,7 +185,7 @@ export default function ConfigVoucherTab({
         setSelectedTemplateId(data.id);
         setIsNewTemplateModalOpen(false);
         setNewTemplateForm({ name: '', subject: '' });
-        onShowAlert?.(`Đã tạo thành công mẫu "${data.name}" với mã ${data.id}!`);
+        onShowAlert?.(`Đã tạo thành công mẫu "${data.name}"!`);
       }
     } catch (err) {
       console.error('Lỗi tạo template mới:', err);
@@ -164,30 +195,40 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // Xóa template đang chọn
-  const handleDeleteActiveTemplate = async () => {
+  const handleDeleteActiveTemplate = () => {
     if (templates.length <= 1) {
-      onShowAlert?.('Hệ thống phải có ít nhất 1 mẫu email, không thể xóa hết!');
+      setConfirmModalConfig({
+        isAlert: true,
+        title: 'Không Thể Xóa',
+        message: 'Hệ thống phải có ít nhất 1 mẫu email để gửi thông báo cho khách hàng!'
+      });
       return;
     }
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa mẫu "${activeTemplate.name}" (${activeTemplate.id})?`)) return;
 
-    try {
-      const { error } = await supabase
-        .from('email_templates')
-        .delete()
-        .eq('id', activeTemplate.id);
+    setConfirmModalConfig({
+      isAlert: false,
+      title: 'Xóa Mẫu Email',
+      message: `Bạn có chắc chắn muốn xóa vĩnh viễn mẫu thư "${activeTemplate.name}"?`,
+      confirmLabel: 'Xác nhận xóa',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('email_templates')
+            .delete()
+            .eq('id', activeTemplate.id);
 
-      if (error) throw error;
+          if (error) throw error;
 
-      const remaining = templates.filter((t) => t.id !== activeTemplate.id);
-      setTemplates(remaining);
-      setSelectedTemplateId(remaining[0].id);
-      onShowAlert?.('Đã xóa mẫu email thành công!');
-    } catch (err) {
-      console.error('Lỗi xóa template:', err);
-      onShowAlert?.('Không thể xóa template: ' + err.message);
-    }
+          const remaining = templates.filter((t) => t.id !== activeTemplate.id);
+          setTemplates(remaining);
+          setSelectedTemplateId(remaining[0].id);
+          onShowAlert?.('Đã xóa mẫu email thành công!');
+        } catch (err) {
+          console.error('Lỗi xóa template:', err);
+          onShowAlert?.('Không thể xóa template: ' + err.message);
+        }
+      }
+    });
   };
 
   const handleSelectBank = (e) => {
@@ -219,7 +260,7 @@ export default function ConfigVoucherTab({
     const formattedCode = newVoucher.code.trim().toUpperCase();
 
     if (cfg.vouchers.some((v) => v.code === formattedCode)) {
-      if (onShowAlert) onShowAlert('Mã voucher này đã có trong danh sách.');
+      onShowAlert?.('Mã voucher này đã có trong danh sách.');
       return;
     }
 
@@ -259,10 +300,18 @@ export default function ConfigVoucherTab({
   };
 
   const handleRemoveVoucher = (code) => {
-    setCfg((prev) => ({
-      ...prev,
-      vouchers: prev.vouchers.filter((v) => v.code !== code)
-    }));
+    setConfirmModalConfig({
+      isAlert: false,
+      title: 'Xóa Voucher',
+      message: `Bạn có chắc chắn muốn gỡ voucher ${code} khỏi danh sách?`,
+      confirmLabel: 'Xác nhận xóa',
+      onConfirm: () => {
+        setCfg((prev) => ({
+          ...prev,
+          vouchers: prev.vouchers.filter((v) => v.code !== code)
+        }));
+      }
+    });
   };
 
   const handleSaveEditedVoucher = (e) => {
@@ -331,6 +380,7 @@ export default function ConfigVoucherTab({
     }
   };
 
+  // 3. LƯU THEO CẤU TRÚC KEY-VALUE CHUẨN CỦA BẢNG shop_configs
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
@@ -338,31 +388,90 @@ export default function ConfigVoucherTab({
         onSaveConfig(cfg);
       }
 
-      // 1. Lưu bảng shop_config
+      const nowIso = new Date().toISOString();
+
+      // Chuẩn bị payload tương ứng từng key trong shop_configs
+      const configsToUpsert = [
+        {
+          key: 'general',
+          value: {
+            address: cfg.address,
+            hotline: cfg.hotline,
+            zaloPhone: cfg.zaloPhone,
+            brandName: 'Xứ Nắng Gió',
+            tagline: 'Đặc sản hái giàn chuẩn đất Ninh Thuận'
+          },
+          description: 'Thông tin liên hệ chung',
+          updated_at: nowIso
+        },
+        {
+          key: 'general_config',
+          value: {
+            hotline: cfg.hotline.replace(/\D/g, ''),
+            zaloPhone: cfg.zaloPhone.replace(/\D/g, ''),
+            warehousePin: cfg.warehousePin,
+            autoSendEmail: cfg.autoSendEmail
+          },
+          description: 'Cấu hình liên hệ và mã pin',
+          updated_at: nowIso
+        },
+        {
+          key: 'payment',
+          value: {
+            bankBin: cfg.bankBin,
+            bankName: cfg.bankName,
+            accountNo: cfg.accountNo,
+            accountName: cfg.accountName,
+            depositAmount: cfg.depositAmount
+          },
+          description: 'Thông tin tài khoản VietQR',
+          updated_at: nowIso
+        },
+        {
+          key: 'payment_config',
+          value: {
+            bankBin: cfg.bankBin,
+            bankName: cfg.bankName,
+            accountNo: cfg.accountNo,
+            accountName: cfg.accountName,
+            depositAmount: cfg.depositAmount
+          },
+          description: 'Thông tin thụ hưởng VietQR',
+          updated_at: nowIso
+        },
+        {
+          key: 'loyalty',
+          value: {
+            percent: cfg.loyaltyDiscountPercent,
+            maxDiscount: cfg.loyaltyMaxDiscount
+          },
+          description: 'Chính sách chiết khấu tri ân khách quen',
+          updated_at: nowIso
+        },
+        {
+          key: 'vouchers',
+          value: cfg.vouchers,
+          description: 'Danh sách mã ưu đãi voucher',
+          updated_at: nowIso
+        },
+        {
+          key: 'announcement',
+          value: {
+            text: cfg.announcement
+          },
+          description: 'Thông báo chạy chữ chân trang',
+          updated_at: nowIso
+        }
+      ];
+
+      // Ghi Key-Value vào bảng shop_configs
       const { error: cfgErr } = await supabase
-        .from('shop_config')
-        .upsert({
-          id: 'default_config',
-          bank_bin: cfg.bankBin,
-          bank_name: cfg.bankName,
-          account_no: cfg.accountNo,
-          account_name: cfg.accountName,
-          deposit_amount: cfg.depositAmount,
-          hotline: cfg.hotline,
-          address: cfg.address,
-          announcement: cfg.announcement,
-          zalo_phone: cfg.zaloPhone,
-          warehouse_pin: cfg.warehousePin,
-          loyalty_discount_percent: cfg.loyaltyDiscountPercent,
-          loyalty_max_discount: cfg.loyaltyMaxDiscount,
-          auto_send_email: cfg.autoSendEmail,
-          vouchers: cfg.vouchers,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        .from('shop_configs')
+        .upsert(configsToUpsert, { onConflict: 'key' });
 
       if (cfgErr) throw cfgErr;
 
-      // 2. Lưu bảng email_templates
+      // Lưu bảng email_templates
       if (templates.length > 0) {
         const payloadTemplates = templates.map((t) => ({
           id: t.id,
@@ -370,7 +479,7 @@ export default function ConfigVoucherTab({
           subject: t.subject,
           body: t.body,
           is_active: t.is_active ?? true,
-          updated_at: new Date().toISOString()
+          updated_at: nowIso
         }));
 
         const { error: tplErr } = await supabase
@@ -392,7 +501,7 @@ export default function ConfigVoucherTab({
   return (
     <div className="space-y-6 font-sans animate-fadeIn">
       
-      {/* ================= 1. CẤU HÌNH THANH TOÁN, ĐỊA CHỈ & VẬN HÀNH ================= */}
+      {/* 1. CẤU HÌNH THANH TOÁN, ĐỊA CHỈ & VẬN HÀNH */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
           <QrCode className="w-4 h-4 text-amber-600" />
@@ -401,7 +510,6 @@ export default function ConfigVoucherTab({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
           
-          {/* HÀNG 1: TÀI KHOẢN NGÂN HÀNG */}
           <div className="sm:col-span-2">
             <label className="font-semibold text-stone-600 block mb-1">Ngân hàng nhận tiền:</label>
             <select
@@ -437,7 +545,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* HÀNG 2: THÔNG TIN TIỀN CỌC & LIÊN LẠC */}
           <div>
             <label className="font-semibold text-stone-600 block mb-1">Tiền Cọc Giữ Đơn (VNĐ):</label>
             <input
@@ -483,7 +590,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* HÀNG 3: TRẦN GIẢM + ĐỊA CHỈ VƯỜN HIỆN DIỆN CHUẨN */}
           <div>
             <label className="font-semibold text-stone-600 block mb-1">Trần Giảm Khách Cũ (VNĐ):</label>
             <input
@@ -497,7 +603,7 @@ export default function ConfigVoucherTab({
           <div className="sm:col-span-2 lg:col-span-3">
             <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-amber-700" />
-              <span>Địa Chỉ Vườn Chính / Điểm Gửi Xe (Hiện trên bill & web):</span>
+              <span>Địa Chỉ Vườn Chính / Điểm Gửi Xe:</span>
             </label>
             <input
               type="text"
@@ -508,7 +614,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* HÀNG 4: THÔNG BÁO CHẠY TOÀN TRANG */}
           <div className="sm:col-span-2 lg:col-span-4">
             <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
               <Megaphone className="w-3.5 h-3.5 text-amber-700" />
@@ -526,7 +631,7 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* ================= 2. CẤU HÌNH EMAIL TEMPLATES ================= */}
+      {/* 2. CẤU HÌNH EMAIL TEMPLATES */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -546,7 +651,7 @@ export default function ConfigVoucherTab({
               className="px-3.5 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4 text-amber-200" />
-              <span>+ Tạo Mẫu Mới</span>
+              <span>Tạo Mẫu Mới</span>
             </button>
 
             <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
@@ -561,11 +666,10 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        {/* KHUNG CHỌN MẪU THƯ + TÊN GỢI NHỚ */}
+        {/* Khung chọn mẫu thư */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
-          
           <div className="relative" ref={dropdownRef}>
-            <label className="font-bold text-amber-900 block mb-1.5 flex items-center justify-between text-xs">
+            <label className="font-bold text-amber-900 mb-1.5 flex items-center justify-between text-xs">
               <span className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-amber-700" />
                 <span>Mẫu thư đang chỉnh sửa:</span>
@@ -649,11 +753,11 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        {/* Bảng các biến tự động thay thế */}
+        {/* Biến chèn tự động */}
         <div className="p-3 bg-stone-50/80 rounded-2xl border border-stone-200/70 text-xs space-y-1.5">
           <div className="flex items-center gap-1.5 font-bold text-stone-700 text-[11px]">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>Các biến tự động chèn dữ liệu vào mẫu này:</span>
+            <span>Các biến tự động chèn dữ liệu vào mẫu:</span>
           </div>
           <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
             {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}', '{{CAMPAIGN_PRODUCT_NAME}}'].map((tag) => (
@@ -687,7 +791,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* Gửi email thử nghiệm */}
           <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <span className="text-[11px] text-stone-500">
               Kiểm tra hiển thị của mẫu <strong>{activeTemplate.name}</strong>:
@@ -714,7 +817,7 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* ================= 3. CẤU HÌNH VOUCHER ================= */}
+      {/* 3. CẤU HÌNH VOUCHER */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -921,7 +1024,7 @@ export default function ConfigVoucherTab({
         </form>
       </div>
 
-      {/* ================= 4. NÚT LƯU TOÀN BỘ CẤU HÌNH & TEMPLATES ================= */}
+      {/* 4. NÚT LƯU TOÀN BỘ CẤU HÌNH & TEMPLATES */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
@@ -934,7 +1037,7 @@ export default function ConfigVoucherTab({
         </button>
       </div>
 
-      {/* ================= 5. MODAL TẠO MẪU EMAIL MỚI (ID TỰ SINH TỪ SEQUENCE) ================= */}
+      {/* 5. MODAL TẠO MẪU EMAIL MỚI */}
       {isNewTemplateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
@@ -978,9 +1081,6 @@ export default function ConfigVoucherTab({
                   onChange={(e) => setNewTemplateForm({ ...newTemplateForm, subject: e.target.value })}
                   className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
                 />
-                <span className="text-[10.5px] text-stone-400 font-light mt-1 block">
-                  * Mã định danh mẫu sẽ được Supabase cấp tự động theo sequence hệ thống.
-                </span>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
@@ -1014,7 +1114,7 @@ export default function ConfigVoucherTab({
         </div>
       )}
 
-      {/* ================= 6. MODAL CHỈNH SỬA VOUCHER ================= */}
+      {/* 6. MODAL CHỈNH SỬA VOUCHER */}
       {editingVoucher && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
@@ -1138,6 +1238,12 @@ export default function ConfigVoucherTab({
           </div>
         </div>
       )}
+
+      {/* 7. CONFIRM MODAL ĐỒNG BỘ */}
+      <ConfirmModal
+        modalConfig={confirmModalConfig}
+        onClose={() => setConfirmModalConfig(null)}
+      />
 
     </div>
   );

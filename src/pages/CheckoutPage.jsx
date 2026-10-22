@@ -2,6 +2,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ArrowLeft, ShoppingBag, ArrowRight } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
+import { 
+  verifyPreviousOrderVoucher, 
+  findEligiblePreviousOrderVoucher,
+  checkCustomerOrderRisk 
+} from '../services/orderService';
 
 import { 
   validateName, 
@@ -87,14 +92,56 @@ export default function CheckoutPage({
   const [paymentMethod, setPaymentMethod] = useState('deposit');
   const [selectedGiftId, setSelectedGiftId] = useState('');
   const [isPromoDismissed, setIsPromoDismissed] = useState(false);
-  const [formErrors, setFormErrors] = useState({ name: '', phone: '', email: '' });
+  const [formErrors, setFormErrors] = useState({ name: '', phone: '', email: '', address: '' });
   const [voucherInput, setVoucherInput] = useState('');
   const [appliedVouchers, setAppliedVouchers] = useState([]);
   const [voucherError, setVoucherError] = useState('');
+  const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  
+  // State lưu trữ thông tin đơn hàng cũ đủ điều kiện làm voucher tri ân
+  const [eligibleOldOrderVoucher, setEligibleOldOrderVoucher] = useState(null);
+
+  // State lưu trữ kết quả kiểm tra rủi ro từ Supabase (Debounced)
+  const [dbRiskData, setDbRiskData] = useState({
+    lastOrderBombed: false,
+    twoRecentCancelled: false,
+    isChecking: false
+  });
 
   const cleanPhone = useMemo(() => customer.phone.trim().replace(/[^0-9]/g, ''), [customer.phone]);
   const prevPhoneRef = useRef(cleanPhone);
   const isPhoneValid = useMemo(() => isValidVietnamesePhone(cleanPhone), [cleanPhone]);
+
+  // Debounce kiểm tra lịch sử bom hàng & hủy đơn trực tiếp từ Supabase
+  useEffect(() => {
+    if (!isPhoneValid || cleanPhone.length < 10) {
+      setDbRiskData({
+        lastOrderBombed: false,
+        twoRecentCancelled: false,
+        isChecking: false
+      });
+      return;
+    }
+
+    setDbRiskData(prev => ({ ...prev, isChecking: true }));
+
+    const timer = setTimeout(async () => {
+      try {
+        const risk = await checkCustomerOrderRisk(cleanPhone);
+        setDbRiskData({
+          lastOrderBombed: Boolean(risk.lastOrderBombed),
+          twoRecentCancelled: Boolean(risk.twoRecentCancelled),
+          isChecking: false
+        });
+      } catch (err) {
+        console.error('Lỗi kiểm tra rủi ro đơn hàng:', err);
+        setDbRiskData(prev => ({ ...prev, isChecking: false }));
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [cleanPhone, isPhoneValid]);
 
   // Xóa mã giảm giá nếu số điện thoại thay đổi hoặc không hợp lệ
   useEffect(() => {
@@ -112,7 +159,7 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
-  // Phân tích lịch sử khách hàng
+  // Phân tích lịch sử khách hàng (kết hợp cache local + Supabase rủi ro)
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
@@ -129,54 +176,72 @@ export default function CheckoutPage({
         return ordPhone && (ordPhone.endsWith(cleanPhone.slice(-8)) || cleanPhone.endsWith(ordPhone.slice(-8)));
       });
 
+      // Lấy cờ rủi ro từ Supabase (ưu tiên cao nhất) hoặc tính từ local
+      let activeBombedRisk = dbRiskData.lastOrderBombed;
+      let activeFrequentCanceller = dbRiskData.twoRecentCancelled;
+
+      let validOrders = [];
+      let hasSuccess = false;
+      let latestSuccessOrder = null;
+      let isLatestSuccess = false;
+
       if (matchedOrders.length > 0) {
         matchedOrders.sort((a, b) => parseDateForSort(b.created_at || b.createdAt) - parseDateForSort(a.created_at || a.createdAt));
         const latestOrder = matchedOrders[0];
-        const isLatestSuccess = latestOrder && !isBadOrderStatus(latestOrder.status);
+        isLatestSuccess = latestOrder && !isBadOrderStatus(latestOrder.status);
 
-        const validOrders = matchedOrders.filter((ord) => !isBadOrderStatus(ord.status));
-        const hasSuccess = validOrders.length > 0;
+        validOrders = matchedOrders.filter((ord) => !isBadOrderStatus(ord.status));
+        hasSuccess = validOrders.length > 0;
+        latestSuccessOrder = hasSuccess ? validOrders[0] : null;
 
-        const bombedOrders = matchedOrders.filter((ord) => {
-          const norm = normalizeOrderStatus(ord.status);
-          const raw = String(ord.status || '').toLowerCase();
-          const pMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
-          const isPrepaid100 = pMethod.includes('100%') || pMethod === 'full_qr';
-          return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
-        });
+        // Nếu DB chưa trả về, tính tạm từ local
+        if (!activeBombedRisk) {
+          const bombedOrders = matchedOrders.filter((ord) => {
+            const norm = normalizeOrderStatus(ord.status);
+            const raw = String(ord.status || '').toLowerCase();
+            const pMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
+            const isPrepaid100 = pMethod.includes('100%') || pMethod === 'full_qr';
+            return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
+          });
+          const isPardoned = isLatestSuccess && hasSuccess;
+          activeBombedRisk = !isPardoned && bombedOrders.length > 0;
+        }
 
-        const cancelledOrders = matchedOrders.filter((ord) => {
-          const norm = normalizeOrderStatus(ord.status);
-          const raw = String(ord.status || '').toLowerCase();
-          return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
-        });
-
-        const isPardoned = isLatestSuccess && hasSuccess;
-        const activeBombedRisk = !isPardoned && bombedOrders.length > 0;
-        const activeFrequentCanceller = !isPardoned && cancelledOrders.length >= 2;
-
-        const latestSuccessOrder = hasSuccess ? validOrders[0] : null;
-        const hasUnusedOldCode = Boolean(
-          latestSuccessOrder && !combinedOrders.some((ord) => ord.usedPreviousOrderCode === (latestSuccessOrder.code || latestSuccessOrder.orderId))
-        );
-
-        return {
-          isOldCustomer: hasSuccess,
-          isPardoned,
-          onlyHasBadHistory: !hasSuccess && (bombedOrders.length > 0 || cancelledOrders.length > 0),
-          orderCount: validOrders.length,
-          hasBombedHistory: activeBombedRisk,
-          isFrequentCanceller: activeFrequentCanceller,
-          isRiskCustomer: activeBombedRisk || activeFrequentCanceller,
-          latestOrderCode: latestSuccessOrder ? (latestSuccessOrder.code || latestSuccessOrder.orderId) : null,
-          canUseOldCode: hasUnusedOldCode,
-          previousInfo: latestSuccessOrder ? {
-            name: String(latestSuccessOrder.customer_name || latestSuccessOrder.name || latestSuccessOrder.customer?.name || ''),
-            address: String(latestSuccessOrder.address || latestSuccessOrder.customer?.address || ''),
-            email: String(latestSuccessOrder.email || latestSuccessOrder.customer?.email || '')
-          } : null,
-        };
+        if (!activeFrequentCanceller) {
+          const cancelledOrders = matchedOrders.filter((ord) => {
+            const norm = normalizeOrderStatus(ord.status);
+            const raw = String(ord.status || '').toLowerCase();
+            return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
+          });
+          const isPardoned = isLatestSuccess && hasSuccess;
+          activeFrequentCanceller = !isPardoned && cancelledOrders.length >= 2;
+        }
       }
+
+      const hasUnusedOldCode = Boolean(
+        latestSuccessOrder && !combinedOrders.some((ord) => ord.usedPreviousOrderCode === (latestSuccessOrder.code || latestSuccessOrder.orderId))
+      );
+
+      return {
+        isOldCustomer: hasSuccess,
+        isPardoned: isLatestSuccess && hasSuccess,
+        onlyHasBadHistory: !hasSuccess && (activeBombedRisk || activeFrequentCanceller),
+        orderCount: validOrders.length,
+        hasBombedHistory: activeBombedRisk,
+        isFrequentCanceller: activeFrequentCanceller,
+        isRiskCustomer: activeBombedRisk || activeFrequentCanceller,
+        lastOrderBombed: activeBombedRisk,
+        twoRecentCancelled: activeFrequentCanceller,
+        latestOrderCode: latestSuccessOrder ? (latestSuccessOrder.code || latestSuccessOrder.orderId) : null,
+        canUseOldCode: hasUnusedOldCode,
+        validOrders,
+        allCombinedOrders: combinedOrders,
+        previousInfo: latestSuccessOrder ? {
+          name: String(latestSuccessOrder.customer_name || latestSuccessOrder.name || latestSuccessOrder.customer?.name || ''),
+          address: String(latestSuccessOrder.address || latestSuccessOrder.customer?.address || ''),
+          email: String(latestSuccessOrder.email || latestSuccessOrder.customer?.email || '')
+        } : null,
+      };
     } catch (e) {
       console.error('Lỗi tính toán lịch sử khách hàng:', e);
     }
@@ -186,14 +251,40 @@ export default function CheckoutPage({
       isPardoned: false, 
       onlyHasBadHistory: false, 
       orderCount: 0, 
-      hasBombedHistory: false, 
-      isFrequentCanceller: false, 
-      isRiskCustomer: false, 
+      hasBombedHistory: dbRiskData.lastOrderBombed, 
+      isFrequentCanceller: dbRiskData.twoRecentCancelled, 
+      isRiskCustomer: dbRiskData.lastOrderBombed || dbRiskData.twoRecentCancelled, 
+      lastOrderBombed: dbRiskData.lastOrderBombed,
+      twoRecentCancelled: dbRiskData.twoRecentCancelled,
       latestOrderCode: null, 
       canUseOldCode: false,
+      validOrders: [],
+      allCombinedOrders: [],
       previousInfo: null
     };
-  }, [cleanPhone, isPhoneValid, shopConfig?.orders]);
+  }, [cleanPhone, isPhoneValid, shopConfig?.orders, dbRiskData]);
+
+  // Quét tìm đơn cũ đủ điều kiện (Hoàn thành + Review >= 4 sao + Chưa dùng)
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkEligibleOrder = async () => {
+      if (customerHistory?.isOldCustomer && Array.isArray(customerHistory?.validOrders)) {
+        const result = await findEligiblePreviousOrderVoucher(
+          customerHistory.validOrders, 
+          customerHistory.allCombinedOrders || []
+        );
+        if (isMounted) {
+          setEligibleOldOrderVoucher(result);
+        }
+      } else {
+        if (isMounted) setEligibleOldOrderVoucher(null);
+      }
+    };
+
+    checkEligibleOrder();
+    return () => { isMounted = false; };
+  }, [customerHistory]);
 
   // Tính tổng tiền sản phẩm (Subtotal)
   const clientSubtotal = useMemo(() => {
@@ -206,6 +297,18 @@ export default function CheckoutPage({
     let totalDisc = 0;
 
     appliedVouchers.forEach((v) => {
+      if (v.isPreviousOrder || v.isLoyalty) {
+        if (v.discount) {
+          totalDisc += Number(v.discount);
+        } else {
+          const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
+          const disc = Math.round((clientSubtotal * rate) / 100);
+          const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
+          totalDisc += Math.min(disc, maxDisc);
+        }
+        return;
+      }
+
       const voucherDef = (shopConfig.vouchers || []).find((def) => def.code === v.code);
       if (voucherDef) {
         if (clientSubtotal >= (Number(voucherDef.minOrder || voucherDef.min_order) || 0)) {
@@ -217,11 +320,6 @@ export default function CheckoutPage({
             totalDisc += Number(voucherDef.value || 0);
           }
         }
-      } else if (v.isLoyalty) {
-        const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
-        const disc = Math.round((clientSubtotal * rate) / 100);
-        const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
-        totalDisc += Math.min(disc, maxDisc);
       }
     });
 
@@ -235,7 +333,7 @@ export default function CheckoutPage({
   const paymentGifts = useMemo(() => Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : (shopConfig?.paymentGifts || []), [shopConfig]);
   const depositAmount = Number(shopConfig?.depositAmount || shopConfig?.deposit_amount) || 100000;
 
-  // Ràng buộc thanh toán an toàn cho khách rủi ro
+  // Tự động chuyển đổi paymentMethod khi rơi vào tập rủi ro
   useEffect(() => {
     if (customerHistory?.hasBombedHistory) {
       if (paymentMethod !== 'full_qr') setPaymentMethod('full_qr');
@@ -244,27 +342,27 @@ export default function CheckoutPage({
     }
   }, [customerHistory, paymentMethod]);
 
-  const isLoyaltyCodeApplied = useMemo(() => appliedVouchers.some((v) => v.code === customerHistory?.latestOrderCode || v.isLoyalty), [appliedVouchers, customerHistory?.latestOrderCode]);
   const isWelcomeCodeApplied = useMemo(() => appliedVouchers.some((v) => v.code === 'LAMQUEN'), [appliedVouchers]);
 
-  // Gợi ý mã giảm giá thông minh
+  // Gợi ý mã giảm giá
   const singleSuggestedVoucher = useMemo(() => {
     if (!customerHistory || !isPhoneValid) return null;
     
-    if (customerHistory.isOldCustomer) {
-      if (customerHistory.canUseOldCode && !isLoyaltyCodeApplied && customerHistory.latestOrderCode) {
+    if (eligibleOldOrderVoucher) {
+      const isAlreadyApplied = appliedVouchers.some((v) => v.code === eligibleOldOrderVoucher.code);
+      if (!isAlreadyApplied) {
         const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
         return { 
           isLoyalty: true, 
-          code: customerHistory.latestOrderCode, 
+          code: eligibleOldOrderVoucher.code, 
           title: `Tri ân khách quen (Đơn thứ ${customerHistory.orderCount + 1})`, 
-          desc: `Giảm ${rate}% từ mã đơn thành công ${customerHistory.latestOrderCode}` 
+          desc: `Giảm ${rate}% từ mã đơn ${eligibleOldOrderVoucher.code} đã đánh giá ${eligibleOldOrderVoucher.rating}★` 
         };
       }
       return null;
     }
 
-    if (!isWelcomeCodeApplied) {
+    if (!customerHistory.isOldCustomer && !isWelcomeCodeApplied) {
       const welcomeVoucher = (shopConfig?.vouchers || []).find((v) => v.code === 'LAMQUEN');
       if (welcomeVoucher) {
         return { 
@@ -275,12 +373,22 @@ export default function CheckoutPage({
         };
       }
     }
-    return null;
-  }, [customerHistory, isPhoneValid, isLoyaltyCodeApplied, isWelcomeCodeApplied, shopConfig?.loyaltyDiscountPercent, shopConfig?.vouchers]);
 
-  const applySpecificCode = (codeToApply) => {
+    return null;
+  }, [
+    customerHistory, 
+    isPhoneValid, 
+    eligibleOldOrderVoucher, 
+    appliedVouchers, 
+    isWelcomeCodeApplied, 
+    shopConfig?.loyaltyDiscountPercent, 
+    shopConfig?.vouchers
+  ]);
+
+  // Áp dụng mã giảm giá
+  const applySpecificCode = async (codeToApply) => {
     setVoucherError('');
-    const code = codeToApply.trim().toUpperCase();
+    const code = String(codeToApply || '').trim().toUpperCase();
     if (!code) return;
 
     if (appliedVouchers.some((v) => v.code === code)) {
@@ -288,21 +396,47 @@ export default function CheckoutPage({
       return;
     }
 
-    const matchedDef = (shopConfig.vouchers || []).find((v) => v.code === code);
-    const isLoyalty = Boolean(customerHistory?.canUseOldCode && customerHistory?.latestOrderCode === code);
+    if (code.startsWith('XNG')) {
+      if (!isPhoneValid) {
+        setVoucherError('Vui lòng nhập số điện thoại hợp lệ trước khi áp dụng mã đơn cũ.');
+        return;
+      }
 
-    if (!matchedDef && !isLoyalty) {
+      setIsValidatingVoucher(true);
+      const checkRes = await verifyPreviousOrderVoucher(code, cleanPhone);
+      setIsValidatingVoucher(false);
+
+      if (!checkRes.valid) {
+        setVoucherError(checkRes.message);
+        return;
+      }
+
+      setAppliedVouchers((prev) => [
+        ...prev, 
+        { 
+          code: checkRes.code, 
+          isLoyalty: true, 
+          isPreviousOrder: true, 
+          discount: checkRes.discountAmount 
+        }
+      ]);
+      setVoucherInput('');
+      return;
+    }
+
+    const matchedDef = (shopConfig.vouchers || []).find((v) => v.code === code);
+    if (!matchedDef) {
       setVoucherError(`Mã "${code}" không hợp lệ hoặc đã hết hạn.`);
       return;
     }
 
-    const minReq = matchedDef ? Number(matchedDef.minOrder || matchedDef.min_order || 0) : 0;
+    const minReq = Number(matchedDef.minOrder || matchedDef.min_order || 0);
     if (clientSubtotal < minReq) {
       setVoucherError(`Đơn hàng cần đạt tối thiểu ${minReq.toLocaleString('vi-VN')}đ để dùng mã này.`);
       return;
     }
 
-    setAppliedVouchers((prev) => [...prev, { code, isLoyalty }]);
+    setAppliedVouchers((prev) => [...prev, { code, isLoyalty: false }]);
     setVoucherInput('');
   };
 
@@ -311,8 +445,8 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  // Submit đơn hàng: Không chạy loading ở nút mà gửi dữ liệu mở Modal in ngay lập tức
-  const handleSubmit = (e) => {
+  // Submit đơn hàng
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const nameErr = validateName(customer.name);
@@ -320,13 +454,8 @@ export default function CheckoutPage({
     const emailErr = validateEmail(customer.email);
     const addressErr = validateAddress(shippingAddress);
 
-    setFormErrors({ name: nameErr, phone: phoneErr, email: emailErr });
-    if (nameErr || phoneErr || emailErr) return;
-
-    if (addressErr) {
-      alert(addressErr);
-      return;
-    }
+    setFormErrors({ name: nameErr, phone: phoneErr, email: emailErr, address: addressErr });
+    if (nameErr || phoneErr || emailErr || addressErr) return;
 
     if (customerHistory?.hasBombedHistory && paymentMethod !== 'full_qr') {
       alert('Đơn hàng này cần thanh toán chuyển khoản 100% trước khi nhà vườn cắt hái!');
@@ -334,8 +463,10 @@ export default function CheckoutPage({
       return;
     }
 
+    setIsSubmittingOrder(true);
+
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
-    const previousOrderCodeUsed = appliedVouchers.find((v) => v.isLoyalty)?.code || '';
+    const previousOrderCodeUsed = appliedVouchers.find((v) => v.isLoyalty || v.isPreviousOrder)?.code || '';
 
     const orderPayload = {
       code: orderCode,
@@ -361,6 +492,7 @@ export default function CheckoutPage({
 
       voucherCode: appliedVouchers.map((v) => v.code).filter(Boolean).join(', '),
       usedPreviousOrderCode: previousOrderCodeUsed,
+      used_previous_order_code: previousOrderCodeUsed,
       appliedVouchers,
       cart: activeCart,
     };
@@ -372,10 +504,15 @@ export default function CheckoutPage({
       console.error(err);
     }
 
-    // Kích hoạt ngay lập tức qua App.jsx mà không để nút quay chờ
-    onSubmitOrder(orderPayload).catch((err) => {
-      console.error('Lỗi khi gửi đơn ngầm:', err);
-    });
+    try {
+      if (onSubmitOrder) {
+        await onSubmitOrder(orderPayload);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gửi đơn hàng:', err);
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   if (!cart.length) {
@@ -487,7 +624,7 @@ export default function CheckoutPage({
                 appliedVouchers={appliedVouchers}
                 calculatedVouchers={appliedVouchers}
                 voucherError={voucherError}
-                isValidating={false}
+                isValidating={isValidatingVoucher}
                 onApplyVoucher={() => applySpecificCode(voucherInput)}
                 onRemoveVoucher={handleRemoveVoucher}
               />
@@ -519,7 +656,7 @@ export default function CheckoutPage({
               finalTotalAmount={activeFinalTotal}
               paymentMethod={paymentMethod}
               depositAmount={depositAmount}
-              isSubmitting={false}
+              isSubmitting={isSubmittingOrder}
             />
           </div>
         </form>

@@ -13,12 +13,12 @@ export function normalizeVietnameseText(str = '') {
 }
 
 /**
- * Loại bỏ các tiền tố đơn vị hành chính để so khớp tên tỉnh/huyện/xã
+ * Loại bỏ các tiền tố đơn vị hành chính đứng đầu để so khớp tên tỉnh/huyện/xã
  */
 export function cleanAdministrativeName(str = '') {
   return String(str || '')
     .toLowerCase()
-    .replace(/(tỉnh|thành phố|tp\.|tp|quận|huyện|thị xã|phường|xã|thị trấn)/g, '')
+    .replace(/^(tỉnh|thành phố|tp\.|tp|quận|huyện|thị xã|phường|xã|thị trấn)\s+/i, '')
     .trim();
 }
 
@@ -31,7 +31,7 @@ export function cleanAdministrativeName(str = '') {
  */
 export function sanitizeVietnamesePhone(raw) {
   if (!raw) return '';
-  let str = String(raw).trim().replace(/[\s\-\.\(\)]/g, '');
+  let str = String(raw).trim().replace(/[\s\-().]/g, '');
 
   if (str.startsWith('+84')) {
     str = '0' + str.slice(3);
@@ -41,15 +41,21 @@ export function sanitizeVietnamesePhone(raw) {
     str = '0' + str;
   }
 
-  return str.replace(/[^0-9]/g, '').slice(0, 10);
+  return str.replace(/\D/g, '').slice(0, 10);
 }
 
 /**
- * Kiểm tra định dạng số điện thoại di động Việt Nam (đúng 10 số, đầu 03, 05, 07, 08, 09)
+ * Kiểm tra định dạng số điện thoại di động Việt Nam 10 số
+ * Bao gồm đầy đủ các nhà mạng lớn và mạng ảo MVNO (Wintel, Itel, FPT, Reddi):
+ * - Viettel: 032-039, 086, 096-098
+ * - Mobifone: 070, 076-079, 089, 090, 093
+ * - Vinaphone: 081-085, 088, 091, 094
+ * - Vietnamobile: 052, 056, 058, 092
+ * - Gmobile / MVNO: 055, 059, 071, 087, 099
  */
 export function isValidVietnamesePhone(phone) {
-  const clean = String(phone || '').trim().replace(/[^0-9]/g, '');
-  return /^0(3[2-9]|5[2689]|7[06-9]|8[1-9]|9[0-9])[0-9]{7}$/.test(clean);
+  const clean = sanitizeVietnamesePhone(phone);
+  return /^0(3[2-9]|5[25689]|7[016-9]|8[1-9]|9[0-9])[0-9]{7}$/.test(clean);
 }
 
 /**
@@ -58,22 +64,30 @@ export function isValidVietnamesePhone(phone) {
 export function validatePhone(phone) {
   const raw = String(phone || '').trim();
   if (!raw) return 'Vui lòng nhập số điện thoại người nhận.';
-  if (raw.length !== 10) return `Số điện thoại phải có đúng 10 số (hiện có ${raw.length} số).`;
-  if (!isValidVietnamesePhone(raw)) {
+  
+  const clean = sanitizeVietnamesePhone(raw);
+  if (clean.length !== 10) {
+    return `Số điện thoại phải có đúng 10 số (hiện có ${clean.length} số).`;
+  }
+  if (!isValidVietnamesePhone(clean)) {
     return 'Đầu số không hợp lệ (bắt đầu bằng 03, 05, 07, 08, 09).';
   }
   return '';
 }
 
 /**
- * Kiểm tra họ và tên hợp lệ (chữ cái tiếng Việt có dấu, tối thiểu 2 từ, dài >= 4 ký tự)
+ * Kiểm tra họ và tên hợp lệ (chữ cái Unicode có dấu, tối thiểu 2 từ, dài >= 4 ký tự)
  */
 export function validateName(name) {
   const trimmed = String(name || '').trim();
   if (!trimmed) return 'Vui lòng nhập họ và tên người nhận.';
-  const regex = /^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂưăạảấầẩẫậắằẳẵặẹẻẽềềểỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵỷỹ\s]+$/;
-  if (!regex.test(trimmed)) return 'Họ tên chỉ được chứa chữ cái.';
-  if (trimmed.split(/\s+/).filter(Boolean).length < 2 || trimmed.length < 4) {
+
+  // Sử dụng Unicode Property Escapes \p{L} để hỗ trợ 100% chữ cái tiếng Việt và tên chuẩn quốc tế
+  const isAllLetters = /^[\p{L}\s]+$/u.test(trimmed);
+  if (!isAllLetters) return 'Họ tên chỉ được chứa chữ cái.';
+
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length < 2 || trimmed.length < 4) {
     return 'Vui lòng nhập đầy đủ cả họ và tên.';
   }
   return '';

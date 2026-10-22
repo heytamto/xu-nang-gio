@@ -9,7 +9,7 @@ export function parseCleanMoney(val) {
   const cleanDigits = str.replace(/[^0-9]/g, '');
   if (!cleanDigits) return 0;
 
-  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy từ Google Sheets nếu còn sót trong cache)
+  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy nếu còn sót trong cache)
   const len = cleanDigits.length;
   if (len >= 12 && len % 2 === 0) {
     const half1 = cleanDigits.slice(0, len / 2);
@@ -63,11 +63,12 @@ export function parseOrderTimestamp(dateStr) {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
+/**
+ * Kiểm tra trạng thái xấu chỉ dựa vào ORDER_STATUS
+ */
 export function isBadStatus(statusStr) {
   const normalized = normalizeOrderStatus(statusStr);
-  if (normalized === ORDER_STATUS.CANCELLED || normalized === ORDER_STATUS.BOMBED) return true;
-  const raw = String(statusStr || '').trim().toLowerCase();
-  return raw === 'đã hủy' || raw === 'da huy' || raw === 'cancelled' || raw === 'bom hàng' || raw === 'bom hang' || raw === 'bombed';
+  return normalized === ORDER_STATUS.CANCELLED || normalized === ORDER_STATUS.BOMBED;
 }
 
 /**
@@ -103,21 +104,21 @@ export function buildCustomerProfileMap(orders = []) {
       const latestOlder = olderOrders[0];
       const isLatestSuccess = latestOlder && !isBadStatus(latestOlder.status);
 
-      const bombedOrders = olderOrders.filter(ord => {
+      // Đơn bom hàng (loại trừ trường hợp khách đã chuyển khoản 100%)
+      const bombedOrders = olderOrders.filter((ord) => {
         const norm = normalizeOrderStatus(ord.status);
-        const raw = String(ord.status || '').toLowerCase();
         const paymentMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
         const isPrepaid100 = paymentMethod.includes('100%') || paymentMethod === 'full_qr';
-        return (norm === ORDER_STATUS.BOMBED || raw.includes('bom')) && !isPrepaid100;
+        return norm === ORDER_STATUS.BOMBED && !isPrepaid100;
       });
 
-      const cancelledOrders = olderOrders.filter(ord => {
+      // Đơn đã hủy
+      const cancelledOrders = olderOrders.filter((ord) => {
         const norm = normalizeOrderStatus(ord.status);
-        const raw = String(ord.status || '').toLowerCase();
-        return norm === ORDER_STATUS.CANCELLED || raw.includes('hủy') || raw.includes('cancel');
+        return norm === ORDER_STATUS.CANCELLED;
       });
 
-      const validOrders = olderOrders.filter(ord => !isBadStatus(ord.status));
+      const validOrders = olderOrders.filter((ord) => !isBadStatus(ord.status));
       const isPardoned = isLatestSuccess && validOrders.length > 0 && (bombedOrders.length > 0 || cancelledOrders.length > 0);
       const primaryBadOrder = bombedOrders[0] || cancelledOrders[0] || null;
 
@@ -127,7 +128,7 @@ export function buildCustomerProfileMap(orders = []) {
         const orderNote = primaryBadOrder.customer_note || primaryBadOrder.note || '';
         
         if (!rawReason && orderNote) {
-          const matchNote = String(orderNote).match(/\[(BOM HÀNG\vert{}LÝ DO HỦY):\s*([^\]]+)\]/i);
+          const matchNote = String(orderNote).match(/\[(BOM HÀNG|LÝ DO HỦY):\s*([^\]]+)\]/i);
           rawReason = matchNote ? matchNote[2] : orderNote;
         }
         reason = rawReason || (normalizeOrderStatus(primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');

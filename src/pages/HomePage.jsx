@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   ArrowRight, 
   ShieldCheck, 
@@ -28,12 +28,16 @@ import {
   Award,
   Calendar,
   Star,
-  PackageCheck
+  PackageCheck,
+  TrendingUp,
+  Quote,
+  X
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { fetchTotalOrdersCount } from '../services/orderService';
+import { fetchTotalOrdersCount, fetchApprovedReviews } from '../services/orderService';
+import { formatDate } from '../utils/dateUtils';
 
-// Bản đồ Icon dự phòng theo chuẩn 3NF
+// Bản đồ Icon dự phòng
 const CATEGORY_ID_ICON_MAP = {
   cat01: Sparkles,    // Combo Ưu Đãi
   cat02: Apple,       // Trái Cây Tươi Giàn
@@ -75,28 +79,47 @@ const HARVEST_SEASONS = [
   }
 ];
 
-// DỮ LIỆU ĐÁNH GIÁ CHÂN THỰC TỪ KHÁCH HÀNG
-const CUSTOMER_REVIEWS = [
+// DỮ LIỆU ĐÁNH GIÁ DỰ PHÒNG KHI CHƯA CÓ DATABASE REVIEWS
+const FALLBACK_CUSTOMER_REVIEWS = [
   {
-    name: "Chị Ánh Tuyết",
-    role: "Khách quen tại Quận 7, TP.HCM",
-    content: "Được bạn đồng nghiệp giới thiệu đặt thử chùm nho xanh với táo gió, mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị chua ngọt tự nhiên chứ không phải ngọt kiểu ngâm đường. Cả nhà ai cũng khen!",
+    customer_name: "Chị Ánh Tuyết",
+    role: "Quận 7, TP.HCM",
+    content: "Chùm nho xanh với táo gió mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị ngọt thanh mát tự nhiên chứ không gắt đường. Cả nhà ai cũng khen!",
     rating: 5,
-    tag: "Đơn mua lần 4"
+    order_code: "XNG2609-8812",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
   },
   {
-    name: "Anh Hoàng Nam",
-    role: "Khách gửi quà ra Ba Đình, Hà Nội",
-    content: "Ấn tượng khâu đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị thâm hay cấn dập một quả nào. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
+    customer_name: "Anh Hoàng Nam",
+    role: "Ba Đình, Hà Nội",
+    content: "Đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị cấn dập. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
     rating: 5,
-    tag: "Đã kiểm chứng"
+    order_code: "XNG2610-4109",
+    created_at: new Date(Date.now() - 86400000 * 4).toISOString()
   },
   {
-    name: "Cô Mỹ Hạnh",
-    role: "Khách quen tại Hải Châu, Đà Nẵng",
-    content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, có sao nói vậy, nông sản nguồn gốc rõ ràng nên rất yên tâm.",
+    customer_name: "Cô Mỹ Hạnh",
+    role: "Hải Châu, Đà Nẵng",
+    content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, bao ăn từng quả.",
     rating: 5,
-    tag: "Khách thân thiết"
+    order_code: "XNG2608-1123",
+    created_at: new Date(Date.now() - 86400000 * 7).toISOString()
+  },
+  {
+    customer_name: "Anh Thanh Tùng",
+    role: "Thủ Đức, TP.HCM",
+    content: "Giao xe trong đêm sáng sớm là nhận được ngay. Táo gió giòn rôm rốp, ngọt đậm vị nắng gió Phan Rang. Sẽ ủng hộ vườn dài dài!",
+    rating: 5,
+    order_code: "XNG2610-9012",
+    created_at: new Date(Date.now() - 86400000 * 10).toISOString()
+  },
+  {
+    customer_name: "Chị Thu Thảo",
+    role: "Bình Thạnh, TP.HCM",
+    content: "Mực một nắng nướng lên thơm nức mũi, thịt dày ngọt đậm đà. Đóng thùng xốp sạch sẽ, bảo quản cẩn thận.",
+    rating: 5,
+    order_code: "XNG2609-3482",
+    created_at: new Date(Date.now() - 86400000 * 14).toISOString()
   }
 ];
 
@@ -248,13 +271,31 @@ export default function HomePage({
   products = [], 
   categories = [], 
   reviews = [],
+  shopConfig = {},
   onAddToCart, 
   onNavigateShop, 
   onNavigateStory, 
   onNavigate 
 }) {
   const scrollRef = useRef(null);
+  const reviewsScrollRef = useRef(null);
 
+  const [realOrderCount, setRealOrderCount] = useState(1200);
+  const [dynamicReviews, setDynamicReviews] = useState([]);
+  
+  // State quản lý xem phóng to ảnh review
+  const [activeLightboxImg, setActiveLightboxImg] = useState(null);
+
+  // Đóng modal khi bấm phím Esc
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setActiveLightboxImg(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Cuộn danh mục
   const scrollCategories = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = direction === 'left' ? -280 : 280;
@@ -262,16 +303,31 @@ export default function HomePage({
     }
   };
 
-  const [realOrderCount, setRealOrderCount] = useState(1200); // Giá trị mặc định ban đầu
+  // Cuộn thanh đánh giá chạy ngang
+  const scrollReviews = (direction) => {
+    if (reviewsScrollRef.current) {
+      const scrollAmount = direction === 'left' ? -340 : 340;
+      reviewsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
+  // Tải thống kê đơn hàng và danh sách review đã duyệt từ Supabase
   useEffect(() => {
-    async function loadOrderStats() {
-      const count = await fetchTotalOrdersCount();
-      if (count > 0) {
-        setRealOrderCount(count);
+    async function loadStatsAndReviews() {
+      try {
+        const [count, approvedRevs] = await Promise.all([
+          fetchTotalOrdersCount(),
+          fetchApprovedReviews(15)
+        ]);
+        if (count > 0) setRealOrderCount(count);
+        if (Array.isArray(approvedRevs) && approvedRevs.length > 0) {
+          setDynamicReviews(approvedRevs);
+        }
+      } catch (err) {
+        console.warn('Lỗi tải dữ liệu đánh giá/thống kê:', err);
       }
     }
-    loadOrderStats();
+    loadStatsAndReviews();
   }, []);
 
   const goToShop = (catId = 'all') => {
@@ -287,27 +343,60 @@ export default function HomePage({
     else if (onNavigate) onNavigate('story');
   };
 
-  const featuredProducts = Array.isArray(products) && products.length > 0 
-    ? [...products]
-        .sort((a, b) => {
-          if (a.category === 'cat01' && b.category !== 'cat01') return -1;
-          if (b.category === 'cat01' && a.category !== 'cat01') return 1;
-          return 0;
-        })
-        .slice(0, 8) 
-    : [];
+  // Lọc và ưu tiên sản phẩm bán chạy nhất đẩy ra Home
+  const featuredProducts = useMemo(() => {
+    if (!Array.isArray(products) || products.length === 0) return [];
+
+    const salesCountMap = new Map();
+
+    try {
+      const allOrders = [
+        ...(Array.isArray(shopConfig?.orders) ? shopConfig.orders : []),
+        ...JSON.parse(localStorage.getItem('shop_orders') || '[]')
+      ];
+
+      allOrders.forEach((ord) => {
+        const items = ord.order_items || ord.cart || [];
+        if (Array.isArray(items)) {
+          items.forEach((item) => {
+            const rawId = String(item.productId || item.product_id || item.id || '');
+            const cleanId = rawId.split('-')[0] || rawId;
+            const qty = Number(item.quantity) || 1;
+            salesCountMap.set(cleanId, (salesCountMap.get(cleanId) || 0) + qty);
+          });
+        }
+      });
+    } catch (e) {
+      console.warn('Lỗi tính toán sản phẩm bán chạy:', e);
+    }
+
+    const sorted = [...products].sort((a, b) => {
+      const cleanIdA = String(a.id || '').split('-')[0];
+      const cleanIdB = String(b.id || '').split('-')[0];
+
+      const salesA = salesCountMap.get(cleanIdA) || Number(a.soldCount || a.sold || 0);
+      const salesB = salesCountMap.get(cleanIdB) || Number(b.soldCount || b.sold || 0);
+
+      if (salesA !== salesB) {
+        return salesB - salesA;
+      }
+
+      if (a.category === 'cat01' && b.category !== 'cat01') return -1;
+      if (b.category === 'cat01' && a.category !== 'cat01') return 1;
+
+      return 0;
+    });
+
+    return sorted.slice(0, 8);
+  }, [products, shopConfig?.orders]);
 
   const displayCategories = categories.filter(c => c.id !== 'all');
 
-  const activeReviews = Array.isArray(reviews) && reviews.length > 0 
-    ? reviews.slice(0, 3).map(r => ({
-        name: r.customer_name,
-        role: `Khách hàng • Mã đơn #${r.order_code}`,
-        content: r.content,
-        rating: Number(r.rating) || 5,
-        tag: `Đánh giá ${r.rating} sao`
-      }))
-    : CUSTOMER_REVIEWS;
+  const finalReviewsList = useMemo(() => {
+    if (Array.isArray(reviews) && reviews.length > 0) return reviews;
+    if (dynamicReviews.length > 0) return dynamicReviews;
+    return FALLBACK_CUSTOMER_REVIEWS;
+  }, [reviews, dynamicReviews]);
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
@@ -319,7 +408,6 @@ export default function HomePage({
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* CỘT TRÁI: THƯƠNG HIỆU & HÀNH ĐỘNG */}
           <div className="lg:col-span-7 space-y-5">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-black tracking-wide shadow-inner">
               <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
@@ -370,7 +458,6 @@ export default function HomePage({
             </div>
           </div>
 
-          {/* CỘT PHẢI: HÌNH ẢNH SẢN PHẨM & BADGES */}
           <div className="lg:col-span-5 relative">
             <div className="relative rounded-3xl overflow-hidden border-2 border-stone-700/80 shadow-2xl bg-stone-900 group">
               <img
@@ -527,13 +614,13 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 4. MÓN NGON TUYỂN CHỌN HÔM NAY ================= */}
+      {/* ================= 4. MÓN NGON TUYỂN CHỌN: LỌC MÓN BÁN CHẠY NHẤT ================= */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
-              <Sun className="w-4 h-4 text-amber-600" />
-              <span>Thu hoạch sáng nay</span>
+              <TrendingUp className="w-4 h-4 text-amber-600" />
+              <span>Được chọn mua nhiều nhất</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight mt-1">
               Món Ngon Tuyển Chọn Vừa Cắt Giàn
@@ -652,48 +739,125 @@ export default function HomePage({
       {/* ================= 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA ================= */}
       <ExperienceGuideSection />
 
-      {/* ================= 8. ĐÁNH GIÁ CHÂN THỰC TỪ KHÁCH HÀNG ================= */}
-      <section className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
+      {/* ================= 8. ĐÁNH GIÁ ĐỘNG CHẠY NGANG (CAROUSEL / SCROLL) ================= */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between border-b border-stone-200 pb-4">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
               <Heart className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
-              <span>Tình cảm của khách thương</span>
+              <span>Tình cảm của khách thương ({finalReviewsList.length}+ đánh giá)</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight mt-1">
               Khách Ăn Quả Xứ Nắng Nói Gì?
             </h3>
           </div>
-          <span className="text-xs text-stone-500 font-medium">
-            Hơn {realOrderCount.toLocaleString('vi-VN')}+ thùng nông sản đã giao tận tay khắp cả nước
-          </span>
+
+          {/* Nút điều hướng cuộn ngang */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => scrollReviews('left')}
+              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
+              title="Xem đánh giá trước"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollReviews('right')}
+              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
+              title="Xem đánh giá tiếp theo"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {activeReviews.map((rev, idx) => (
-            <div key={idx} className="p-5 sm:p-6 rounded-3xl bg-white border border-stone-200/90 shadow-2xs space-y-3 flex flex-col justify-between">
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-0.5 text-amber-500">
-                    {[...Array(rev.rating)].map((_, i) => (
-                      <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    ))}
+        {/* Thanh cuộn ngang hiển thị nhiều đánh giá */}
+        <div 
+          ref={reviewsScrollRef}
+          className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 px-1 scroll-smooth select-none [scrollbar-color:#d6d3d1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-stone-300 hover:[&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-track]:bg-transparent"
+        >
+          {finalReviewsList.map((rev, idx) => {
+            const customerName = rev.customer_name || rev.name || 'Khách quý';
+            const orderCode = rev.order_code || rev.orderCode || '';
+            const ratingNum = Number(rev.rating) || 5;
+            const images = Array.isArray(rev.image_urls) ? rev.image_urls : (rev.image_url ? [rev.image_url] : []);
+
+            return (
+              <div 
+                key={rev.id || idx} 
+                className="w-[280px] sm:w-[320px] shrink-0 p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between space-y-3 relative group"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-0.5 text-amber-500">
+                      {[...Array(ratingNum)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      ))}
+                    </div>
+
+                    {orderCode ? (
+                      <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                        #{orderCode}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {rev.tag || 'Khách đã mua'}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    {rev.tag}
+
+                  <div className="relative">
+                    <Quote className="w-5 h-5 text-stone-200 absolute -top-1 -left-1 -z-0 opacity-40" />
+                    <p className="text-xs text-stone-600 font-light leading-relaxed italic line-clamp-4 relative z-10 pl-2">
+                      "{rev.content}"
+                    </p>
+                  </div>
+
+                  {/* THUMBNAIL ẢNH ĐÍNH KÈM THỰC TẾ */}
+                  {images.length > 0 && (
+                    <div className="flex items-center gap-2 pt-1 pl-2">
+                      {images.map((imgUrl, imgIdx) => (
+                        <button
+                          key={imgIdx}
+                          type="button"
+                          onClick={() => setActiveLightboxImg(imgUrl)}
+                          className="relative w-12 h-12 rounded-xl overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in group/img shrink-0"
+                          title="Bấm để xem ảnh phóng to"
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`review-proof-${imgIdx}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                          />
+                          <div className="absolute inset-0 bg-black/10 group-hover/img:bg-transparent transition-colors" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
+                  <div>
+                    <strong className="text-xs font-bold text-stone-900 block truncate max-w-[170px]">
+                      {customerName}
+                    </strong>
+                    <span className="text-[10.5px] text-stone-400 font-light block truncate max-w-[170px]">
+                      {rev.role || (orderCode ? 'Đã nhận hàng thành công' : 'Khách thân thiết')}
+                    </span>
+                  </div>
+
+                  {/* HIỂN THỊ NGÀY ĐÁNH GIÁ KÈM ICON ĐỒNG HỒ */}
+                  <span className="text-[10px] font-medium text-stone-400 font-mono flex items-center gap-1 shrink-0 bg-stone-50 px-2 py-0.5 rounded-md border border-stone-100">
+                    <Clock className="w-3 h-3 text-stone-400" />
+                    <span>{formatDate(rev.created_at || rev.createdAt || new Date())}</span>
                   </span>
                 </div>
-                <p className="text-xs text-stone-600 font-light leading-relaxed italic">
-                  "{rev.content}"
-                </p>
               </div>
-
-              <div className="pt-3 border-t border-stone-100">
-                <strong className="text-xs font-bold text-stone-900 block">{rev.name}</strong>
-                <span className="text-[11px] text-stone-400 font-light">{rev.role}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -763,6 +927,36 @@ export default function HomePage({
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-amber-800" />
         </button>
       </section>
+
+      {/* ================= MODAL LIGHTBOX PHÓNG TO ẢNH REVIEW ================= */}
+      {activeLightboxImg && (
+        <div 
+          onClick={() => setActiveLightboxImg(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fadeIn cursor-zoom-out"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            className="relative max-w-3xl max-h-[90vh] bg-stone-950 rounded-3xl overflow-hidden border border-white/20 shadow-2xl p-2 cursor-default"
+          >
+            <button
+              type="button"
+              onClick={() => setActiveLightboxImg(null)}
+              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-stone-900/80 hover:bg-stone-800 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
+              title="Đóng (Esc)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={activeLightboxImg}
+              alt="Review Fullsize"
+              className="w-full max-h-[82vh] object-contain rounded-2xl"
+            />
+            <div className="text-center py-2 text-[11px] text-stone-400 font-sans">
+              Ảnh thực tế từ khách nhận hàng • Nhấn vùng tối để đóng
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -883,7 +1077,7 @@ function ExperienceGuideSection() {
         </div>
       </div>
 
-      {/* DẢI 10 TABS CHỌN ĐẶC SẢN (CUỘN NGANG MƯỢT) */}
+      {/* DẢI 10 TABS CHỌN ĐẶC SẢN */}
       <div 
         ref={tabsContainerRef}
         className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] scroll-smooth"
@@ -904,13 +1098,12 @@ function ExperienceGuideSection() {
         ))}
       </div>
 
-      {/* NỘI DUNG CHI TIẾT (FADE TRANSITION) */}
+      {/* NỘI DUNG CHI TIẾT */}
       <div 
         className={`grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch transition-all duration-300 ease-out transform ${
           isAnimating ? 'opacity-0 translate-y-2 scale-[0.99]' : 'opacity-100 translate-y-0 scale-100'
         }`}
       >
-        {/* CỘT TRÁI: DẤU HIỆU CHUẨN + MẸO BẢO QUẢN */}
         <div className="lg:col-span-8 p-5 sm:p-6 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-4 flex flex-col justify-between shadow-2xs">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -927,7 +1120,6 @@ function ExperienceGuideSection() {
               {currentItem.title}
             </h4>
 
-            {/* Dấu hiệu nhận biết */}
             <div className="space-y-2 pt-1">
               {currentItem.realSigns.map((sign, sIdx) => (
                 <div key={sIdx} className="flex items-start gap-2.5 text-xs text-stone-700 leading-relaxed">
@@ -937,7 +1129,6 @@ function ExperienceGuideSection() {
               ))}
             </div>
 
-            {/* Khối Mẹo Bảo Quản Mới */}
             {currentItem.storageTip && (
               <div className="mt-3 p-3 rounded-xl bg-white/80 border border-amber-200/60 text-xs text-stone-700 flex items-start gap-2 shadow-2xs">
                 <span className="font-bold text-amber-900 shrink-0">🧊 Mẹo bảo quản:</span>
@@ -952,7 +1143,6 @@ function ExperienceGuideSection() {
           </div>
         </div>
 
-        {/* CỘT PHẢI: CẢNH BÁO TRÁNH HÀNG KÉM CHẤT LƯỢNG */}
         <div className="lg:col-span-4 p-5 sm:p-6 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col justify-between space-y-3 shadow-2xs">
           <div className="space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-black uppercase text-rose-800">

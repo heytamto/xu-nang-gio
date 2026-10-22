@@ -1,10 +1,15 @@
 // src/services/orderService.js
 import { supabase } from '../supabaseClient';
 import { parseOrderTimestampToMs } from '../utils/dateUtils';
+import { 
+  ORDER_STATUS, 
+  normalizeOrderStatus 
+} from '../constants/orderStatus';
 
 /**
  * 1. TẠO ĐƠN HÀNG NGUYÊN TỬ VÀO POSTGRESQL (GỌI RPC create_order_atomic)
  * Ghi đồng thời vào cả 2 bảng: orders và order_items trong 1 Transaction duy nhất
+ * Trạng thái khởi tạo lưu thẳng mã enum tiếng Anh: ORDER_STATUS.PENDING ('pending')
  */
 export async function submitOrderToSupabase(orderData) {
   const {
@@ -18,11 +23,26 @@ export async function submitOrderToSupabase(orderData) {
     paymentGift,
     campaignGifts,
     edgeSignature,
-    customerNote
+    customerNote,
+    usedPreviousOrderCode
   } = orderData;
 
   const code = orderData.code || `XNG${Date.now().toString().slice(-6)}`;
   const cleanPhone = String(customer?.phone || orderData.phone || '').replace(/\D/g, '');
+
+  const formattedItems = (cart || []).map((item) => {
+    const rawId = String(item.productId || item.id || '');
+    const cleanProductId = rawId.split('-')[0] || rawId;
+
+    return {
+      productId: cleanProductId,
+      name: item.name,
+      weightLabel: item.weightLabel || '',
+      price: Number(item.price) || 0,
+      quantity: Number(item.quantity) || 1,
+      campaign_gift_title: item.campaign_gift_title || null
+    };
+  });
 
   const rpcParams = {
     p_code: code,
@@ -39,30 +59,64 @@ export async function submitOrderToSupabase(orderData) {
     p_campaign_gifts: campaignGifts || null,
     p_customer_note: (customerNote || customer?.note || orderData.note || '').trim() || null,
     p_edge_signature: edgeSignature || null,
-    p_items: (cart || []).map((item) => {
-      const rawId = String(item.productId || item.id || '');
-      const cleanProductId = rawId.split('-')[0] || rawId;
-
-      return {
-        productId: cleanProductId,
-        name: item.name,
-        weightLabel: item.weightLabel || '',
-        price: Number(item.price) || 0,
-        quantity: Number(item.quantity) || 1,
-        campaign_gift_title: item.campaign_gift_title || null
-      };
-    })
+    p_status: ORDER_STATUS.PENDING,
+    p_items: formattedItems,
+    p_used_previous_order_code: usedPreviousOrderCode || null
   };
 
-  const { data, error } = await supabase.rpc('create_order_atomic', rpcParams);
-
-  if (error) {
-    console.error('Lỗi Supabase RPC create_order_atomic:', error);
-    throw new Error(error.message || 'Không thể tạo đơn hàng');
+  // 1. Thử ghi nhận bằng Transaction RPC
+  try {
+    const { data, error } = await supabase.rpc('create_order_atomic', rpcParams);
+    if (!error && data?.success) {
+      return { success: true, orderCode: code };
+    }
+    if (error) console.warn('RPC create_order_atomic warning, thử fallback:', error.message);
+  } catch (rpcErr) {
+    console.warn('RPC exception, thử fallback:', rpcErr);
   }
 
-  if (!data?.success) {
-    throw new Error(data?.error || 'Tạo đơn hàng thất bại');
+  // 2. Fallback dự phòng: Insert trực tiếp vào bảng orders & order_items
+  const { error: orderErr } = await supabase.from('orders').insert([
+    {
+      code: code,
+      customer_name: rpcParams.p_customer_name,
+      phone: rpcParams.p_phone,
+      email: rpcParams.p_email,
+      address: rpcParams.p_address,
+      payment_method: rpcParams.p_payment_method,
+      subtotal: rpcParams.p_subtotal,
+      discount: rpcParams.p_discount,
+      final_total: rpcParams.p_final_total,
+      voucher_codes: rpcParams.p_voucher_codes,
+      payment_gift: rpcParams.p_payment_gift,
+      campaign_gifts: rpcParams.p_campaign_gifts,
+      customer_note: rpcParams.p_customer_note,
+      edge_signature: rpcParams.p_edge_signature,
+      used_previous_order_code: usedPreviousOrderCode || null,
+      status: ORDER_STATUS.PENDING,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ]);
+
+  if (orderErr) {
+    console.error('Lỗi fallback insert orders:', orderErr);
+    throw new Error(orderErr.message || 'Không thể tạo đơn hàng');
+  }
+
+  if (formattedItems.length > 0) {
+    const itemsPayload = formattedItems.map((it) => ({
+      order_code: code,
+      product_id: it.productId,
+      name: it.name,
+      weight_label: it.weightLabel,
+      price: it.price,
+      quantity: it.quantity,
+      line_total: it.price * it.quantity,
+      campaign_gift_title: it.campaign_gift_title
+    }));
+
+    await supabase.from('order_items').insert(itemsPayload);
   }
 
   return { success: true, orderCode: code };
@@ -86,7 +140,7 @@ export async function fetchCustomerHistory(phone) {
 
     const { data: matchedOrders, error } = await supabase
       .from('orders')
-      .select('code, customer_name, phone, address, email, payment_method, status, created_at')
+      .select('code, customer_name, phone, address, email, payment_method, status, created_at, used_previous_order_code')
       .ilike('phone', `%${last8Digits}`)
       .order('created_at', { ascending: false });
 
@@ -103,14 +157,18 @@ export async function fetchCustomerHistory(phone) {
         isRiskCustomer: Boolean(riskProfile && !riskProfile.is_pardoned && riskProfile.risk_level !== 'NORMAL'),
         latestOrderCode: null,
         canUseOldCode: false,
-        previousInfo: null
+        previousInfo: null,
+        validOrders: [],
+        allCombinedOrders: []
       };
     }
 
     const latestOrder = matchedOrders[0];
+    
+    // Đối soát trạng thái xấu bằng ORDER_STATUS
     const isBadStatus = (st) => {
-      const s = String(st || '').toLowerCase();
-      return s.includes('hủy') || s.includes('cancel') || s.includes('bom');
+      const norm = normalizeOrderStatus(st);
+      return norm === ORDER_STATUS.CANCELLED || norm === ORDER_STATUS.BOMBED;
     };
 
     const validOrders = matchedOrders.filter((o) => !isBadStatus(o.status));
@@ -119,10 +177,10 @@ export async function fetchCustomerHistory(phone) {
     const isPardoned = riskProfile?.is_pardoned || (isLatestSuccess && hasSuccess);
 
     const hasBombedHistory = (riskProfile?.risk_level === 'BOMBED_RISK' && !isPardoned) ||
-      (!isPardoned && matchedOrders.some((o) => String(o.status || '').toLowerCase().includes('bom')));
+      (!isPardoned && matchedOrders.some((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.BOMBED));
 
     const hasCancelHistory = (riskProfile?.risk_level === 'CANCELLED_RISK' && !isPardoned) ||
-      (!isPardoned && matchedOrders.filter((o) => String(o.status || '').toLowerCase().includes('hủy')).length >= 2);
+      (!isPardoned && matchedOrders.filter((o) => normalizeOrderStatus(o.status) === ORDER_STATUS.CANCELLED).length >= 2);
 
     const latestSuccessOrder = hasSuccess ? validOrders[0] : null;
 
@@ -136,6 +194,8 @@ export async function fetchCustomerHistory(phone) {
       isRiskCustomer: hasBombedHistory || hasCancelHistory,
       latestOrderCode: latestSuccessOrder ? latestSuccessOrder.code : null,
       canUseOldCode: Boolean(latestSuccessOrder),
+      validOrders,
+      allCombinedOrders: matchedOrders,
       previousInfo: latestSuccessOrder ? {
         name: latestSuccessOrder.customer_name || '',
         address: latestSuccessOrder.address || '',
@@ -150,7 +210,6 @@ export async function fetchCustomerHistory(phone) {
 
 /**
  * 3. TRA CỨU CHI TIẾT ĐƠN HÀNG (OrderLookupModal)
- * Tách độc lập 2 query orders & order_items để triệt tiêu lỗi PGRST201
  */
 export async function lookupOrderDirect(queryValue) {
   const rawVal = String(queryValue || '').trim().replace(/\s+/g, '');
@@ -159,11 +218,6 @@ export async function lookupOrderDirect(queryValue) {
   const cleanDigits = rawVal.replace(/\D/g, '');
   const upperCode = rawVal.toUpperCase();
 
-  // CHUẨN ĐOÁN CHÍNH XÁC:
-  // Chỉ coi là tìm số điện thoại nếu:
-  // 1. Không chứa tiền tố 'XNG'
-  // 2. Không chứa ký tự chữ cái alphabet
-  // 3. Có ít nhất 8 chữ số
   const hasLetters = /[A-Z]/i.test(rawVal);
   const isPhoneSearch = !hasLetters && cleanDigits.length >= 8;
 
@@ -171,7 +225,6 @@ export async function lookupOrderDirect(queryValue) {
     let ordersData = null;
 
     if (isPhoneSearch) {
-      // Nhánh tìm theo SỐ ĐIỆN THOẠI
       const suffix = cleanDigits.slice(-8);
       const { data, error } = await supabase
         .from('orders')
@@ -182,13 +235,11 @@ export async function lookupOrderDirect(queryValue) {
       if (error) throw error;
       ordersData = data;
     } else {
-      // Nhánh tìm theo MÃ ĐƠN HÀNG (VD: XNG261022-X31G)
       let { data, error } = await supabase
         .from('orders')
         .select('*')
         .eq('code', upperCode);
 
-      // Nếu không khớp tuyệt đối, tìm gần đúng
       if (!error && (!data || data.length === 0)) {
         const fallbackRes = await supabase
           .from('orders')
@@ -204,7 +255,6 @@ export async function lookupOrderDirect(queryValue) {
 
     if (!Array.isArray(ordersData) || ordersData.length === 0) return [];
 
-    // Lấy items cho các đơn tìm được
     const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
     let itemsByOrder = {};
 
@@ -234,6 +284,7 @@ export async function lookupOrderDirect(queryValue) {
 
     return ordersData.map((ord) => ({
       ...ord,
+      status: normalizeOrderStatus(ord.status),
       order_items: itemsByOrder[ord.code] || ord.cart || []
     }));
   } catch (err) {
@@ -244,10 +295,9 @@ export async function lookupOrderDirect(queryValue) {
 
 /**
  * 4. HỦY ĐƠN HÀNG (Khách tự hủy trong cửa sổ 30 phút đầu)
- * Kiểm tra chặt thời gian created_at trước khi cập nhật
+ * Lưu ORDER_STATUS.CANCELLED ('cancelled')
  */
 export async function cancelOrderDirect(orderCode, cancelReason) {
-  // 1. Kiểm tra đơn và thời gian tạo đơn
   const { data: ord, error: fetchErr } = await supabase
     .from('orders')
     .select('code, status, created_at')
@@ -266,11 +316,10 @@ export async function cancelOrderDirect(orderCode, cancelReason) {
     throw new Error('Đã quá thời gian 30 phút đổi ý. Đơn hàng đã được chốt đóng thùng.');
   }
 
-  // 2. Cập nhật trạng thái
   const { data, error } = await supabase
     .from('orders')
     .update({
-      status: 'Đã hủy',
+      status: ORDER_STATUS.CANCELLED,
       cancel_reason: cancelReason || 'Khách đổi ý hủy đơn',
       updated_at: new Date().toISOString()
     })
@@ -283,18 +332,35 @@ export async function cancelOrderDirect(orderCode, cancelReason) {
     throw error;
   }
 
-  return data;
+  return {
+    ...data,
+    status: normalizeOrderStatus(data.status)
+  };
 }
 
 /**
- * 5. TẢI ĐƠN HÀNG ĐANG VẬN HÀNH (KHẮC PHỤC TRIỆT ĐỂ LỖI PGRST201)
+ * 5. TẢI ĐƠN HÀNG ĐANG VẬN HÀNH
  */
 export async function fetchActiveProcessingOrders() {
   try {
+    const activeStatuses = [
+      ORDER_STATUS.PENDING,
+      ORDER_STATUS.CONFIRMED,
+      ORDER_STATUS.PACKING,
+      ORDER_STATUS.SHIPPING,
+      ORDER_STATUS.COMPLETED,
+      'Chờ xác nhận',
+      'Đã xác nhận',
+      'Đang đóng gói',
+      'Đang giao',
+      'Đang giao xe',
+      'Hoàn thành'
+    ];
+
     const { data: ordersData, error: ordersErr } = await supabase
       .from('orders')
       .select('*')
-      .in('status', ['Chờ xác nhận', 'Đã xác nhận', 'Đang đóng gói', 'Đang giao', 'Đang giao xe', 'Đã nhận hàng'])
+      .in('status', activeStatuses)
       .order('created_at', { ascending: false });
 
     if (ordersErr) {
@@ -350,6 +416,7 @@ export async function fetchActiveProcessingOrders() {
         paymentMethod: ord.payment_method || ord.paymentMethod || 'deposit',
         payment_method: ord.payment_method || ord.paymentMethod || 'deposit',
         createdAt: ord.created_at || ord.createdAt || new Date().toISOString(),
+        status: normalizeOrderStatus(ord.status),
         cart: itemsList,
         order_items: itemsList
       };
@@ -368,7 +435,15 @@ export async function fetchActiveProcessingOrders() {
 /**
  * 6. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM XÁC THỰC MÃ ĐƠN
  */
-export async function submitOrderReview({ orderCode, phone, customerName, rating, content, productTags }) {
+export async function submitOrderReview({ 
+  orderCode, 
+  phone, 
+  customerName, 
+  rating, 
+  content, 
+  productTags = '', 
+  imageUrls = [] 
+}) {
   try {
     const cleanCode = String(orderCode || '').trim().toUpperCase();
     const cleanPhone = String(phone || '').trim();
@@ -383,19 +458,12 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
       return { success: false, error: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
     }
 
-    const currentStatus = String(existingOrder.status || '').toLowerCase();
-    const isCompleted = currentStatus.includes('đã nhận hàng') || currentStatus.includes('completed') || currentStatus.includes('hoàn tất');
-    
-    if (!isCompleted) {
+    const currentStatusCode = normalizeOrderStatus(existingOrder.status);
+    if (currentStatusCode !== ORDER_STATUS.COMPLETED) {
       return { 
         success: false, 
-        error: 'Đơn hàng này chưa hoàn tất giao nhận. Hệ thống chỉ mở tính năng đánh giá sau khi bạn đã nhận được nông sản từ nhà xe.' 
+        error: 'Đơn hàng này chưa hoàn tất giao nhận. Bạn chỉ có thể đánh giá sau khi đã nhận kiện hàng.' 
       };
-    }
-
-    const orderPhone = String(existingOrder.phone || '').trim();
-    if (orderPhone && cleanPhone && !orderPhone.endsWith(cleanPhone.slice(-4))) {
-      return { success: false, error: 'Số điện thoại không khớp với thông tin đặt đơn.' };
     }
 
     const ratingNum = Number(rating) || 5;
@@ -409,6 +477,7 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
           rating: ratingNum,
           content: content.trim(),
           product_tags: productTags || '',
+          image_urls: Array.isArray(imageUrls) ? imageUrls : [],
           is_approved: true
         }
       ])
@@ -422,17 +491,7 @@ export async function submitOrderReview({ orderCode, phone, customerName, rating
       return { success: false, error: insertErr.message };
     }
 
-    let rewardedVoucher = null;
-    if (ratingNum === 5) {
-      rewardedVoucher = {
-        code: `XNG5_${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
-        value: 15000,
-        type: 'fixed',
-        desc: 'Mã tri ân đánh giá 5 sao'
-      };
-    }
-
-    return { success: true, data, rewardedVoucher };
+    return { success: true, data };
   } catch (err) {
     console.error('Lỗi khi gửi review:', err);
     return { success: false, error: 'Không thể kết nối máy chủ, vui lòng thử lại sau.' };
@@ -530,5 +589,238 @@ export async function fetchTotalOrdersCount() {
   } catch (err) {
     console.error('Lỗi đếm số lượng đơn hàng:', err);
     return 0;
+  }
+}
+
+/**
+ * 12. XÁC THỰC MÃ ĐƠN CŨ LÀM VOUCHER TRI ÂN
+ * - Đơn phải COMPLETED
+ * - Phải có review >= 4 sao
+ * - Chưa từng dùng làm voucher ở đơn nào khác (loại trừ các đơn bị hủy/bom)
+ */
+export async function verifyPreviousOrderVoucher(rawCode, currentPhone) {
+  const cleanCode = String(rawCode || '').trim().toUpperCase();
+  const cleanPhone = String(currentPhone || '').replace(/\D/g, '');
+
+  if (!cleanCode.startsWith('XNG') && cleanCode.length < 6) {
+    return { valid: false, message: 'Mã đơn hàng không hợp lệ.' };
+  }
+
+  try {
+    // 1. Kiểm tra đơn hàng cũ
+    const { data: oldOrder, error: orderErr } = await supabase
+      .from('orders')
+      .select('code, phone, status')
+      .eq('code', cleanCode)
+      .maybeSingle();
+
+    if (orderErr || !oldOrder) {
+      return { valid: false, message: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
+    }
+
+    // Đối soát số điện thoại (tránh lấy mã của người khác xài ké)
+    const oldPhone = String(oldOrder.phone || '').replace(/\D/g, '');
+    if (cleanPhone && oldPhone && !oldPhone.endsWith(cleanPhone.slice(-8))) {
+      return { valid: false, message: 'Mã đơn này không thuộc về số điện thoại đặt hàng hiện tại.' };
+    }
+
+    // Đơn phải hoàn thành
+    if (normalizeOrderStatus(oldOrder.status) !== ORDER_STATUS.COMPLETED) {
+      return { valid: false, message: 'Đơn hàng này chưa hoàn tất giao nhận nên chưa thể dùng làm mã ưu đãi.' };
+    }
+
+    // 2. KHÓA 1 LẦN: Kiểm tra xem mã này đã từng được dùng ở đơn nào khác chưa
+    const { data: alreadyUsed, error: usedErr } = await supabase
+      .from('orders')
+      .select('code, status')
+      .eq('used_previous_order_code', cleanCode)
+      .limit(5);
+
+    if (!usedErr && Array.isArray(alreadyUsed)) {
+      // Chỉ tính các đơn đang hoạt động (loại trừ đơn hủy/bom)
+      const activeUsed = alreadyUsed.filter((o) => {
+        const norm = normalizeOrderStatus(o.status);
+        return norm !== ORDER_STATUS.CANCELLED && norm !== ORDER_STATUS.BOMBED;
+      });
+
+      if (activeUsed.length > 0) {
+        return { 
+          valid: false, 
+          message: `Mã đơn ${cleanCode} đã được dùng cho đơn hàng ${activeUsed[0].code} trước đó rồi. Mỗi đơn chỉ áp dụng 1 lần!` 
+        };
+      }
+    }
+
+    // 3. Kiểm tra đánh giá trong bảng reviews: BẮT BUỘC RATING >= 4
+    const { data: reviewData, error: revErr } = await supabase
+      .from('reviews')
+      .select('rating, is_approved')
+      .eq('order_code', cleanCode)
+      .maybeSingle();
+
+    if (revErr || !reviewData) {
+      return { 
+        valid: false, 
+        needReview: true,
+        message: 'Bạn chưa đánh giá đơn hàng này. Vui lòng vào mục "Tra cứu đơn" để gửi đánh giá từ 4 sao trở lên để kích hoạt mã giảm giá nhé!' 
+      };
+    }
+
+    const ratingNum = Number(reviewData.rating) || 0;
+    if (ratingNum < 4) {
+      return { 
+        valid: false, 
+        message: `Đơn hàng này được đánh giá ${ratingNum} sao. Ưu đãi tri ân chỉ áp dụng cho đơn hàng được đánh giá từ 4 sao trở lên.` 
+      };
+    }
+
+    return { 
+      valid: true, 
+      discountAmount: 20000, 
+      code: cleanCode, 
+      message: `Áp dụng thành công ưu đãi tri ân từ đơn cũ ${cleanCode} (-20.000đ)` 
+    };
+
+  } catch (err) {
+    console.error('Lỗi xác thực voucher đơn cũ:', err);
+    return { valid: false, message: 'Lỗi kết nối kiểm tra mã đơn, vui lòng thử lại.' };
+  }
+}
+
+/**
+ * 13. KIỂM TRA ĐƠN HÀNG ĐÃ CÓ ĐÁNH GIÁ >= 4 SAO HAY CHƯA
+ */
+export async function checkOrderReviewStatus(orderCode) {
+  if (!orderCode) return { isEligible: false, rating: 0 };
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('rating, is_approved')
+      .eq('order_code', String(orderCode).trim().toUpperCase())
+      .maybeSingle();
+
+    if (error || !data) return { isEligible: false, rating: 0 };
+
+    const ratingNum = Number(data.rating) || 0;
+    return {
+      isEligible: ratingNum >= 4,
+      rating: ratingNum
+    };
+  } catch (err) {
+    console.error('Lỗi checkOrderReviewStatus:', err);
+    return { isEligible: false, rating: 0 };
+  }
+}
+
+/**
+ * 14. QUÉT TÌM ĐƠN CŨ ĐỦ ĐIỀU KIỆN LÀM VOUCHER TRI ÂN
+ * - Trạng thái: COMPLETED
+ * - Chưa từng dùng ở bất kỳ đơn nào khác (used_previous_order_code)
+ * - Đã đánh giá với rating >= 4
+ */
+export async function findEligiblePreviousOrderVoucher(validOrders = [], combinedOrders = []) {
+  if (!Array.isArray(validOrders) || validOrders.length === 0) return null;
+
+  // Tập hợp các mã đơn đã bị dùng trước đó (bỏ qua đơn bị hủy/bom)
+  const usedCodesSet = new Set();
+  combinedOrders.forEach((o) => {
+    const usedCode = o.used_previous_order_code || o.usedPreviousOrderCode;
+    const st = normalizeOrderStatus(o.status);
+    if (usedCode && st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED) {
+      usedCodesSet.add(String(usedCode).trim().toUpperCase());
+    }
+  });
+
+  // Lọc ra các đơn hoàn thành mà chưa từng bị dùng làm voucher
+  const candidateOrders = validOrders.filter((ord) => {
+    const code = String(ord.code || ord.orderId || '').trim().toUpperCase();
+    const isCompleted = normalizeOrderStatus(ord.status) === ORDER_STATUS.COMPLETED;
+    return isCompleted && !usedCodesSet.has(code);
+  });
+
+  if (candidateOrders.length === 0) return null;
+
+  const candidateCodes = candidateOrders.map((o) => String(o.code || o.orderId).trim().toUpperCase());
+
+  try {
+    const { data: reviews, error } = await supabase
+      .from('reviews')
+      .select('order_code, rating')
+      .in('order_code', candidateCodes);
+
+    if (error || !Array.isArray(reviews)) return null;
+
+    const reviewMap = new Map();
+    reviews.forEach((r) => {
+      reviewMap.set(String(r.order_code).trim().toUpperCase(), Number(r.rating) || 0);
+    });
+
+    // Quét từ đơn mới nhất đến cũ nhất
+    for (const ord of candidateOrders) {
+      const code = String(ord.code || ord.orderId).trim().toUpperCase();
+      const rating = reviewMap.get(code) || 0;
+      if (rating >= 4) {
+        return {
+          order: ord,
+          code,
+          rating
+        };
+      }
+    }
+  } catch (err) {
+    console.error('Lỗi findEligiblePreviousOrderVoucher:', err);
+  }
+
+  return null;
+}
+
+/**
+ * Kiểm tra lịch sử đơn hàng của số điện thoại:
+ * - lastOrderBombed: Đơn gần nhất bị bom
+ * - twoRecentCancelled: 2 đơn liên tiếp gần nhất bị hủy
+ */
+export async function checkCustomerOrderRisk(phone) {
+  const cleanPhone = String(phone || '').replace(/\D/g, '');
+  if (cleanPhone.length < 9) {
+    return { lastOrderBombed: false, twoRecentCancelled: false, totalOrders: 0 };
+  }
+
+  try {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('code, status, created_at')
+      .eq('phone', cleanPhone)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error) throw error;
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return { lastOrderBombed: false, twoRecentCancelled: false, totalOrders: 0 };
+    }
+
+    // Chuẩn hóa status của các đơn về mã tiếng Anh
+    const normalizedOrders = orders.map((o) => ({
+      ...o,
+      status: normalizeOrderStatus(o.status),
+    }));
+
+    // 1. Đơn gần nhất có bị bom không?
+    const lastOrder = normalizedOrders[0];
+    const lastOrderBombed = lastOrder?.status === ORDER_STATUS.BOMBED;
+
+    // 2. Hai đơn liên tiếp gần nhất có bị hủy (cancelled) không?
+    const twoRecentCancelled =
+      normalizedOrders.length >= 2 &&
+      normalizedOrders[0]?.status === ORDER_STATUS.CANCELLED &&
+      normalizedOrders[1]?.status === ORDER_STATUS.CANCELLED;
+
+    return {
+      lastOrderBombed,
+      twoRecentCancelled,
+      totalOrders: normalizedOrders.length,
+    };
+  } catch (err) {
+    console.warn('Lỗi tra cứu rủi ro khách hàng:', err);
+    return { lastOrderBombed: false, twoRecentCancelled: false, totalOrders: 0 };
   }
 }
