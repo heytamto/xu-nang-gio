@@ -1,6 +1,6 @@
 // src/components/checkout/OrderSuccessModal.jsx
 import React, { useState, useEffect } from 'react';
-import { Check, Copy, Printer, Phone, Sparkles } from 'lucide-react';
+import { Printer, Phone } from 'lucide-react';
 
 // Răng cưa siêu nhuyễn 1.8px sắc nét, dùng chung cho cả 2 đầu
 function MicroSawtoothEdge({ position = 'bottom' }) {
@@ -40,7 +40,6 @@ export default function OrderSuccessModal({
   // 4: 'tearing'  (3.7s - 4.2s) : Dao xé giật nghiêng rẹt một cái
   // 5: 'torn'     (sau 4.2s)    : Máy in trượt mất, hóa đơn đứng yên
   const [printStep, setPrintStep] = useState('waiting');
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,14 +89,6 @@ export default function OrderSuccessModal({
     if (raw.includes('cọc') || raw === 'deposit') return 'Cọc giữ hàng (VietQR)';
     if (raw.includes('100%') || raw === 'full_qr') return 'Chuyển khoản 100% (VietQR)';
     return 'Thanh toán khi nhận hàng (COD)';
-  };
-
-  const handleCopyCode = () => {
-    if (navigator?.clipboard) {
-      navigator.clipboard.writeText(orderCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   return (
@@ -270,43 +261,11 @@ export default function OrderSuccessModal({
                   </span>
                 </div>
 
-                {/* Khối voucher tri ân lần sau */}
-                <div className="bg-amber-50/80 rounded-2xl p-3 border border-amber-200/80 space-y-1.5 text-left font-sans mt-2">
-                  <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    <span>Món Quà Cho Lần Ghé Sau</span>
-                  </div>
-                  <p className="text-[10.5px] text-stone-600 leading-relaxed">
-                    Lần sau ghé vườn, nhập mã <strong className="text-amber-900 font-mono">{orderCode}</strong> tại ô voucher để được giảm ngay <strong className="text-amber-800 font-bold">10%</strong>!
-                  </p>
-
-                  <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-amber-200 shadow-2xs">
-                    <span className="font-mono font-bold text-amber-950 text-xs tracking-wider">{orderCode}</span>
-                    <button
-                      type="button"
-                      onClick={handleCopyCode}
-                      className="flex items-center gap-1 text-[11px] font-bold text-amber-800 hover:text-amber-950 cursor-pointer"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-700">Đã chép</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Sao chép</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
                 {/* Nút hành động */}
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full mt-2 py-3 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
+                  className="w-full mt-3 py-3 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
                 >
                   Tiếp Tục Xem Vườn
                 </button>
