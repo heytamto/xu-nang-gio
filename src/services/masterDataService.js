@@ -1,8 +1,8 @@
 // src/services/masterDataService.js
-import { supabase } from '../supabaseClient'; // ✅ Sửa đường dẫn chuẩn từ src/services/ lên src/
+import { supabase } from '../supabaseClient';
 
 /**
- * Tải toàn bộ Master Data trực tiếp từ Supabase (3NF Products + Product Weights)
+ * Tải toàn bộ Master Data trực tiếp từ Supabase (3NF Products + Product Weights + Safe Config + Reviews)
  */
 export async function fetchAllMasterDataFromSupabase() {
   try {
@@ -13,7 +13,8 @@ export async function fetchAllMasterDataFromSupabase() {
       { data: stories, error: errStories },
       { data: vouchers, error: errVouchers },
       { data: gifts, error: errGifts },
-      { data: configs, error: errConfigs }
+      configRes,
+      reviewRes
     ] = await Promise.all([
       supabase.from('categories').select('*').order('id', { ascending: true }),
       // Quan hệ 1-N chuẩn 3NF với bảng product_weights
@@ -44,26 +45,31 @@ export async function fetchAllMasterDataFromSupabase() {
       supabase.from('stories').select('*').order('created_at', { ascending: false }),
       supabase.from('vouchers').select('*'),
       supabase.from('gifts').select('*'),
-      supabase.from('shop_config').select('*')
+      // Safe Query cho shop_config: Tránh crash nếu bảng chưa tồn tại
+      supabase.from('shop_config').select('*').then(res => res).catch(() => ({ data: null, error: null })),
+      // Safe Query cho reviews đã duyệt
+      supabase.from('reviews').select('*').eq('is_approved', true).order('created_at', { ascending: false }).limit(8).then(res => res).catch(() => ({ data: null, error: null }))
     ]);
 
     if (errCats) console.warn('Lưu ý categories:', errCats.message);
     if (errProds) console.warn('Lưu ý products:', errProds.message);
-    if (errConfigs) console.warn('Lưu ý shop_config:', errConfigs.message);
 
-    // Chuẩn hóa cấu hình shop
+    // Chuẩn hóa cấu hình shop an toàn
     let parsedConfig = {};
+    const configs = configRes?.data;
     if (Array.isArray(configs) && configs.length > 0) {
-      if (configs[0].bank_bin || configs[0].bank_name) {
-        // Trường hợp cấu hình lưu dạng 1 row duy nhất (default_config)
+      if (configs[0].bank_bin || configs[0].bank_name || configs[0].hotline) {
+        // Cấu hình dạng 1 row (main_config / default_config)
         const row = configs[0];
         parsedConfig = {
           bankBin: row.bank_bin,
           bankName: row.bank_name,
-          accountNo: row.account_no,
-          accountName: row.account_name,
+          accountNo: row.account_no || row.bank_account,
+          accountName: row.account_name || row.bank_holder,
           depositAmount: row.deposit_amount,
           hotline: row.hotline,
+          address: row.address,
+          announcement: row.announcement,
           zaloPhone: row.zalo_phone,
           warehousePin: row.warehouse_pin,
           loyaltyDiscountPercent: row.loyalty_discount_percent,
@@ -72,9 +78,9 @@ export async function fetchAllMasterDataFromSupabase() {
           vouchers: row.vouchers || []
         };
       } else {
-        // Trường hợp cấu hình dạng key-value
+        // Cấu hình dạng key-value
         configs.forEach((item) => {
-          parsedConfig[item.key] = item.value;
+          if (item.key) parsedConfig[item.key] = item.value;
         });
       }
     }
@@ -125,7 +131,8 @@ export async function fetchAllMasterDataFromSupabase() {
       })),
       vouchers: vouchers || parsedConfig.vouchers || [],
       giftsCatalog: gifts || [],
-      config: parsedConfig
+      config: parsedConfig,
+      reviews: reviewRes?.data || [] // Kèm theo danh sách reviews đã duyệt
     };
   } catch (err) {
     console.error('Lỗi fetchAllMasterDataFromSupabase:', err);

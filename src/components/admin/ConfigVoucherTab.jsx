@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
-  Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp
+  Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp, MapPin,
+  Megaphone, PlusCircle, AlertCircle
 } from 'lucide-react';
 import { VIETQR_BANKS } from '../../config/shopConfig';
 import { supabase } from '../../supabaseClient';
@@ -21,6 +22,8 @@ export default function ConfigVoucherTab({
     hotline: config.hotline || '0848.957.345',
     zaloPhone: config.zaloPhone || config.hotline || '0848957345',
     warehousePin: config.warehousePin || '1234',
+    address: config.address || 'Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận',
+    announcement: config.announcement || 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
     loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
     loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
     autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
@@ -32,6 +35,11 @@ export default function ConfigVoucherTab({
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Modal tạo template mới (Dùng Sequence DB tự sinh ID)
+  const [isNewTemplateModalOpen, setIsNewTemplateModalOpen] = useState(false);
+  const [newTemplateForm, setNewTemplateForm] = useState({ name: '', subject: '' });
+  const [isCreatingTpl, setIsCreatingTpl] = useState(false);
 
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [testEmailInput, setTestEmailInput] = useState('');
@@ -49,7 +57,7 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 1. Fetch danh sách templates từ Supabase
+  // 1. Tải danh sách templates từ Supabase
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
@@ -79,6 +87,8 @@ export default function ConfigVoucherTab({
       setCfg((prev) => ({
         ...prev,
         ...config,
+        address: config.address || prev.address,
+        announcement: config.announcement || prev.announcement,
         vouchers: (config.vouchers || []).map((v) => ({
           ...v,
           canStack: v.canStack ?? true,
@@ -101,6 +111,83 @@ export default function ConfigVoucherTab({
     setTemplates((prev) =>
       prev.map((t) => (t.id === activeTemplate.id ? { ...t, [field]: value } : t))
     );
+  };
+
+  // Tạo template mới: Bỏ qua ID để Sequence PostgreSQL tự sinh
+  const handleCreateNewTemplate = async (e) => {
+    e.preventDefault();
+    const tplName = newTemplateForm.name.trim();
+    if (!tplName) return;
+
+    setIsCreatingTpl(true);
+    try {
+      const defaultBody = `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e5e5e5; border-radius: 16px; padding: 24px;">
+  <h2 style="color: #92400e; margin-top: 0;">Chào bạn {{CUSTOMER_NAME}},</h2>
+  <p>Nhà vườn Xứ Nắng Gió xin thông báo về đơn hàng <strong>{{ORDER_CODE}}</strong> của bạn.</p>
+  <div style="background-color: #fef3c7; padding: 16px; border-radius: 12px; margin: 16px 0;">
+    <p style="margin: 0;"><strong>Tổng thanh toán:</strong> {{TOTAL}}đ</p>
+    <p style="margin: 8px 0 0 0;"><strong>Hình thức:</strong> {{PAYMENT_METHOD}}</p>
+  </div>
+  <p>Chi tiết sản phẩm:<br/>{{ITEMS_SUMMARY}}</p>
+  <p>Địa chỉ nhận: {{ADDRESS}}</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+  <p style="font-size: 12px; color: #888;">Hotline hỗ trợ: ${cfg.hotline} • Cảm ơn bạn đã tin chọn nông sản sạch Ninh Thuận!</p>
+</div>`;
+
+      const { data, error } = await supabase
+        .from('email_templates')
+        .insert([
+          {
+            name: tplName,
+            subject: newTemplateForm.subject.trim() || `[Xứ Nắng Gió] Thông báo đơn hàng {{ORDER_CODE}}`,
+            body: defaultBody,
+            is_active: true
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setTemplates((prev) => [...prev, data]);
+        setSelectedTemplateId(data.id);
+        setIsNewTemplateModalOpen(false);
+        setNewTemplateForm({ name: '', subject: '' });
+        onShowAlert?.(`Đã tạo thành công mẫu "${data.name}" với mã ${data.id}!`);
+      }
+    } catch (err) {
+      console.error('Lỗi tạo template mới:', err);
+      onShowAlert?.('Lỗi tạo mẫu email: ' + err.message);
+    } finally {
+      setIsCreatingTpl(false);
+    }
+  };
+
+  // Xóa template đang chọn
+  const handleDeleteActiveTemplate = async () => {
+    if (templates.length <= 1) {
+      onShowAlert?.('Hệ thống phải có ít nhất 1 mẫu email, không thể xóa hết!');
+      return;
+    }
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa mẫu "${activeTemplate.name}" (${activeTemplate.id})?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('email_templates')
+        .delete()
+        .eq('id', activeTemplate.id);
+
+      if (error) throw error;
+
+      const remaining = templates.filter((t) => t.id !== activeTemplate.id);
+      setTemplates(remaining);
+      setSelectedTemplateId(remaining[0].id);
+      onShowAlert?.('Đã xóa mẫu email thành công!');
+    } catch (err) {
+      console.error('Lỗi xóa template:', err);
+      onShowAlert?.('Không thể xóa template: ' + err.message);
+    }
   };
 
   const handleSelectBank = (e) => {
@@ -202,7 +289,6 @@ export default function ConfigVoucherTab({
     setEditingVoucher(null);
   };
 
-  // Gửi test email qua Supabase Edge Function chuẩn (đã sửa gọi đúng tên 'send-order-email')
   const handleSendTestEmail = async () => {
     const targetEmail = testEmailInput.trim();
     if (!targetEmail || !targetEmail.includes('@')) {
@@ -226,7 +312,6 @@ export default function ConfigVoucherTab({
         .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
         .replace(/{{ORDER_CODE}}/g, 'XNG-TEST');
 
-      // Gọi chính xác hàm 'send-order-email'
       const { error } = await supabase.functions.invoke('send-order-email', {
         body: {
           is_test: true,
@@ -246,7 +331,6 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // 2. Lưu đồng bộ cả shop_config và email_templates lên Supabase
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
@@ -254,7 +338,7 @@ export default function ConfigVoucherTab({
         onSaveConfig(cfg);
       }
 
-      // Lưu bảng shop_config
+      // 1. Lưu bảng shop_config
       const { error: cfgErr } = await supabase
         .from('shop_config')
         .upsert({
@@ -265,6 +349,8 @@ export default function ConfigVoucherTab({
           account_name: cfg.accountName,
           deposit_amount: cfg.depositAmount,
           hotline: cfg.hotline,
+          address: cfg.address,
+          announcement: cfg.announcement,
           zalo_phone: cfg.zaloPhone,
           warehouse_pin: cfg.warehousePin,
           loyalty_discount_percent: cfg.loyaltyDiscountPercent,
@@ -276,7 +362,7 @@ export default function ConfigVoucherTab({
 
       if (cfgErr) throw cfgErr;
 
-      // Lưu bảng email_templates
+      // 2. Lưu bảng email_templates
       if (templates.length > 0) {
         const payloadTemplates = templates.map((t) => ({
           id: t.id,
@@ -294,7 +380,7 @@ export default function ConfigVoucherTab({
         if (tplErr) throw tplErr;
       }
 
-      onShowAlert?.('Đã lưu thành công Cấu hình & Email Templates vào cơ sở dữ liệu Supabase!');
+      onShowAlert?.('Đã lưu thành công Cấu hình Vườn & Email Templates vào Supabase!');
     } catch (err) {
       console.error('Lỗi lưu cấu hình:', err);
       onShowAlert?.('Lỗi kết nối khi lưu: ' + err.message);
@@ -305,14 +391,17 @@ export default function ConfigVoucherTab({
 
   return (
     <div className="space-y-6 font-sans animate-fadeIn">
-      {/* 1. CẤU HÌNH THANH TOÁN & VIETQR */}
+      
+      {/* ================= 1. CẤU HÌNH THANH TOÁN, ĐỊA CHỈ & VẬN HÀNH ================= */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
           <QrCode className="w-4 h-4 text-amber-600" />
-          <span>Cấu Hình Thanh Toán, VietQR & Ưu Đãi Khách Quen</span>
+          <span>Cấu Hình Thanh Toán, VietQR, Địa Chỉ & Ưu Đãi Khách Quen</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+          
+          {/* HÀNG 1: TÀI KHOẢN NGÂN HÀNG */}
           <div className="sm:col-span-2">
             <label className="font-semibold text-stone-600 block mb-1">Ngân hàng nhận tiền:</label>
             <select
@@ -348,6 +437,7 @@ export default function ConfigVoucherTab({
             />
           </div>
 
+          {/* HÀNG 2: THÔNG TIN TIỀN CỌC & LIÊN LẠC */}
           <div>
             <label className="font-semibold text-stone-600 block mb-1">Tiền Cọc Giữ Đơn (VNĐ):</label>
             <input
@@ -393,7 +483,8 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          <div className="sm:col-span-2 lg:col-span-1">
+          {/* HÀNG 3: TRẦN GIẢM + ĐỊA CHỈ VƯỜN HIỆN DIỆN CHUẨN */}
+          <div>
             <label className="font-semibold text-stone-600 block mb-1">Trần Giảm Khách Cũ (VNĐ):</label>
             <input
               type="number"
@@ -402,10 +493,40 @@ export default function ConfigVoucherTab({
               className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700"
             />
           </div>
+
+          <div className="sm:col-span-2 lg:col-span-3">
+            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-amber-700" />
+              <span>Địa Chỉ Vườn Chính / Điểm Gửi Xe (Hiện trên bill & web):</span>
+            </label>
+            <input
+              type="text"
+              value={cfg.address || ''}
+              onChange={(e) => setCfg({ ...cfg, address: e.target.value })}
+              placeholder="VD: Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận"
+              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
+            />
+          </div>
+
+          {/* HÀNG 4: THÔNG BÁO CHẠY TOÀN TRANG */}
+          <div className="sm:col-span-2 lg:col-span-4">
+            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
+              <Megaphone className="w-3.5 h-3.5 text-amber-700" />
+              <span>Thông Báo Chạy Chân Trang (Banner Marquee):</span>
+            </label>
+            <input
+              type="text"
+              value={cfg.announcement || ''}
+              onChange={(e) => setCfg({ ...cfg, announcement: e.target.value })}
+              placeholder="VD: Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM..."
+              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
+            />
+          </div>
+
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH EMAIL TEMPLATES */}
+      {/* ================= 2. CẤU HÌNH EMAIL TEMPLATES ================= */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -418,23 +539,48 @@ export default function ConfigVoucherTab({
             </div>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-            <input
-              type="checkbox"
-              checked={cfg.autoSendEmail}
-              onChange={(e) => setCfg({ ...cfg, autoSendEmail: e.target.checked })}
-              className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
-            />
-            <span>Bật tự động gửi Email khi có đơn</span>
-          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsNewTemplateModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4 text-amber-200" />
+              <span>+ Tạo Mẫu Mới</span>
+            </button>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+              <input
+                type="checkbox"
+                checked={cfg.autoSendEmail}
+                onChange={(e) => setCfg({ ...cfg, autoSendEmail: e.target.checked })}
+                className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
+              />
+              <span>Tự động gửi khi có đơn</span>
+            </label>
+          </div>
         </div>
 
-        {/* CUSTOM DROPDOWN POPOVER STYLE */}
+        {/* KHUNG CHỌN MẪU THƯ + TÊN GỢI NHỚ */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
+          
           <div className="relative" ref={dropdownRef}>
-            <label className="font-bold text-amber-900 block mb-1.5 flex items-center gap-1.5 text-xs">
-              <Mail className="w-3.5 h-3.5 text-amber-700" />
-              <span>Mẫu thư đang chỉnh sửa:</span>
+            <label className="font-bold text-amber-900 block mb-1.5 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-amber-700" />
+                <span>Mẫu thư đang chỉnh sửa:</span>
+              </span>
+              {templates.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleDeleteActiveTemplate}
+                  className="text-stone-400 hover:text-rose-600 flex items-center gap-1 text-[11px] font-semibold transition-colors cursor-pointer"
+                  title="Xóa mẫu thư này"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Xóa mẫu</span>
+                </button>
+              )}
             </label>
 
             <button
@@ -568,7 +714,7 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* 3. CẤU HÌNH VOUCHER */}
+      {/* ================= 3. CẤU HÌNH VOUCHER ================= */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -775,7 +921,7 @@ export default function ConfigVoucherTab({
         </form>
       </div>
 
-      {/* 4. NÚT LƯU CẤU HÌNH & TEMPLATES */}
+      {/* ================= 4. NÚT LƯU TOÀN BỘ CẤU HÌNH & TEMPLATES ================= */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
@@ -788,7 +934,87 @@ export default function ConfigVoucherTab({
         </button>
       </div>
 
-      {/* 5. MODAL CHỈNH SỬA VOUCHER */}
+      {/* ================= 5. MODAL TẠO MẪU EMAIL MỚI (ID TỰ SINH TỪ SEQUENCE) ================= */}
+      {isNewTemplateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
+                <PlusCircle className="w-4 h-4 text-amber-700" />
+                <span>Thêm Mẫu Email Mới</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsNewTemplateModalOpen(false)}
+                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNewTemplate} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-[11px] text-stone-700 font-bold block mb-1">
+                  Tên gợi nhớ của mẫu *:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="VD: Thông báo xe đã xuất bến"
+                  value={newTemplateForm.name}
+                  onChange={(e) => setNewTemplateForm({ ...newTemplateForm, name: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-stone-700 font-bold block mb-1">
+                  Tiêu đề email mặc định:
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: [Xứ Nắng Gió] Thùng hàng {{ORDER_CODE}} đang trên đường tới bạn"
+                  value={newTemplateForm.subject}
+                  onChange={(e) => setNewTemplateForm({ ...newTemplateForm, subject: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                />
+                <span className="text-[10.5px] text-stone-400 font-light mt-1 block">
+                  * Mã định danh mẫu sẽ được Supabase cấp tự động theo sequence hệ thống.
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewTemplateModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingTpl}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isCreatingTpl ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang tạo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tạo Mẫu Ngay</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 6. MODAL CHỈNH SỬA VOUCHER ================= */}
       {editingVoucher && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
@@ -912,6 +1138,7 @@ export default function ConfigVoucherTab({
           </div>
         </div>
       )}
+
     </div>
   );
 }

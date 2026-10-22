@@ -31,6 +31,7 @@ import {
   PackageCheck
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import { fetchTotalOrdersCount } from '../services/orderService';
 
 // Bản đồ Icon dự phòng theo chuẩn 3NF
 const CATEGORY_ID_ICON_MAP = {
@@ -246,6 +247,7 @@ const NINH_THUAN_EXPERIENCES = [
 export default function HomePage({ 
   products = [], 
   categories = [], 
+  reviews = [],
   onAddToCart, 
   onNavigateShop, 
   onNavigateStory, 
@@ -259,6 +261,18 @@ export default function HomePage({
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
+
+  const [realOrderCount, setRealOrderCount] = useState(1200); // Giá trị mặc định ban đầu
+
+  useEffect(() => {
+    async function loadOrderStats() {
+      const count = await fetchTotalOrdersCount();
+      if (count > 0) {
+        setRealOrderCount(count);
+      }
+    }
+    loadOrderStats();
+  }, []);
 
   const goToShop = (catId = 'all') => {
     if (onNavigateShop) {
@@ -284,6 +298,16 @@ export default function HomePage({
     : [];
 
   const displayCategories = categories.filter(c => c.id !== 'all');
+
+  const activeReviews = Array.isArray(reviews) && reviews.length > 0 
+    ? reviews.slice(0, 3).map(r => ({
+        name: r.customer_name,
+        role: `Khách hàng • Mã đơn #${r.order_code}`,
+        content: r.content,
+        rating: Number(r.rating) || 5,
+        tag: `Đánh giá ${r.rating} sao`
+      }))
+    : CUSTOMER_REVIEWS;
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
@@ -641,12 +665,12 @@ export default function HomePage({
             </h3>
           </div>
           <span className="text-xs text-stone-500 font-medium">
-            Hơn 1.200+ thùng nông sản đã giao tận tay khắp cả nước
+            Hơn {realOrderCount.toLocaleString('vi-VN')}+ thùng nông sản đã giao tận tay khắp cả nước
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {CUSTOMER_REVIEWS.map((rev, idx) => (
+          {activeReviews.map((rev, idx) => (
             <div key={idx} className="p-5 sm:p-6 rounded-3xl bg-white border border-stone-200/90 shadow-2xs space-y-3 flex flex-col justify-between">
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">

@@ -4,7 +4,7 @@ import {
   Database, Loader2, RefreshCw, Search, X, 
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
-  Lock, Edit3, CheckCircle2, ChevronDown, Check
+  Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift
 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -38,32 +38,55 @@ const FORWARD_STATUS_MAP = {
 };
 
 // =========================================================================
-// HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG (HỖ TRỢ MẢNG 3NF & CHUỖI TEXT CŨ)
+// HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG (HỖ TRỢ MẢNG 3NF, QUÀ TẶNG & TEXT CŨ)
 // =========================================================================
-function renderItemsSummary(items, rawSummary) {
-  // 1. Ưu tiên render từ quan hệ 3NF order_items của Supabase
-  if (Array.isArray(items) && items.length > 0) {
-    return (
-      <div className="space-y-1">
-        {items.map((it, idx) => {
-          const qty = it.quantity || 1;
-          const spec = it.weight_label || it.weightLabel || '';
-          const flavor = it.flavor ? ` (${it.flavor})` : '';
-          const price = Number(it.price || 0) * qty;
+function renderItemsSummary(items, rawSummary, ord) {
+  const activeItems = Array.isArray(items) && items.length > 0 ? items : (Array.isArray(ord?.cart) ? ord.cart : null);
 
-          return (
-            <div key={it.id || idx} className="leading-snug text-stone-800 font-medium flex items-center justify-between gap-2">
-              <span>
-                • {it.name} {spec ? `[${spec}]` : ''}{flavor} <strong className="text-amber-900 font-mono">x{qty}</strong>
-              </span>
-              {price > 0 && (
-                <span className="font-mono text-stone-500 text-[10.5px]">
-                  {price.toLocaleString('vi-VN')}đ
-                </span>
-              )}
-            </div>
-          );
-        })}
+  // 1. Ưu tiên render từ quan hệ 3NF order_items / cart của Supabase
+  if (Array.isArray(activeItems) && activeItems.length > 0) {
+    return (
+      <div className="space-y-1.5">
+        <div className="space-y-1">
+          {activeItems.map((it, idx) => {
+            const qty = it.quantity || 1;
+            const spec = it.weight_label || it.weightLabel || '';
+            const flavor = it.flavor ? ` (${it.flavor})` : '';
+            const price = Number(it.price || 0) * qty;
+            const giftTitle = it.campaign_gift_title || it.campaignGiftTitle;
+
+            return (
+              <div key={it.id || idx} className="leading-snug text-stone-800 font-medium">
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    • {it.name || it.product_name} {spec ? `[${spec}]` : ''}{flavor} <strong className="text-amber-900 font-mono">x{qty}</strong>
+                  </span>
+                  {price > 0 && (
+                    <span className="font-mono text-stone-500 text-[10.5px]">
+                      {price.toLocaleString('vi-VN')}đ
+                    </span>
+                  )}
+                </div>
+
+                {/* Quà tặng đính kèm sản phẩm */}
+                {giftTitle && (
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 mt-0.5 ml-2.5">
+                    <Gift className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <span>Tặng kèm: {giftTitle}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Quà tặng tri ân thanh toán đơn hàng (nếu có) */}
+        {ord?.payment_gift && (
+          <div className="flex items-center gap-1.5 text-[10px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/80 font-bold">
+            <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+            <span>Quà chuyển khoản: {ord.payment_gift}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -240,7 +263,7 @@ function DashboardOrderRow({
             ? 'bg-amber-50/50 border-amber-200 ring-1 ring-amber-300'
             : isPardoned
               ? 'bg-emerald-50/30 border-emerald-200/80'
-              : 'bg-white border-transparent'
+              : 'bg-white border-stone-200/90 shadow-2xs'
       }`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -324,13 +347,13 @@ function DashboardOrderRow({
             </p>
           )}
 
-          {/* HIỂN THỊ SẢN PHẨM: ƯU TIÊN 3NF ORDER_ITEMS */}
-          {(ord.order_items?.length > 0 || ord.itemsSummary) && (
+          {/* HIỂN THỊ SẢN PHẨM: ƯU TIÊN 3NF ORDER_ITEMS & QUÀ TẶNG */}
+          {(ord.order_items?.length > 0 || ord.cart?.length > 0 || ord.itemsSummary) && (
             <div className="text-stone-700 text-[11px] bg-stone-50 p-2.5 rounded-xl border border-stone-100">
               <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
                 🛍️ Sản phẩm đặt mua:
               </span>
-              {renderItemsSummary(ord.order_items, ord.itemsSummary)}
+              {renderItemsSummary(ord.order_items, ord.itemsSummary, ord)}
             </div>
           )}
         </div>
@@ -589,102 +612,142 @@ export default function DashboardTab({
   };
 
   return (
-    <div className="space-y-5 animate-fadeIn font-sans">
-      {/* Top Banner Thống Kê */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-emerald-600" />
-            <h2 className="text-sm font-black text-stone-900">Thống Kê Doanh Thu Đơn Hàng</h2>
-            {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />}
+    <div className="space-y-4 animate-fadeIn font-sans">
+      {/* ================= 1. CARD TỔNG HỢP DOANH THU & KPI (GỌN GÀNG, KHÔNG KHOẢNG TRẮNG DƯ) ================= */}
+      <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs overflow-hidden">
+        
+        {/* HEADER: TIÊU ĐỀ + CHỈ SỐ VẬN HÀNH (ĐÃ BỎ NÚT LÀM MỚI DỮ LIỆU) */}
+        <div className="px-5 py-3.5 border-b border-stone-100 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-stone-50/50 to-white">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0">
+              <Database className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-stone-900 tracking-tight">
+                  Thống Kê Doanh Thu & Vận Hành
+                </h2>
+                {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />}
+                <span className="font-mono text-[10.5px] font-bold bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full border border-stone-200/70">
+                  {orders.length} đơn hệ thống
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-400 font-light">
+                Đồng bộ thời gian thực Supabase PostgreSQL
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-stone-500">
-            Dữ liệu thời gian thực Supabase PostgreSQL • Tổng đơn: <strong>{orders.length}</strong> đơn
-          </p>
+
+          {/* Dải tỷ lệ rủi ro đơn hàng gọn gàng bên góc phải */}
+          <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-stone-50 border border-stone-200/70">
+              <span className="text-[11px] text-stone-500 font-medium">Tỷ lệ hủy/bom:</span>
+              <span className={`font-mono font-black text-xs ${metrics.lossRate > 15 ? 'text-rose-600' : 'text-stone-800'}`}>
+                {metrics.lossRate}%
+              </span>
+            </div>
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-amber-600' : ''}`} />
-          <span>Làm mới dữ liệu</span>
-        </button>
-      </div>
-
-      {/* 4 Chỉ số KPI Chuẩn */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-          <span className="text-[11px] font-semibold text-stone-500 block">Doanh Thu Dự Kiến</span>
-          <p className="text-base sm:text-lg font-black text-stone-900 font-mono">
-            {metrics.totalRevenue.toLocaleString('vi-VN')}đ
-          </p>
-          <span className="text-[10px] text-stone-400 block">Không tính đơn hủy/bom</span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-          <span className="text-[11px] font-semibold text-emerald-700 block">Tiền Thực Nhận (Đã CK)</span>
-          <p className="text-base sm:text-lg font-black text-emerald-700 font-mono">
-            {metrics.realReceivedMoney.toLocaleString('vi-VN')}đ
-          </p>
-          <span className="text-[10px] text-emerald-600 block">Đơn đã duyệt thanh toán</span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-          <span className="text-[11px] font-semibold text-stone-500 block">Số Đơn Hàng</span>
-          <p className="text-base sm:text-lg font-black text-stone-900 font-mono">
-            {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
-          </p>
-          <span className="text-[10px] text-stone-400 block">Chưa tính đơn hủy/bom</span>
-        </div>
-
-        <div className="bg-white p-3.5 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs space-y-1">
-          <span className="text-[11px] font-semibold text-stone-500 block">Giá Trị TB / Đơn (AOV)</span>
-          <p className="text-base sm:text-lg font-black text-amber-800 font-mono">
-            {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
-          </p>
-          <span className="text-[10px] text-stone-400 block">Bình quân mỗi đơn</span>
-        </div>
-      </div>
-
-      {/* THANH THỐNG KÊ ĐƠN HỦY / BOM */}
-      <div className="bg-white p-3 rounded-2xl border border-stone-200/90 shadow-xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span className="text-stone-600">
-              Đơn Hủy: <strong className="text-stone-900 font-mono">{metrics.cancelledCount}</strong>
+        {/* LƯỚI 4 CHỈ SỐ KPI ĐỒNG ĐỀU, VIỀN NGĂN TINH TẾ */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-stone-100 p-1 bg-white">
+          
+          {/* KPI 1: Doanh Thu Dự Kiến */}
+          <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-stone-50/50 transition-colors">
+            <span className="text-xs font-bold text-stone-500 flex items-center gap-1.5">
+              <span>Doanh Thu Dự Kiến</span>
             </span>
+            <div>
+              <p className="text-lg sm:text-xl font-black text-stone-900 font-mono tracking-tight">
+                {metrics.totalRevenue.toLocaleString('vi-VN')}đ
+              </p>
+              <span className="text-[10px] text-stone-400 block font-light mt-0.5">
+                (Không tính đơn hủy & bom)
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-700 animate-pulse"></span>
-            <span className="text-stone-600">
-              Bom Hàng: <strong className="text-red-700 font-mono">{metrics.bombedCount}</strong>
+          {/* KPI 2: Tiền Thực Nhận */}
+          <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-emerald-50/30 transition-colors">
+            <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Tiền Thực Nhận (Đã CK)</span>
             </span>
+            <div>
+              <p className="text-lg sm:text-xl font-black text-emerald-700 font-mono tracking-tight">
+                {metrics.realReceivedMoney.toLocaleString('vi-VN')}đ
+              </p>
+              <span className="text-[10px] text-emerald-600/80 block font-light mt-0.5">
+                Đơn đã xác nhận & duyệt tiền
+              </span>
+            </div>
           </div>
 
-          <span className="hidden sm:inline text-stone-300">|</span>
-
-          <div className="flex items-center gap-1 text-stone-700">
-            <span>Tiền cọc giữ lại:</span>
-            <strong className="text-emerald-700 font-mono font-bold bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-              +{metrics.retainedDeposit.toLocaleString('vi-VN')}đ
-            </strong>
+          {/* KPI 3: Số Đơn Hàng Thành Công */}
+          <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-stone-50/50 transition-colors">
+            <span className="text-xs font-bold text-stone-500">
+              Số Đơn Hiệu Lực
+            </span>
+            <div>
+              <p className="text-lg sm:text-xl font-black text-stone-900 font-mono tracking-tight">
+                {metrics.totalOrders} <span className="text-xs font-normal text-stone-400">đơn</span>
+              </p>
+              <span className="text-[10px] text-stone-400 block font-light mt-0.5">
+                Đang vận hành & hoàn tất
+              </span>
+            </div>
           </div>
+
+          {/* KPI 4: AOV Giá Trị Trung Bình */}
+          <div className="p-4 sm:p-5 flex flex-col justify-between space-y-2 hover:bg-amber-50/30 transition-colors">
+            <span className="text-xs font-bold text-amber-900/80">
+              Giá Trị TB / Đơn (AOV)
+            </span>
+            <div>
+              <p className="text-lg sm:text-xl font-black text-amber-900 font-mono tracking-tight">
+                {metrics.avgOrderValue.toLocaleString('vi-VN')}đ
+              </p>
+              <span className="text-[10px] text-stone-400 block font-light mt-0.5">
+                Bình quân giá trị mỗi giỏ hàng
+              </span>
+            </div>
+          </div>
+
         </div>
 
-        <div className="flex items-center gap-1.5 bg-stone-50 px-2.5 py-1 rounded-lg border border-stone-200/80">
-          <span className="text-stone-500 text-[10.5px]">Tỷ lệ hủy/bom:</span>
-          <span className={`font-mono font-bold text-xs ${metrics.lossRate > 15 ? 'text-rose-600' : 'text-stone-800'}`}>
-            {metrics.lossRate}%
+        {/* FOOTER: DẢI THỐNG KÊ ĐƠN HỦY / BOM & TIỀN CỌC GIỮ LẠI (LIỀN MẠCH, TIẾT KIỆM KHÔNG GIAN) */}
+        <div className="px-5 py-2.5 bg-[#faf8f5] border-t border-stone-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-4 text-stone-600">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>Đơn Hủy:</span>
+              <strong className="text-stone-900 font-mono">{metrics.cancelledCount}</strong>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-700"></span>
+              <span>Bom Hàng:</span>
+              <strong className="text-red-700 font-mono">{metrics.bombedCount}</strong>
+            </div>
+
+            <span className="text-stone-300">|</span>
+
+            <div className="flex items-center gap-1.5">
+              <span>Cọc giữ lại bù tiền xe:</span>
+              <strong className="text-emerald-700 font-mono font-bold bg-emerald-100/70 px-2 py-0.5 rounded-md border border-emerald-300/70">
+                +{metrics.retainedDeposit.toLocaleString('vi-VN')}đ
+              </strong>
+            </div>
+          </div>
+
+          <span className="text-[11px] text-stone-400 font-light italic">
+            Chỉ số cập nhật tự động theo trạng thái đơn
           </span>
         </div>
+
       </div>
 
-      {/* KHU VỰC QUẢN LÝ ĐƠN HÀNG */}
+      {/* ================= 2. KHU VỰC QUẢN LÝ ĐƠN HÀNG ================= */}
       <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-3.5">
         
         {/* HÀNG 1: TÌM KIẾM MỞ RỘNG + CHỌN THỜI GIAN CUSTOM */}

@@ -39,7 +39,6 @@ export async function submitOrderToSupabase(orderData) {
     p_customer_note: (customerNote || customer?.note || orderData.note || '').trim() || null,
     p_edge_signature: edgeSignature || null,
     p_items: (cart || []).map((item) => {
-      // Chuẩn hóa productId: nếu dạng 'prd01-opt-1' -> bóc lấy 'prd01'
       const rawId = String(item.productId || item.id || '');
       const cleanProductId = rawId.split('-')[0] || rawId;
 
@@ -78,14 +77,12 @@ export async function fetchCustomerHistory(phone) {
   try {
     const last8Digits = cleanPhone.slice(-8);
 
-    // 1. Kiểm tra hồ sơ rủi ro chuyên biệt
     const { data: riskProfile } = await supabase
       .from('customer_risk_profiles')
       .select('risk_level, is_pardoned, last_bad_reason')
       .ilike('phone', `%${last8Digits}`)
       .maybeSingle();
 
-    // 2. Tra cứu lịch sử đơn hàng
     const { data: matchedOrders, error } = await supabase
       .from('orders')
       .select('code, customer_name, phone, address, email, payment_method, status, created_at')
@@ -152,7 +149,7 @@ export async function fetchCustomerHistory(phone) {
 
 /**
  * 3. TRA CỨU CHI TIẾT ĐƠN HÀNG (OrderLookupModal)
- * Hỗ trợ tìm kiếm theo Số điện thoại (8 số đuôi) hoặc Mã đơn hàng (không phân biệt hoa thường)
+ * Tách độc lập 2 query orders & order_items để triệt tiêu lỗi PGRST201
  */
 export async function lookupOrderDirect(queryValue) {
   const rawVal = String(queryValue || '').trim();
@@ -163,64 +160,52 @@ export async function lookupOrderDirect(queryValue) {
   const upperCode = rawVal.toUpperCase();
 
   try {
-    let query = supabase
-      .from('orders')
-      .select(`
-        id,
-        code,
-        customer_name,
-        phone,
-        email,
-        address,
-        payment_method,
-        subtotal,
-        discount,
-        final_total,
-        voucher_codes,
-        payment_gift,
-        campaign_gifts,
-        customer_note,
-        cancel_reason,
-        status,
-        created_at,
-        order_items (
-          id,
-          order_code,
-          product_id,
-          name,
-          weight_label,
-          price,
-          quantity,
-          line_total,
-          campaign_gift_title
-        )
-      `);
+    let orderQuery = supabase.from('orders').select('*');
 
     if (isPhoneSearch) {
       const suffix = cleanDigits.slice(-8);
-      query = query.or(`phone.ilike.%${suffix}%,phone.ilike.%${cleanDigits}%`);
+      orderQuery = orderQuery.or(`phone.ilike.%${suffix}%,phone.ilike.%${cleanDigits}%`);
     } else {
-      query = query.or(`code.eq.${upperCode},code.ilike.%${upperCode}%`);
+      orderQuery = orderQuery.or(`code.eq.${upperCode},code.ilike.%${upperCode}%`);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data: ordersData, error: ordersErr } = await orderQuery.order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('Lỗi query kèm order_items, fallback truy vấn orders lẻ:', error.message);
-      
-      let fallbackQuery = supabase.from('orders').select('*');
-      if (isPhoneSearch) {
-        fallbackQuery = fallbackQuery.ilike('phone', `%${cleanDigits.slice(-8)}%`);
-      } else {
-        fallbackQuery = fallbackQuery.or(`code.eq.${upperCode},code.ilike.%${upperCode}%`);
+    if (ordersErr) throw ordersErr;
+    if (!Array.isArray(ordersData) || ordersData.length === 0) return [];
+
+    // Lấy items cho các đơn tìm được
+    const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
+    let itemsByOrder = {};
+
+    if (orderCodes.length > 0) {
+      const { data: itemsData } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_code', orderCodes);
+
+      if (Array.isArray(itemsData)) {
+        itemsData.forEach((it) => {
+          const key = it.order_code;
+          if (!itemsByOrder[key]) itemsByOrder[key] = [];
+          itemsByOrder[key].push({
+            id: it.id,
+            productId: it.product_id,
+            name: it.name || it.product_name,
+            weightLabel: it.weight_label,
+            price: Number(it.price) || 0,
+            quantity: Number(it.quantity) || 1,
+            lineTotal: Number(it.line_total) || 0,
+            campaignGiftTitle: it.campaign_gift_title
+          });
+        });
       }
-
-      const { data: fallbackData, error: fbErr } = await fallbackQuery.order('created_at', { ascending: false });
-      if (fbErr) throw fbErr;
-      return fallbackData || [];
     }
 
-    return data || [];
+    return ordersData.map((ord) => ({
+      ...ord,
+      order_items: itemsByOrder[ord.code] || ord.cart || []
+    }));
   } catch (err) {
     console.error('Lỗi thực thi lookupOrderDirect:', err);
     throw err;
@@ -251,48 +236,256 @@ export async function cancelOrderDirect(orderCode, cancelReason) {
 }
 
 /**
- * 5. TẢI ĐƠN HÀNG ĐANG VẬN HÀNH (Ăn thẳng Partial Index idx_orders_active_processing)
- * Dùng cho màn hình Admin Dashboard và màn hình Packing đóng gói
+ * 5. TẢI ĐƠN HÀNG ĐANG VẬN HÀNH (KHẮC PHỤC TRIỆT ĐỂ LỖI PGRST201)
+ * Truy vấn orders và order_items độc lập, không dùng embedded join gây xung đột Foreign Key
  */
 export async function fetchActiveProcessingOrders() {
-  const { data, error } = await supabase
-    .from('orders')
-    .select(`
-      id,
-      code,
-      customer_name,
-      phone,
-      email,
-      address,
-      payment_method,
-      subtotal,
-      discount,
-      final_total,
-      payment_gift,
-      campaign_gifts,
-      customer_note,
-      cancel_reason,
-      status,
-      created_at,
-      order_items (
-        id,
-        order_code,
-        product_id,
-        name,
-        weight_label,
-        price,
-        quantity,
-        line_total,
-        campaign_gift_title
-      )
-    `)
-    .in('status', ['Chờ xác nhận', 'Đã xác nhận', 'Đang đóng gói', 'Đang giao'])
-    .order('created_at', { ascending: false });
+  try {
+    // 1. Lấy đơn hàng theo danh sách trạng thái vận hành
+    const { data: ordersData, error: ordersErr } = await supabase
+      .from('orders')
+      .select('*')
+      .in('status', ['Chờ xác nhận', 'Đã xác nhận', 'Đang đóng gói', 'Đang giao', 'Đang giao xe', 'Đã nhận hàng'])
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Lỗi fetchActiveProcessingOrders:', error);
-    throw error;
+    if (ordersErr) {
+      console.warn('Lỗi Supabase khi tải orders:', ordersErr.message || ordersErr);
+      const cached = localStorage.getItem('shop_orders');
+      return cached ? JSON.parse(cached) : [];
+    }
+
+    if (!Array.isArray(ordersData) || ordersData.length === 0) {
+      return [];
+    }
+
+    // 2. Lấy order_items độc lập theo order_code
+    const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
+    let itemsByOrder = {};
+
+    if (orderCodes.length > 0) {
+      const { data: itemsData } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_code', orderCodes);
+
+      if (Array.isArray(itemsData)) {
+        itemsData.forEach((it) => {
+          const key = it.order_code;
+          if (!itemsByOrder[key]) itemsByOrder[key] = [];
+          itemsByOrder[key].push({
+            id: it.id,
+            productId: it.product_id,
+            name: it.name || it.product_name,
+            weightLabel: it.weight_label,
+            price: Number(it.price) || 0,
+            quantity: Number(it.quantity) || 1,
+            lineTotal: Number(it.line_total) || 0,
+            campaignGiftTitle: it.campaign_gift_title
+          });
+        });
+      }
+    }
+
+    // 3. Chuẩn hóa dữ liệu tương thích ngược giữa Postgres snake_case và UI
+    return ordersData.map((ord) => {
+      const cCode = ord.code || ord.order_code || ord.id;
+      const itemsList = itemsByOrder[cCode] || ord.cart || [];
+
+      return {
+        ...ord,
+        code: cCode,
+        orderId: cCode,
+        customer_name: ord.customer_name || ord.name || ord.customer?.name || 'Khách hàng',
+        name: ord.customer_name || ord.name || ord.customer?.name || 'Khách hàng',
+        phone: ord.phone || ord.customer?.phone || '',
+        total: ord.final_total ?? ord.total ?? 0,
+        final_total: ord.final_total ?? ord.total ?? 0,
+        paymentMethod: ord.payment_method || ord.paymentMethod || 'deposit',
+        payment_method: ord.payment_method || ord.paymentMethod || 'deposit',
+        createdAt: ord.created_at || ord.createdAt || new Date().toISOString(),
+        cart: itemsList,
+        order_items: itemsList
+      };
+    });
+  } catch (err) {
+    console.warn('Lỗi kết nối fetchActiveProcessingOrders:', err);
+    try {
+      const cached = localStorage.getItem('shop_orders');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
   }
+}
 
-  return data || [];
+/**
+ * 6. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM XÁC THỰC MÃ ĐƠN
+ */
+// Gửi đánh giá đơn hàng kèm kiểm tra: Đơn phải ở trạng thái "Đã nhận hàng" mới được đánh giá
+export async function submitOrderReview({ orderCode, phone, customerName, rating, content, productTags }) {
+  try {
+    const cleanCode = String(orderCode || '').trim().toUpperCase();
+    const cleanPhone = String(phone || '').trim();
+
+    // 1. Kiểm tra đơn hàng có tồn tại và đúng số điện thoại không
+    const { data: existingOrder, error: orderErr } = await supabase
+      .from('orders')
+      .select('code, phone, status')
+      .eq('code', cleanCode)
+      .maybeSingle();
+
+    if (orderErr || !existingOrder) {
+      return { success: false, error: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
+    }
+
+    // 2. CHẶN NẾU CHƯA NHẬN HÀNG: Đảm bảo khách đã nhận hàng thực tế mới được review lấy mã
+    const currentStatus = String(existingOrder.status || '').toLowerCase();
+    const isCompleted = currentStatus.includes('đã nhận hàng') || currentStatus.includes('completed') || currentStatus.includes('hoàn tất');
+    
+    if (!isCompleted) {
+      return { 
+        success: false, 
+        error: 'Đơn hàng này chưa hoàn tất giao nhận. Hệ thống chỉ mở tính năng đánh giá sau khi bạn đã nhận được nông sản từ nhà xe.' 
+      };
+    }
+
+    // 3. Kiểm tra khớp 4 số cuối điện thoại để bảo mật danh tính
+    const orderPhone = String(existingOrder.phone || '').trim();
+    if (orderPhone && cleanPhone && !orderPhone.endsWith(cleanPhone.slice(-4))) {
+      return { success: false, error: 'Số điện thoại không khớp với thông tin đặt đơn.' };
+    }
+
+    // 4. Ghi nhận đánh giá vào bảng reviews
+    const ratingNum = Number(rating) || 5;
+    const { data, error: insertErr } = await supabase
+      .from('reviews')
+      .insert([
+        {
+          order_code: cleanCode,
+          customer_name: customerName.trim(),
+          customer_phone: cleanPhone,
+          rating: ratingNum,
+          content: content.trim(),
+          product_tags: productTags || '',
+          is_approved: true // Duyệt hiển thị ngay
+        }
+      ])
+      .select()
+      .single();
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        return { success: false, error: 'Đơn hàng này đã được gửi đánh giá trước đó rồi.' };
+      }
+      return { success: false, error: insertErr.message };
+    }
+
+    // 5. Nếu đánh giá 5*, sinh mã voucher phần thưởng khích lệ khách đã nhận hàng thành công
+    let rewardedVoucher = null;
+    if (ratingNum === 5) {
+      rewardedVoucher = {
+        code: `XNG5_${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+        value: 15000,
+        type: 'fixed',
+        desc: 'Mã tri ân đánh giá 5 sao'
+      };
+    }
+
+    return { success: true, data, rewardedVoucher };
+  } catch (err) {
+    console.error('Lỗi khi gửi review:', err);
+    return { success: false, error: 'Không thể kết nối máy chủ, vui lòng thử lại sau.' };
+  }
+}
+
+/**
+ * 7. TẢI TOÀN BỘ REVIEWS CHO ADMIN DASHBOARD
+ */
+export async function fetchAllReviewsForAdmin() {
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Lỗi query fetchAllReviewsForAdmin:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('Lỗi kết nối fetchAllReviewsForAdmin:', err);
+    return [];
+  }
+}
+
+/**
+ * 8. CẬP NHẬT TRẠNG THÁI DUYỆT / ẨN REVIEW
+ */
+export async function toggleReviewApproval(reviewId, currentStatus) {
+  try {
+    const nextStatus = !currentStatus;
+    const { error } = await supabase
+      .from('reviews')
+      .update({ is_approved: nextStatus })
+      .eq('id', reviewId);
+
+    if (error) throw error;
+    return { success: true, is_approved: nextStatus };
+  } catch (err) {
+    console.error('Lỗi toggleReviewApproval:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 9. XÓA REVIEW THEO ID
+ */
+export async function deleteReviewById(reviewId) {
+  try {
+    const { error } = await supabase
+      .from('reviews')
+      .delete()
+      .eq('id', reviewId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Lỗi deleteReviewById:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * 10. LẤY REVIEWS ĐÃ DUYỆT HIỂN THỊ TRANG CHỦ
+ */
+export async function fetchApprovedReviews(limit = 6) {
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('is_approved', true)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return [];
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTotalOrdersCount() {
+  try {
+    // count: 'exact' giúp lấy con số chính xác, head: true để không tải payload dữ liệu
+    const { count, error } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) throw error;
+    return count || 0;
+  } catch (err) {
+    console.error('Lỗi đếm số lượng đơn hàng:', err);
+    return 0;
+  }
 }

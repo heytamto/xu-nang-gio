@@ -2,14 +2,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   ArrowLeft, LayoutDashboard, ShoppingBag, 
-  Settings, BookOpen, Check, RefreshCw, Feather, PackageCheck,
-  Lock, KeyRound, LogOut, ShieldAlert
+  Settings, BookOpen, Check, Feather, PackageCheck,
+  Lock, KeyRound, LogOut, ShieldAlert, MessageSquare,
+  Search, Star, EyeOff, CheckCircle2, Trash2, Loader2
 } from 'lucide-react';
 
 import DashboardTab from '../components/admin/DashboardTab';
 import ProductsTab from '../components/admin/ProductsTab';
 import StoriesTab from '../components/admin/StoriesTab';
 import PostsTab from '../components/admin/PostsTab';
+import ReviewManagementTab from '../components/admin/ReviewManagementTab';
 import ConfigVoucherTab from '../components/admin/ConfigVoucherTab';
 
 import EditProductModal from '../components/admin/EditProductModal';
@@ -19,7 +21,6 @@ import ConfirmModal from '../components/admin/ConfirmModal';
 
 import { supabase } from '../supabaseClient';
 import { formatDate } from '../utils/dateUtils';
-import { ORDER_STATUS } from '../constants/orderStatus';
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'tam2026';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '808208978769-7h3ognen0s4ecvr8259kadnl8tkmg6il.apps.googleusercontent.com';
@@ -161,28 +162,53 @@ export default function AdminPage({
   });
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // 2. Tải danh sách đơn hàng từ Supabase (kèm order_items)
+  // 2. Tải danh sách đơn hàng an toàn (Khắc phục lỗi PGRST201)
   const fetchOrdersFromDatabase = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoadingOrders(true);
     try {
-      const { data, error } = await supabase
+      // Bóc tách orders trước
+      const { data: ordersData, error: ordersErr } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items (*)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (ordersErr) throw ordersErr;
 
-      if (Array.isArray(data)) {
-        setDbOrders(data);
-        try {
-          localStorage.setItem('shop_orders', JSON.stringify(data));
-        } catch (e) {
-          console.error(e);
+      if (!Array.isArray(ordersData) || ordersData.length === 0) {
+        setDbOrders([]);
+        return;
+      }
+
+      // Lấy order_items độc lập để không phụ thuộc vào tên constraint foreign key
+      const orderCodes = ordersData.map(o => o.code).filter(Boolean);
+      let itemsMap = {};
+
+      if (orderCodes.length > 0) {
+        const { data: itemsData } = await supabase
+          .from('order_items')
+          .select('*')
+          .in('order_code', orderCodes);
+
+        if (Array.isArray(itemsData)) {
+          itemsData.forEach(item => {
+            const key = item.order_code;
+            if (!itemsMap[key]) itemsMap[key] = [];
+            itemsMap[key].push(item);
+          });
         }
+      }
+
+      const mergedOrders = ordersData.map(ord => ({
+        ...ord,
+        order_items: itemsMap[ord.code] || ord.cart || []
+      }));
+
+      setDbOrders(mergedOrders);
+      try {
+        localStorage.setItem('shop_orders', JSON.stringify(mergedOrders));
+      } catch (e) {
+        console.error(e);
       }
     } catch (err) {
       console.error('Lỗi tải đơn hàng từ Supabase:', err);
@@ -375,7 +401,7 @@ export default function AdminPage({
   // GIAO DIỆN QUẢN TRỊ KHI ĐÃ ĐĂNG NHẬP
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 font-sans animate-fadeIn">
-      {/* Header điều hướng 5 Tab & Lối tắt */}
+      {/* Header điều hướng 6 Tab: ĐÃ BỎ LÀM MỚI DỮ LIỆU */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -415,17 +441,6 @@ export default function AdminPage({
 
             <button
               type="button"
-              onClick={fetchOrdersFromDatabase}
-              disabled={isLoadingOrders}
-              className="flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Làm mới dữ liệu từ Database"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingOrders ? 'animate-spin text-amber-600' : ''}`} />
-              <span className="hidden sm:inline">Làm mới dữ liệu</span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleLogout}
               className="p-2 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
               title="Đăng xuất khỏi trang quản trị"
@@ -435,12 +450,12 @@ export default function AdminPage({
           </div>
         </div>
 
-        {/* 5 Tab chuyển đổi */}
-        <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+        {/* 6 Tab chuyển đổi mượt mà */}
+        <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5">
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -451,7 +466,7 @@ export default function AdminPage({
           <button
             type="button"
             onClick={() => setActiveTab('products')}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'products' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -462,7 +477,7 @@ export default function AdminPage({
           <button
             type="button"
             onClick={() => setActiveTab('stories')}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'stories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -473,7 +488,7 @@ export default function AdminPage({
           <button
             type="button"
             onClick={() => setActiveTab('posts')}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -483,8 +498,19 @@ export default function AdminPage({
 
           <button
             type="button"
+            onClick={() => setActiveTab('reviews')}
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'reviews' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Đánh Giá</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('config')}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer col-span-2 sm:col-span-1 ${
+            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'config' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
@@ -614,7 +640,12 @@ export default function AdminPage({
         />
       )}
 
-      {/* TAB 5: CẤU HÌNH & VOUCHER */}
+      {/* TAB 5: KIỂM DUYỆT ĐÁNH GIÁ (MỚI) */}
+      {activeTab === 'reviews' && (
+        <ReviewManagementTab onShowToast={showSavedToast} />
+      )}
+
+      {/* TAB 6: CẤU HÌNH & VOUCHER */}
       {activeTab === 'config' && (
         <ConfigVoucherTab
           config={shopConfig}
