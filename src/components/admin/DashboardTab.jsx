@@ -5,7 +5,7 @@ import {
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
   Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift,
-  LayoutList, LayoutGrid, CheckSquare, Square, Layers, ArrowRight
+  LayoutList, LayoutGrid, CheckSquare, Square, Layers, Ban
 } from 'lucide-react';
 import { formatDateTime, getRemainingCancelMs, formatCountdownTimer } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -39,7 +39,7 @@ const FORWARD_STATUS_MAP = {
 };
 
 // =========================================================================
-// HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG (HỖ TRỢ MẢNG 3NF, QUÀ TẶNG & TEXT CŨ)
+// HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG
 // =========================================================================
 function renderItemsSummary(items, rawSummary, ord, compact = false) {
   const activeItems = Array.isArray(items) && items.length > 0 ? items : (Array.isArray(ord?.cart) ? ord.cart : null);
@@ -246,7 +246,6 @@ function DashboardOrderRow({
 
   return (
     <div 
-      // 👉 Click vào bất kỳ đâu trên hàng là toggle chọn/bỏ chọn
       onClick={() => onToggleSelect(ord.code)}
       className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans cursor-pointer select-none ${
         isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : ''
@@ -554,7 +553,6 @@ function DashboardOrderGridCard({
 
   return (
     <div 
-      // 👉 Click vào bất kỳ đâu trên card khối là toggle chọn/bỏ chọn
       onClick={() => onToggleSelect(ord.code)}
       className={`rounded-2xl p-3.5 border transition-all flex flex-col justify-between gap-3 text-xs font-sans shadow-2xs hover:shadow-xs cursor-pointer select-none ${
         isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : 'bg-white'
@@ -732,6 +730,7 @@ export default function DashboardTab({
   const [isBulkStatusDropdownOpen, setIsBulkStatusDropdownOpen] = useState(false);
   const bulkDropdownRef = useRef(null);
 
+  // Modal xử lý Hủy / Bom đơn (Đơn lẻ & Hàng loạt)
   const [pendingStatusModal, setPendingStatusModal] = useState(null);
   const [statusReason, setStatusReason] = useState('');
   const [customReason, setCustomReason] = useState('');
@@ -803,7 +802,7 @@ export default function DashboardTab({
   };
 
   // =========================================================================
-  // 👉 THUẬT TOÁN RÀNG BUỘC TIẾN TRÌNH: TÍNH GIAO ĐIỂM (INTERSECTION) BƯỚC TIẾP THEO
+  // THUẬT TOÁN RÀNG BUỘC TIẾN TRÌNH: TÍNH GIAO ĐIỂM (INTERSECTION) BƯỚC TIẾP THEO
   // =========================================================================
   const selectedOrderObjects = useMemo(() => {
     return orders.filter((o) => selectedOrderCodes.includes(o.code));
@@ -825,16 +824,49 @@ export default function DashboardTab({
       return allowed.filter((st) => !(isFullPrepaid && st === ORDER_STATUS.BOMBED));
     });
 
-    // Tìm giao điểm: Bước tiếp theo phải nằm trong danh sách cho phép của TẤT CẢ các đơn đang chọn
     return statusSets.reduce((acc, currentList) => 
       acc.filter((st) => currentList.includes(st))
     );
   }, [selectedOrderObjects]);
 
-  // Xử lý chuyển trạng thái hàng loạt
+  // Kiểm tra điều kiện có được phép Hủy / Bom hàng loạt hay không
+  const canBulkCancel = useMemo(() => {
+    if (selectedOrderObjects.length === 0) return false;
+    // Chỉ hủy được các đơn chưa vào trạng thái kết thúc
+    return selectedOrderObjects.every((o) => {
+      const st = normalizeOrderStatus(o.status);
+      return st !== ORDER_STATUS.COMPLETED && st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
+    });
+  }, [selectedOrderObjects]);
+
+  const canBulkBomb = useMemo(() => {
+    if (selectedOrderObjects.length === 0) return false;
+    return selectedOrderObjects.every((o) => {
+      const st = normalizeOrderStatus(o.status);
+      const paymentVal = o.payment_method || o.paymentMethod;
+      const isFullPrepaid = 
+        String(paymentVal || '').toLowerCase().includes('100%') || 
+        paymentVal === 'full_qr';
+
+      // Bom hàng chỉ áp dụng khi đang giao hàng (shipping) và KHÔNG ĐƯỢC thanh toán 100%
+      return st === ORDER_STATUS.SHIPPING && !isFullPrepaid;
+    });
+  }, [selectedOrderObjects]);
+
+  // Xử lý chuyển trạng thái hàng loạt (cho các bước chuyển tiếp thông thường)
   const handleBulkUpdateStatus = async (targetStatusCode) => {
     if (selectedOrderCodes.length === 0) return;
     setIsBulkStatusDropdownOpen(false);
+
+    // Nếu chọn Hủy hoặc Bom trong danh sách thì chuyển hướng mở Modal lý do
+    if (targetStatusCode === ORDER_STATUS.CANCELLED) {
+      handleOpenBulkCancelModal();
+      return;
+    }
+    if (targetStatusCode === ORDER_STATUS.BOMBED) {
+      handleOpenBulkBombModal();
+      return;
+    }
 
     const targetMeta = ORDER_STATUS_MAP[targetStatusCode];
     setConfirmModalConfig({
@@ -858,6 +890,50 @@ export default function DashboardTab({
         }
       }
     });
+  };
+
+  // Mở modal xác nhận HỦY HÀNG LOẠT kèm lý do
+  const handleOpenBulkCancelModal = () => {
+    setIsBulkStatusDropdownOpen(false);
+    if (!canBulkCancel) {
+      setConfirmModalConfig({
+        isAlert: true,
+        title: 'Không Thể Hủy Hàng Loạt',
+        message: 'Các đơn hàng được chọn bao gồm đơn đã Hoàn thành, đã Hủy hoặc đã Đánh dấu Bom. Vui lòng chỉ chọn các đơn đang xử lý!'
+      });
+      return;
+    }
+
+    setPendingStatusModal({
+      isBulk: true,
+      targetCodes: [...selectedOrderCodes],
+      targetStatus: 'Đã hủy',
+      isBombed: false
+    });
+    setStatusReason('Khách báo bận / Đổi ý trước khi cắt giàn');
+    setCustomReason('');
+  };
+
+  // Mở modal xác nhận BOM HÀNG LOẠT kèm lý do
+  const handleOpenBulkBombModal = () => {
+    setIsBulkStatusDropdownOpen(false);
+    if (!canBulkBomb) {
+      setConfirmModalConfig({
+        isAlert: true,
+        title: 'Không Thể Đánh Dấu Bom Hàng Loạt',
+        message: 'Chỉ được đánh dấu Bom hàng loạt cho các đơn ĐANG GIAO (Shipping) và KHÔNG chuyển khoản 100%!'
+      });
+      return;
+    }
+
+    setPendingStatusModal({
+      isBulk: true,
+      targetCodes: [...selectedOrderCodes],
+      targetStatus: 'Bom hàng',
+      isBombed: true
+    });
+    setStatusReason('Thuê bao không liên lạc được / Chặn số');
+    setCustomReason('');
   };
 
   // Xử lý xóa hàng loạt
@@ -921,7 +997,12 @@ export default function DashboardTab({
 
     if (normalizedTarget === ORDER_STATUS.CANCELLED || normalizedTarget === ORDER_STATUS.BOMBED) {
       const isBombed = normalizedTarget === ORDER_STATUS.BOMBED;
-      setPendingStatusModal({ order, targetStatus: isBombed ? 'Bom hàng' : 'Đã hủy', isBombed });
+      setPendingStatusModal({ 
+        isBulk: false,
+        order, 
+        targetStatus: isBombed ? 'Bom hàng' : 'Đã hủy', 
+        isBombed 
+      });
       setStatusReason(isBombed ? 'Thuê bao không liên lạc được / Chặn số' : 'Khách báo bận / Đổi ý trước khi cắt giàn');
       setCustomReason('');
       return;
@@ -1286,7 +1367,7 @@ export default function DashboardTab({
           </div>
         )}
 
-        {/* DANH SÁCH ĐƠN HÀNG (THEO VIEWMODE LIST HOẶC GRID) */}
+        {/* DANH SÁCH ĐƠN HÀNG */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-8 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
             <p className="text-xs font-bold text-stone-600">
@@ -1343,18 +1424,18 @@ export default function DashboardTab({
 
       {/* ================= 3. THANH THAO TÁC HÀNG LOẠT NỔI (BULK ACTION BAR) ================= */}
       {selectedOrderCodes.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-stone-700/80 flex items-center gap-3.5 animate-fadeIn max-w-[92vw] sm:max-w-xl text-xs font-sans">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-stone-700/80 flex items-center gap-2.5 sm:gap-3.5 animate-fadeIn max-w-[95vw] sm:max-w-2xl text-xs font-sans">
           <div className="flex items-center gap-2 font-bold shrink-0">
             <span className="w-5 h-5 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center text-[11px] font-black">
               {selectedOrderCodes.length}
             </span>
-            <span className="hidden sm:inline">đơn đã chọn</span>
+            <span className="hidden sm:inline">đã chọn</span>
           </div>
 
           <div className="h-4 w-[1px] bg-stone-700 hidden sm:block shrink-0" />
 
-          {/* DROPDOWN CHỌN TRẠNG THÁI HÀNG LOẠT (CÓ RÀNG BUỘC) */}
-          <div ref={bulkDropdownRef} className="relative flex-1">
+          {/* DROPDOWN CHUYỂN BƯỚC TIẾP THEO (GIAO ĐIỂM HỢP LỆ) */}
+          <div ref={bulkDropdownRef} className="relative flex-1 min-w-[140px]">
             <button
               type="button"
               disabled={isBulkProcessing || commonNextStatuses.length === 0}
@@ -1375,7 +1456,7 @@ export default function DashboardTab({
             {isBulkStatusDropdownOpen && commonNextStatuses.length > 0 && (
               <div className="absolute bottom-full mb-2 left-0 w-56 bg-white text-stone-800 rounded-2xl border border-stone-200 shadow-2xl p-1.5 z-50 animate-fadeIn space-y-0.5">
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
-                  Bước kế tiếp hợp lệ ({selectedOrderCodes.length} đơn):
+                  Bước kế tiếp ({selectedOrderCodes.length} đơn):
                 </span>
                 {commonNextStatuses.map((statusCode) => {
                   const info = ORDER_STATUS_MAP[statusCode];
@@ -1394,6 +1475,30 @@ export default function DashboardTab({
               </div>
             )}
           </div>
+
+          {/* 👉 NÚT HỦY HÀNG LOẠT */}
+          <button
+            type="button"
+            disabled={isBulkProcessing || !canBulkCancel}
+            onClick={handleOpenBulkCancelModal}
+            className="px-2.5 py-1.5 bg-stone-800 hover:bg-amber-950/80 text-amber-400 border border-stone-700 hover:border-amber-600 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+            title={canBulkCancel ? "Hủy toàn bộ đơn đã chọn" : "Chỉ hủy được các đơn chưa hoàn tất"}
+          >
+            <Ban className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Hủy</span>
+          </button>
+
+          {/* 👉 NÚT BOM HÀNG LOẠT */}
+          <button
+            type="button"
+            disabled={isBulkProcessing || !canBulkBomb}
+            onClick={handleOpenBulkBombModal}
+            className="px-2.5 py-1.5 bg-stone-800 hover:bg-rose-950/80 text-rose-400 border border-stone-700 hover:border-rose-600 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+            title={canBulkBomb ? "Đánh dấu bom hàng loạt (Chỉ áp dụng khi đang giao & không CK 100%)" : "Không thể đánh dấu Bom (đơn chưa gửi hoặc đã thanh toán 100%)"}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Bom</span>
+          </button>
 
           {/* NÚT XÓA HÀNG LOẠT */}
           <button
@@ -1418,26 +1523,37 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* MODAL BẮT BUỘC CHỌN LÝ DO HỦY / BOM */}
+      {/* ================= MODAL LÝ DO HỦY / BOM (CHO CẢ ĐƠN LẺ VÀ HÀNG LOẠT) ================= */}
       {pendingStatusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
                 {pendingStatusModal.isBombed ? (
-                  <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-4 h-4" />
                   </div>
                 ) : (
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
                 )}
                 <div>
                   <h4 className="font-black text-sm text-stone-900">
-                    {pendingStatusModal.isBombed ? 'Xác Nhận Đánh Dấu BOM HÀNG' : 'Xác Nhận HỦY ĐƠN HÀNG'}
+                    {pendingStatusModal.isBulk
+                      ? (pendingStatusModal.isBombed 
+                          ? `Đánh Dấu BOM ${pendingStatusModal.targetCodes.length} ĐƠN HÀNG` 
+                          : `Xác Nhận HỦY ${pendingStatusModal.targetCodes.length} ĐƠN HÀNG`)
+                      : (pendingStatusModal.isBombed 
+                          ? 'Xác Nhận Đánh Dấu BOM HÀNG' 
+                          : 'Xác Nhận HỦY ĐƠN HÀNG')
+                    }
                   </h4>
-                  <p className="text-[11px] text-stone-500 font-mono">Mã đơn: {pendingStatusModal.order.code}</p>
+                  <p className="text-[11px] text-stone-500 font-mono">
+                    {pendingStatusModal.isBulk 
+                      ? `Áp dụng cho ${pendingStatusModal.targetCodes.length} đơn được chọn` 
+                      : `Mã đơn: ${pendingStatusModal.order.code}`}
+                  </p>
                 </div>
               </div>
               <button
@@ -1486,7 +1602,7 @@ export default function DashboardTab({
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: Gọi 3 cuộc nhà xe báo khách tắt máy..."
+                  placeholder="VD: Nhà xe gọi 3 lần đều không bắt máy..."
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
@@ -1504,19 +1620,37 @@ export default function DashboardTab({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                disabled={isBulkProcessing}
+                onClick={async () => {
                   if (!pendingStatusModal) return;
                   const finalReason = customReason.trim() ? `${statusReason} - ${customReason.trim()}` : statusReason;
-                  onUpdateStatus(pendingStatusModal.order.code, pendingStatusModal.targetStatus, finalReason);
-                  setPendingStatusModal(null);
+                  
+                  if (pendingStatusModal.isBulk) {
+                    setIsBulkProcessing(true);
+                    try {
+                      for (const code of pendingStatusModal.targetCodes) {
+                        await onUpdateStatus(code, pendingStatusModal.targetStatus, finalReason);
+                      }
+                      onShowAlert?.(`Đã ${pendingStatusModal.isBombed ? 'đánh dấu Bom' : 'Hủy'} thành công ${pendingStatusModal.targetCodes.length} đơn hàng!`);
+                      setSelectedOrderCodes([]);
+                    } catch (err) {
+                      console.error('Lỗi thao tác hàng loạt:', err);
+                    } finally {
+                      setIsBulkProcessing(false);
+                      setPendingStatusModal(null);
+                    }
+                  } else {
+                    onUpdateStatus(pendingStatusModal.order.code, pendingStatusModal.targetStatus, finalReason);
+                    setPendingStatusModal(null);
+                  }
                 }}
-                className={`flex-1 py-2.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-xs ${
+                className={`flex-1 py-2.5 rounded-xl text-white font-bold text-xs cursor-pointer shadow-xs disabled:opacity-50 ${
                   pendingStatusModal.isBombed 
                     ? 'bg-rose-600 hover:bg-rose-700' 
                     : 'bg-stone-900 hover:bg-amber-700'
                 }`}
               >
-                Lưu trạng thái & Ghi chú
+                {isBulkProcessing ? 'Đang lưu...' : 'Lưu trạng thái & Ghi chú'}
               </button>
             </div>
           </div>
