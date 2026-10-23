@@ -158,7 +158,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
             <p>Các mẩu chuyện về giàn nho đang được người làm vườn chép lại...</p>
           </div>
         ) : (
-          <div className="space-y-12">
+          <div className="space-y-10">
             {sortedStories.map((storyItem, index) => {
               const displayDate = formatStoryDate(storyItem.created_at || storyItem.date);
               const displayContent = storyItem.content || storyItem.story || '';
@@ -167,12 +167,12 @@ export default function StoryPage({ stories = [], onNavigate }) {
               return (
                 <article
                   key={storyItem.id || index}
-                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-lg transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-9 items-center group"
+                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-6 sm:p-8 items-center group"
                 >
-                  {/* Cột Ảnh: Luân phiên đổi chiều chẵn lẻ */}
-                  <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-full min-h-[280px] rounded-2xl overflow-hidden relative shadow-inner ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
+                  {/* CỘT ẢNH: KHÓA CHIỀU CAO ĐỒNG NHẤT (h-72 sm:h-80 lg:h-88) BẤT KỂ ẢNH DỌC HAY NGANG */}
+                  <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-88 w-full rounded-2xl overflow-hidden relative shadow-inner bg-stone-100 shrink-0 ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
                     <img
-                      src={storyItem.image || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
+                      src={storyItem.image || storyItem.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
                       alt={storyItem.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       loading="lazy"
@@ -182,16 +182,16 @@ export default function StoryPage({ stories = [], onNavigate }) {
                     />
                     
                     {storyItem.season && (
-                      <span className="absolute top-3.5 left-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-white/10">
+                      <span className="absolute top-3.5 left-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-white/10 shadow-sm">
                         {storyItem.season}
                       </span>
                     )}
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
 
-                  {/* Cột Nội dung */}
-                  <div className={`lg:col-span-7 space-y-4 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
+                  {/* CỘT NỘI DUNG: TRẢI ĐỀU, TỰ ĐỘNG THU GỌN HỢP LÝ */}
+                  <div className={`lg:col-span-7 space-y-3.5 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
                       <span className="flex items-center gap-1.5 font-medium text-stone-600 bg-stone-100 px-2.5 py-1 rounded-lg">
                         <Calendar className="w-3.5 h-3.5 text-amber-600" />
@@ -209,7 +209,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
                     </h3>
 
                     {displayContent && (
-                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-light whitespace-pre-line">
+                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-light whitespace-pre-line line-clamp-5 sm:line-clamp-6">
                         {displayContent}
                       </p>
                     )}

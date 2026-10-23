@@ -1,16 +1,47 @@
 // src/components/admin/StoriesTab.jsx
-import React, { useState } from 'react';
-import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles, Loader2 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
+import { supabase } from '../../supabaseClient';
 
 export default function StoriesTab({
-  stories = [],
+  stories: parentStories = [],
   onAddStory,
   onEditStory,
   onDeleteStory,
   onResetStories
 }) {
+  const [localStories, setLocalStories] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Tự động tải từ Supabase nếu component cha truyền mảng rỗng
+  useEffect(() => {
+    if (Array.isArray(parentStories) && parentStories.length > 0) {
+      setLocalStories(parentStories);
+    } else {
+      fetchStories();
+    }
+  }, [parentStories]);
+
+  const fetchStories = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('stories')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setLocalStories(data);
+      }
+    } catch (err) {
+      console.error('Lỗi tải stories:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [newStory, setNewStory] = useState({
     title: '',
     season: 'Vụ Thu Đông',
@@ -21,18 +52,32 @@ export default function StoriesTab({
     author: 'Tâm Xứ Nắng'
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newStory.title.trim() || (!newStory.quote.trim() && !newStory.story.trim())) return;
 
-    onAddStory({
+    const payload = {
       ...newStory,
-      // Tương thích song song cả bảng stories trên Supabase và state hiện tại
       content: newStory.story || newStory.quote,
       desc: newStory.quote,
       image_url: newStory.image,
       created_at: new Date().toISOString()
-    });
+    };
+
+    if (onAddStory) {
+      onAddStory(payload);
+    } else {
+      // Tự thêm vào DB nếu không có handler từ cha
+      const { data, error } = await supabase
+        .from('stories')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (!error && data) {
+        setLocalStories((prev) => [data, ...prev]);
+      }
+    }
 
     setNewStory({
       title: '',
@@ -44,6 +89,8 @@ export default function StoriesTab({
       author: 'Tâm Xứ Nắng'
     });
   };
+
+  const storiesList = localStories;
 
   return (
     <div className="space-y-6 animate-fadeIn font-sans">
@@ -63,7 +110,7 @@ export default function StoriesTab({
               placeholder="VD: Mùa gió chướng và vị ngọt giàn nho Thái An..."
               value={newStory.title}
               onChange={(e) => setNewStory({ ...newStory, title: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -75,7 +122,7 @@ export default function StoriesTab({
                 placeholder="VD: Vụ Thu Đông, Vụ Xuân Hè..."
                 value={newStory.season}
                 onChange={(e) => setNewStory({ ...newStory, season: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -86,7 +133,7 @@ export default function StoriesTab({
                 placeholder="VD: Giàn nho Thái An, Ninh Thuận"
                 value={newStory.location}
                 onChange={(e) => setNewStory({ ...newStory, location: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -97,12 +144,11 @@ export default function StoriesTab({
                 placeholder="VD: Tâm Xứ Nắng"
                 value={newStory.author}
                 onChange={(e) => setNewStory({ ...newStory, author: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
 
-          {/* Tải ảnh mẩu chuyện lên Supabase Storage bucket stories */}
           <ImageUploadField
             label="Ảnh mẩu chuyện (Supabase Storage)"
             value={newStory.image}
@@ -117,7 +163,7 @@ export default function StoriesTab({
               placeholder="VD: Nắng rát mặt nhưng trái nho lại mọng mật nhất vào những ngày gió khan..."
               value={newStory.quote}
               onChange={(e) => setNewStory({ ...newStory, quote: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 italic focus:outline-none focus:border-amber-600"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 italic focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -129,14 +175,14 @@ export default function StoriesTab({
               placeholder="Kể chi tiết về đời sống làm vườn, gió cát, sự tỉ mẩn chăm sóc từng chùm quả..."
               value={newStory.story}
               onChange={(e) => setNewStory({ ...newStory, story: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-y focus:outline-none focus:border-amber-600 leading-relaxed"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-y focus:outline-none focus:border-amber-600 leading-relaxed"
             />
           </div>
 
           <div className="flex justify-end pt-1">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Đăng Chuyện Vườn Ngay</span>
@@ -145,11 +191,11 @@ export default function StoriesTab({
         </form>
       </div>
 
-      {/* Danh sách các câu chuyện đã đăng */}
+      {/* Danh sách các câu chuyện */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 space-y-4 shadow-xs">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-stone-900">Danh Sách Chuyện Đã Đăng ({stories.length})</h2>
+            <h2 className="text-sm font-bold text-stone-900">Danh Sách Chuyện Đã Đăng ({storiesList.length})</h2>
             <p className="text-xs text-stone-500">Quản lý mẩu chuyện vườn và hình ảnh lưu trữ trên Supabase</p>
           </div>
           {onResetStories && (
@@ -164,13 +210,18 @@ export default function StoriesTab({
           )}
         </div>
 
-        {stories.length === 0 ? (
+        {isLoading ? (
+          <div className="py-10 text-center text-stone-400 text-xs flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+            <span>Đang tải danh sách chuyện vườn...</span>
+          </div>
+        ) : storiesList.length === 0 ? (
           <div className="py-10 text-center text-stone-400 text-xs italic">
             Chưa có mẩu chuyện vườn nào được lưu.
           </div>
         ) : (
           <div className="divide-y divide-stone-100">
-            {stories.map((storyItem, idx) => {
+            {storiesList.map((storyItem, idx) => {
               const displayDate = formatDate(storyItem.created_at || storyItem.date, 'Gần đây');
               const displayExcerpt = storyItem.quote || storyItem.desc || storyItem.story || storyItem.content || 'Chuyện làm vườn mùa nắng gió...';
               const displayImage = storyItem.image_url || storyItem.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
@@ -181,7 +232,7 @@ export default function StoriesTab({
                     <img
                       src={displayImage}
                       alt={storyItem.title}
-                      className="w-16 h-14 rounded-xl object-cover shrink-0 border border-stone-100 shadow-2xs"
+                      className="w-16 h-14 rounded-2xl object-cover shrink-0 border border-stone-100 shadow-2xs"
                       onError={(e) => {
                         e.currentTarget.src = 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
                       }}
@@ -226,7 +277,7 @@ export default function StoriesTab({
                   <div className="shrink-0 flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => onEditStory(storyItem)}
+                      onClick={() => onEditStory && onEditStory(storyItem)}
                       className="p-1.5 text-stone-400 hover:text-amber-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Chỉnh sửa câu chuyện"
                     >
@@ -235,7 +286,7 @@ export default function StoriesTab({
 
                     <button
                       type="button"
-                      onClick={() => onDeleteStory(storyItem.id, storyItem.title)}
+                      onClick={() => onDeleteStory && onDeleteStory(storyItem.id, storyItem.title)}
                       className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Xóa câu chuyện"
                     >

@@ -3,11 +3,117 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
   Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp, MapPin,
-  Megaphone, PlusCircle
+  Megaphone, PlusCircle, Building2, Percent
 } from 'lucide-react';
 import { VIETQR_BANKS } from '../../config/shopConfig';
 import { supabase } from '../../supabaseClient';
 import ConfirmModal from './ConfirmModal';
+
+// COMPONENT DROPDOWN TỰ VIẾT ĐỒNG BỘ THEO FORM MẪU THƯ
+function CustomDropdown({
+  label,
+  headerLabel = "DANH SÁCH TÙY CHỌN:",
+  options = [],
+  value,
+  onChange,
+  renderSelected,
+  renderOption,
+  icon: Icon
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOpt = options.find((opt) => opt.value === value || opt.id === value || opt.bin === value) || options[0];
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      {label && <label className="font-semibold text-stone-600 block mb-1 text-xs">{label}</label>}
+
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
+          isOpen
+            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
+            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          {Icon && <Icon className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+          <div className="truncate font-bold text-stone-900">
+            {renderSelected ? renderSelected(selectedOpt) : selectedOpt?.label || selectedOpt?.name}
+          </div>
+        </div>
+
+        <ChevronDown
+          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-amber-700' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs">
+          {headerLabel && (
+            <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400">
+              {headerLabel}
+            </div>
+          )}
+
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {options.map((opt) => {
+              const optVal = opt.value !== undefined ? opt.value : (opt.bin !== undefined ? opt.bin : opt.id);
+              const isSelected = optVal === value;
+
+              return (
+                <div
+                  key={String(optVal)}
+                  onClick={() => {
+                    onChange(optVal, opt);
+                    setIsOpen(false);
+                  }}
+                  className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                    isSelected
+                      ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs'
+                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    {renderOption ? (
+                      renderOption(opt, isSelected)
+                    ) : (
+                      <span className="truncate">{opt.label || opt.name}</span>
+                    )}
+                  </div>
+
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// CÁC LỰA CHỌN LOẠI GIẢM VOUCHER
+const VOUCHER_TYPE_OPTIONS = [
+  { value: 'percent', label: 'Giảm theo phần trăm (%)', subLabel: 'Áp dụng tỷ lệ % trên tổng giá trị đơn' },
+  { value: 'fixed', label: 'Giảm số tiền cố định (VNĐ)', subLabel: 'Trừ trực tiếp số tiền cụ thể vào đơn' }
+];
 
 export default function ConfigVoucherTab({
   config = {},
@@ -30,7 +136,6 @@ export default function ConfigVoucherTab({
     autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
   }));
 
-  // Danh sách voucher lấy từ bảng public.vouchers
   const [vouchers, setVouchers] = useState([]);
   const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
 
@@ -50,7 +155,6 @@ export default function ConfigVoucherTab({
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Đóng dropdown khi click ra ngoài
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -61,7 +165,6 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 1. Tải danh sách templates từ bảng email_templates
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
@@ -82,7 +185,6 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  // 2. Tải danh sách vouchers trực tiếp từ bảng public.vouchers
   const loadVouchersFromDb = useCallback(async () => {
     setIsLoadingVouchers(true);
     try {
@@ -92,7 +194,6 @@ export default function ConfigVoucherTab({
         .order('created_at', { ascending: false });
 
       if (error) {
-        // Fallback nếu bảng vouchers không có created_at
         const { data: fallbackData, error: err2 } = await supabase
           .from('vouchers')
           .select('*');
@@ -123,7 +224,6 @@ export default function ConfigVoucherTab({
     setVouchers(formatted);
   };
 
-  // 3. Tải cấu hình chuẩn từ bảng shop_configs
   const loadShopConfigsFromDb = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -279,16 +379,12 @@ export default function ConfigVoucherTab({
     });
   };
 
-  const handleSelectBank = (e) => {
-    const selectedBin = e.target.value;
-    const matchedBank = VIETQR_BANKS.find((b) => b.bin === selectedBin);
-    if (matchedBank) {
-      setCfg((prev) => ({
-        ...prev,
-        bankBin: matchedBank.bin,
-        bankName: matchedBank.shortName
-      }));
-    }
+  const handleSelectBankBin = (bin, bankObj) => {
+    setCfg((prev) => ({
+      ...prev,
+      bankBin: bin,
+      bankName: bankObj?.shortName || prev.bankName
+    }));
   };
 
   const [newVoucher, setNewVoucher] = useState({
@@ -302,7 +398,6 @@ export default function ConfigVoucherTab({
     desc: ''
   });
 
-  // THÊM VOUCHER TRỰC TIẾP VÀO BẢNG public.vouchers
   const handleAddVoucher = async (e) => {
     e.preventDefault();
     if (!newVoucher.code.trim()) return;
@@ -364,7 +459,6 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // ĐỔI TRẠNG THÁI GỘP MÃ (can_stack) TRỰC TIẾP TRÊN DB
   const handleToggleVoucherStack = async (code) => {
     const current = vouchers.find((v) => v.code === code);
     if (!current) return;
@@ -387,7 +481,6 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // XÓA VOUCHER TRỰC TIẾP KHỎI BẢNG public.vouchers
   const handleRemoveVoucher = (code) => {
     setConfirmModalConfig({
       isAlert: false,
@@ -413,7 +506,6 @@ export default function ConfigVoucherTab({
     });
   };
 
-  // CẬP NHẬT VOUCHER TRỰC TIẾP LÊN DB
   const handleSaveEditedVoucher = async (e) => {
     e.preventDefault();
     if (!editingVoucher) return;
@@ -501,7 +593,6 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // 4. LƯU CẤU HÌNH GỌN GÀNG VÀO shop_configs & email_templates
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
@@ -511,7 +602,6 @@ export default function ConfigVoucherTab({
 
       const nowIso = new Date().toISOString();
 
-      // Chỉ lưu các key cấu hình thiết yếu, loại bỏ phân mảnh
       const configsToUpsert = [
         {
           key: 'general',
@@ -565,7 +655,6 @@ export default function ConfigVoucherTab({
 
       if (cfgErr) throw cfgErr;
 
-      // Lưu bảng email_templates
       if (templates.length > 0) {
         const payloadTemplates = templates.map((t) => ({
           id: t.id,
@@ -604,19 +693,35 @@ export default function ConfigVoucherTab({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
           
+          {/* CUSTOM DROPDOWN CHỌN NGÂN HÀNG VIETQR */}
           <div className="sm:col-span-2">
-            <label className="font-semibold text-stone-600 block mb-1">Ngân hàng nhận tiền:</label>
-            <select
+            <CustomDropdown
+              label="Ngân hàng nhận tiền:"
+              headerLabel="DANH SÁCH NGÂN HÀNG VIETQR:"
+              icon={Building2}
+              options={VIETQR_BANKS}
               value={cfg.bankBin}
-              onChange={handleSelectBank}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 cursor-pointer"
-            >
-              {VIETQR_BANKS.map((b) => (
-                <option key={b.bin} value={b.bin}>
-                  {b.name} ({b.shortName})
-                </option>
-              ))}
-            </select>
+              onChange={handleSelectBankBin}
+              renderSelected={(opt) => (
+                <div className="flex items-center gap-2 truncate">
+                  <span className="font-bold text-stone-900">{opt?.shortName}</span>
+                  <span className="text-[11px] font-normal text-stone-500 truncate">({opt?.name})</span>
+                </div>
+              )}
+              renderOption={(opt, isSelected) => (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="truncate">
+                    <span className="font-bold">{opt.shortName}</span>
+                    <span className="text-[10.5px] text-stone-500 pl-1.5 font-normal truncate">
+                      {opt.name}
+                    </span>
+                  </div>
+                  <span className={`text-[10.5px] font-mono shrink-0 ${isSelected ? 'text-amber-800' : 'text-stone-400'}`}>
+                    BIN: {opt.bin}
+                  </span>
+                </div>
+              )}
+            />
           </div>
 
           <div>
@@ -625,7 +730,7 @@ export default function ConfigVoucherTab({
               type="text"
               value={cfg.accountNo}
               onChange={(e) => setCfg({ ...cfg, accountNo: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-800"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-800 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -635,7 +740,7 @@ export default function ConfigVoucherTab({
               type="text"
               value={cfg.accountName}
               onChange={(e) => setCfg({ ...cfg, accountName: e.target.value.toUpperCase() })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono uppercase font-bold"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono uppercase font-bold focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -645,7 +750,7 @@ export default function ConfigVoucherTab({
               type="number"
               value={cfg.depositAmount}
               onChange={(e) => setCfg({ ...cfg, depositAmount: Number(e.target.value) || 0 })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-700"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -656,7 +761,7 @@ export default function ConfigVoucherTab({
               placeholder="VD: 0848.957.345"
               value={cfg.hotline}
               onChange={(e) => setCfg({ ...cfg, hotline: e.target.value, zaloPhone: e.target.value.replace(/[^0-9]/g, '') })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-stone-800"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-stone-800 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -670,7 +775,7 @@ export default function ConfigVoucherTab({
               maxLength={6}
               value={cfg.warehousePin}
               onChange={(e) => setCfg({ ...cfg, warehousePin: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -680,7 +785,7 @@ export default function ConfigVoucherTab({
               type="number"
               value={cfg.loyaltyDiscountPercent}
               onChange={(e) => setCfg({ ...cfg, loyaltyDiscountPercent: Number(e.target.value) || 0 })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -690,7 +795,7 @@ export default function ConfigVoucherTab({
               type="number"
               value={cfg.loyaltyMaxDiscount}
               onChange={(e) => setCfg({ ...cfg, loyaltyMaxDiscount: Number(e.target.value) || 0 })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -704,7 +809,7 @@ export default function ConfigVoucherTab({
               value={cfg.address || ''}
               onChange={(e) => setCfg({ ...cfg, address: e.target.value })}
               placeholder="VD: Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -718,14 +823,14 @@ export default function ConfigVoucherTab({
               value={cfg.announcement || ''}
               onChange={(e) => setCfg({ ...cfg, announcement: e.target.value })}
               placeholder="VD: Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM..."
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
             />
           </div>
 
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH VOUCHER (ĐỒNG BỘ TRỰC TIẾP VỚI BẢNG public.vouchers) */}
+      {/* 2. CẤU HÌNH VOUCHER */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -737,7 +842,6 @@ export default function ConfigVoucherTab({
           </span>
         </div>
 
-        {/* Danh sách voucher */}
         {isLoadingVouchers ? (
           <div className="p-8 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
@@ -844,20 +948,27 @@ export default function ConfigVoucherTab({
                 placeholder="VD: FREESHIP"
                 value={newVoucher.code}
                 onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value.toUpperCase() })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900"
+                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900 focus:outline-none focus:border-amber-600"
               />
             </div>
 
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Loại giảm</label>
-              <select
+            {/* CUSTOM DROPDOWN CHỌN LOẠI GIẢM */}
+            <div className="lg:col-span-2">
+              <CustomDropdown
+                label="Loại giảm"
+                headerLabel="HÌNH THỨC CHIẾT KHẤU:"
+                icon={Percent}
+                options={VOUCHER_TYPE_OPTIONS}
                 value={newVoucher.type}
-                onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium cursor-pointer"
-              >
-                <option value="percent">Giảm theo %</option>
-                <option value="fixed">Giảm số tiền (VNĐ)</option>
-              </select>
+                onChange={(val) => setNewVoucher({ ...newVoucher, type: val })}
+                renderSelected={(opt) => <span>{opt?.label}</span>}
+                renderOption={(opt) => (
+                  <div className="space-y-0.5">
+                    <span className="font-bold block">{opt.label}</span>
+                    <span className="text-[10px] text-stone-400 block font-light">{opt.subLabel}</span>
+                  </div>
+                )}
+              />
             </div>
 
             <div>
@@ -870,7 +981,7 @@ export default function ConfigVoucherTab({
                 min="0"
                 value={newVoucher.value}
                 onChange={(e) => setNewVoucher({ ...newVoucher, value: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold"
+                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -882,7 +993,7 @@ export default function ConfigVoucherTab({
                   placeholder="0 = Không giới hạn"
                   value={newVoucher.maxDiscount}
                   onChange={(e) => setNewVoucher({ ...newVoucher, maxDiscount: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold"
+                  className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
                 />
               </div>
             )}
@@ -894,7 +1005,7 @@ export default function ConfigVoucherTab({
                 value={newVoucher.minOrder}
                 onChange={(e) => setNewVoucher({ ...newVoucher, minOrder: e.target.value })}
                 placeholder="0"
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono"
+                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -905,24 +1016,24 @@ export default function ConfigVoucherTab({
                 value={newVoucher.usageLimit}
                 onChange={(e) => setNewVoucher({ ...newVoucher, usageLimit: e.target.value })}
                 placeholder="0 = Vô hạn"
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold text-amber-800"
+                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
-            <div className={newVoucher.type === 'percent' ? 'lg:col-span-6' : 'lg:col-span-2'}>
+            <div className="lg:col-span-6">
               <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mô tả hiển thị</label>
               <input
                 type="text"
                 placeholder="VD: Miễn phí vận chuyển cho đơn từ 300k"
                 value={newVoucher.desc}
                 onChange={(e) => setNewVoucher({ ...newVoucher, desc: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium"
+                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-200/60">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-2xl border border-amber-200">
               <input
                 type="checkbox"
                 checked={newVoucher.canStack}
@@ -934,7 +1045,7 @@ export default function ConfigVoucherTab({
 
             <button
               type="submit"
-              className="px-4 py-2 bg-stone-900 hover:bg-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-5 py-2.5 bg-stone-900 hover:bg-amber-800 text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Thêm Voucher Vào Hệ Thống</span>
@@ -1017,37 +1128,39 @@ export default function ConfigVoucherTab({
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute left-0 top-full mt-2 w-full sm:w-80 bg-white border border-stone-200/80 rounded-3xl p-2.5 shadow-2xl z-30 space-y-1 animate-fadeIn">
+              <div className="absolute left-0 top-full mt-2 w-full sm:w-80 bg-white border border-stone-200/80 rounded-3xl p-2.5 shadow-2xl z-30 space-y-1 animate-fadeIn [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="px-3 py-1.5 text-[10px] font-black uppercase text-stone-400 tracking-wider">
                   DANH SÁCH MẪU TRONG DATABASE:
                 </div>
 
-                {templates.map((tpl) => {
-                  const isSelected = tpl.id === activeTemplate.id;
-                  return (
-                    <button
-                      key={tpl.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedTemplateId(tpl.id);
-                        setIsDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-colors cursor-pointer text-left ${
-                        isSelected
-                          ? 'bg-[#fffbeb] text-amber-950 font-black'
-                          : 'text-stone-700 hover:bg-stone-50 font-medium'
-                      }`}
-                    >
-                      <div className="flex flex-col">
-                        <span>{tpl.name}</span>
-                        <span className="text-[10px] font-mono text-stone-400 font-normal">{tpl.id}</span>
-                      </div>
-                      {isSelected && (
-                        <Check className="w-4 h-4 text-amber-800 stroke-[2.5]" />
-                      )}
-                    </button>
-                  );
-                })}
+                <div className="max-h-60 overflow-y-auto space-y-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {templates.map((tpl) => {
+                    const isSelected = tpl.id === activeTemplate.id;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTemplateId(tpl.id);
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-colors cursor-pointer text-left ${
+                          isSelected
+                            ? 'bg-[#fffbeb] text-amber-950 font-black'
+                            : 'text-stone-700 hover:bg-stone-50 font-medium'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <span>{tpl.name}</span>
+                          <span className="text-[10px] font-mono text-stone-400 font-normal">{tpl.id}</span>
+                        </div>
+                        {isSelected && (
+                          <Check className="w-4 h-4 text-amber-800 stroke-[2.5]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
@@ -1087,7 +1200,7 @@ export default function ConfigVoucherTab({
               type="text"
               value={activeTemplate.subject || ''}
               onChange={(e) => handleUpdateActiveTemplate('subject', e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 transition-colors"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 transition-colors"
             />
           </div>
 
@@ -1113,13 +1226,13 @@ export default function ConfigVoucherTab({
                 placeholder="Nhập email của bạn để nhận thử..."
                 value={testEmailInput}
                 onChange={(e) => setTestEmailInput(e.target.value)}
-                className="w-full sm:w-64 p-2 rounded-xl border border-stone-200 text-xs focus:outline-none focus:border-amber-600 bg-white"
+                className="w-full sm:w-64 p-2 rounded-2xl border border-stone-200 text-xs focus:outline-none focus:border-amber-600 bg-white"
               />
               <button
                 type="button"
                 onClick={handleSendTestEmail}
                 disabled={isSendingTest}
-                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
               >
                 {isSendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" /> : <Send className="w-3.5 h-3.5 text-amber-700" />}
                 <span>{isSendingTest ? 'Đang gửi...' : 'Gửi Test'}</span>
@@ -1154,7 +1267,7 @@ export default function ConfigVoucherTab({
               <button
                 type="button"
                 onClick={() => setIsNewTemplateModalOpen(false)}
-                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer transition-colors"
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1171,7 +1284,7 @@ export default function ConfigVoucherTab({
                   placeholder="VD: Thông báo xe đã xuất bến"
                   value={newTemplateForm.name}
                   onChange={(e) => setNewTemplateForm({ ...newTemplateForm, name: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
                 />
               </div>
 
@@ -1184,7 +1297,7 @@ export default function ConfigVoucherTab({
                   placeholder="VD: [Xứ Nắng Gió] Thùng hàng {{ORDER_CODE}} đang trên đường tới bạn"
                   value={newTemplateForm.subject}
                   onChange={(e) => setNewTemplateForm({ ...newTemplateForm, subject: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
                 />
               </div>
 
@@ -1199,7 +1312,7 @@ export default function ConfigVoucherTab({
                 <button
                   type="submit"
                   disabled={isCreatingTpl}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {isCreatingTpl ? (
                     <>
@@ -1221,8 +1334,8 @@ export default function ConfigVoucherTab({
 
       {/* 6. MODAL CHỈNH SỬA VOUCHER */}
       {editingVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
                 <span>Chỉnh Sửa Voucher:</span>
@@ -1233,24 +1346,23 @@ export default function ConfigVoucherTab({
               <button
                 type="button"
                 onClick={() => setEditingVoucher(null)}
-                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer transition-colors"
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEditedVoucher} className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* CUSTOM DROPDOWN CHỌN LOẠI GIẢM TRONG MODAL EDIT */}
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">Loại giảm</label>
-                  <select
+                  <CustomDropdown
+                    label="Loại giảm"
+                    options={VOUCHER_TYPE_OPTIONS}
                     value={editingVoucher.type}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, type: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium cursor-pointer"
-                  >
-                    <option value="percent">Giảm theo %</option>
-                    <option value="fixed">Giảm số tiền (VNĐ)</option>
-                  </select>
+                    onChange={(val) => setEditingVoucher({ ...editingVoucher, type: val })}
+                    renderSelected={(opt) => <span>{opt?.value === 'percent' ? 'Giảm theo %' : 'Giảm tiền (VNĐ)'}</span>}
+                  />
                 </div>
 
                 <div>
@@ -1263,7 +1375,7 @@ export default function ConfigVoucherTab({
                     min="0"
                     value={editingVoucher.value}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, value: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold"
+                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
                   />
                 </div>
               </div>
@@ -1276,7 +1388,7 @@ export default function ConfigVoucherTab({
                     placeholder="0 = Không giới hạn"
                     value={editingVoucher.maxDiscount}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, maxDiscount: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold"
+                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
                   />
                 </div>
               )}
@@ -1288,7 +1400,7 @@ export default function ConfigVoucherTab({
                     type="number"
                     value={editingVoucher.minOrder}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrder: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono"
+                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
                   />
                 </div>
 
@@ -1298,7 +1410,7 @@ export default function ConfigVoucherTab({
                     type="number"
                     value={editingVoucher.usageLimit}
                     onChange={(e) => setEditingVoucher({ ...editingVoucher, usageLimit: e.target.value })}
-                    className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold text-amber-800"
+                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
                   />
                 </div>
               </div>
@@ -1309,11 +1421,11 @@ export default function ConfigVoucherTab({
                   type="text"
                   value={editingVoucher.desc || ''}
                   onChange={(e) => setEditingVoucher({ ...editingVoucher, desc: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium"
+                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
                 />
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 p-2.5 rounded-2xl border border-amber-200">
                 <input
                   type="checkbox"
                   checked={editingVoucher.canStack}
@@ -1333,7 +1445,7 @@ export default function ConfigVoucherTab({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Cập Nhật Voucher</span>

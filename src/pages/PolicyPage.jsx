@@ -29,7 +29,7 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14 space-y-10 animate-fadeIn font-sans text-stone-800">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 animate-fadeIn font-sans text-stone-800">
       
       {/* 1. THANH ĐIỀU HƯỚNG TINH GỌN */}
       <div className="flex items-center justify-between">
@@ -45,50 +45,50 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
         <button
           type="button"
           onClick={goShop}
-          className="inline-flex items-center gap-2 text-xs font-bold text-white bg-amber-900 hover:bg-amber-950 px-4 py-2.5 rounded-2xl transition-all shadow-xs cursor-pointer active:scale-95"
+          className="inline-flex items-center gap-2 text-xs font-bold text-white bg-amber-900 hover:bg-amber-950 px-5 py-2.5 rounded-2xl transition-all shadow-xs cursor-pointer active:scale-95"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>Ghé chợ nông sản</span>
         </button>
       </div>
 
-      {/* 2. BANNER HERO HIỆN ĐẠI */}
-      <div className="relative rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-8 sm:p-14 overflow-hidden border border-stone-800/80 shadow-xl">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-60 h-60 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+      {/* 2. BANNER HERO HIỆN ĐẠI (ĐÃ CÂN CHỈNH NỘI DUNG VỪA VẶN TOÀN KHUNG) */}
+      <div className="relative rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-7 sm:p-12 lg:p-14 overflow-hidden border border-stone-800/80 shadow-xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-[11px] font-mono font-bold tracking-wide">
+        <div className="relative z-10 max-w-3xl lg:max-w-4xl space-y-4">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-mono font-bold tracking-wide">
             <SunMedium className="w-3.5 h-3.5" />
             <span>MINH BẠCH • TẬN TÂM • UY TÍN NHÀ VƯỜN</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight text-white">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white">
             Chính Sách Bán Hàng & Quyền Lợi Khách Thương
           </h1>
 
-          <p className="text-xs sm:text-sm text-stone-300 font-light leading-relaxed">
+          <p className="text-sm sm:text-base text-stone-300 font-light leading-relaxed max-w-2xl lg:max-w-3xl">
             Nông sản tươi cắt giàn vận chuyển đường dài cần sự thấu hiểu từ hai phía. Dưới đây là những cam kết chất lượng cùng các điều khoản bảo vệ trọn vẹn quyền lợi và sự an tâm của bạn.
           </p>
         </div>
 
-        {/* 4 Chỉ số tóm tắt nhanh */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-8 mt-6 border-t border-white/10 text-xs">
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-stone-400 block text-[10px] uppercase font-bold">Cam kết</span>
-            <strong className="text-amber-300 text-sm">Bao ăn từng quả</strong>
+        {/* 4 Chỉ số tóm tắt: Trải rộng, thoáng và cân đối */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pt-8 mt-8 border-t border-white/10 text-xs">
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+            <span className="text-stone-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Cam kết</span>
+            <strong className="text-amber-300 text-sm sm:text-base font-black">Bao ăn từng quả</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-stone-400 block text-[10px] uppercase font-bold">Xác nhận đơn</span>
-            <strong className="text-white text-sm">Cọc trước 50.000đ</strong>
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+            <span className="text-stone-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Xác nhận đơn</span>
+            <strong className="text-white text-sm sm:text-base font-black">Cọc trước 50.000đ</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-stone-400 block text-[10px] uppercase font-bold">Hỗ trợ sự cố</span>
-            <strong className="text-emerald-400 text-sm">Bù hàng trong 24h</strong>
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+            <span className="text-stone-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Hỗ trợ sự cố</span>
+            <strong className="text-emerald-400 text-sm sm:text-base font-black">Bù hàng trong 24h</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
-            <span className="text-stone-400 block text-[10px] uppercase font-bold">Đổi ý hủy đơn</span>
-            <strong className="text-white text-sm">Miễn phí 30 phút</strong>
+          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
+            <span className="text-stone-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Đổi ý hủy đơn</span>
+            <strong className="text-white text-sm sm:text-base font-black">Miễn phí 30 phút</strong>
           </div>
         </div>
       </div>
@@ -158,7 +158,7 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
           </div>
         </section>
 
-        {/* PHẦN 3: "BAO ĂN" VÀ ĐỔI TRẢ (CARD TƯƠNG PHẢN ĐỎ - XANH) */}
+        {/* PHẦN 3: "BAO ĂN" VÀ ĐỔI TRẢ */}
         <section className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-2xs space-y-6">
           <div className="flex items-center gap-3.5 border-b border-stone-100 pb-4">
             <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-900 flex items-center justify-center shrink-0 shadow-inner">
@@ -170,7 +170,7 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
             </div>
           </div>
 
-          {/* Hộp lưu ý bắt buộc Video khui hộp */}
+          {/* Hộp lưu ý Video khui hộp */}
           <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-300 flex items-start gap-3 text-xs">
             <Video className="w-5 h-5 text-amber-800 shrink-0 mt-0.5" />
             <div className="space-y-1">

@@ -1,6 +1,19 @@
 // src/components/admin/ProductsTab.jsx
-import React, { useState, useEffect } from 'react';
-import { Plus, RotateCcw, Pencil, ToggleLeft, ToggleRight, Trash2, Layers } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Plus, 
+  RotateCcw, 
+  Pencil, 
+  ToggleLeft, 
+  ToggleRight, 
+  Trash2, 
+  Layers, 
+  ChevronDown, 
+  Check, 
+  Tag, 
+  CheckCircle2, 
+  AlertCircle 
+} from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
@@ -13,6 +26,134 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat05', label: 'Gia Vị Xứ Nắng' },
   { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
 ];
+
+// Danh sách trạng thái kho
+const STOCK_STATUS_OPTIONS = [
+  {
+    value: true,
+    label: 'Đang có sẵn ở vườn',
+    subLabel: 'Còn lứa hái, đang mở bán',
+    badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+    dotClass: 'bg-emerald-500'
+  },
+  {
+    value: false,
+    label: 'Tạm hết lứa',
+    subLabel: 'Chờ đợt thu hoạch kế tiếp',
+    badgeClass: 'bg-stone-100 text-stone-600 border-stone-200',
+    dotClass: 'bg-stone-400'
+  }
+];
+
+// COMPONENT DROPDOWN TỰ VIẾT (CHUẨN FORM BO TRÒN THEO MẪU EMAIL THƯ GỐC)
+function CustomSelect({ 
+  label, 
+  headerLabel = "DANH SÁCH TÙY CHỌN:",
+  options = [], 
+  value, 
+  onChange, 
+  renderOption,
+  renderSelected,
+  icon: Icon
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  // Đóng khi click ngoài
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const selectedOpt = options.find((opt) => opt.value === value || opt.id === value);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      {label && <label className="font-semibold text-stone-700 block mb-1 text-xs">{label}</label>}
+
+      {/* Button kích hoạt Dropdown */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
+          isOpen
+            ? 'bg-amber-50/50 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
+            : 'bg-white hover:bg-stone-50/80 border-stone-300 hover:border-amber-400 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {Icon && <Icon className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+          <div className="truncate font-bold text-stone-900">
+            {renderSelected ? renderSelected(selectedOpt) : selectedOpt?.label || selectedOpt?.name}
+          </div>
+        </div>
+
+        <ChevronDown 
+          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-amber-700' : ''
+          }`} 
+        />
+      </button>
+
+      {/* Menu xổ xuống bo tròn dạng Glassmorphism / Kem ấm */}
+      {isOpen && (
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/80 shadow-xl space-y-1 animate-fadeIn text-xs backdrop-blur-md">
+          {headerLabel && (
+            <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400">
+              {headerLabel}
+            </div>
+          )}
+
+          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:thin] [scrollbar-color:#e7e5e4_transparent]">
+            {options.map((opt) => {
+              const optKey = opt.value !== undefined ? opt.value : opt.id;
+              const isSelected = optKey === value;
+
+              return (
+                <div
+                  key={String(optKey)}
+                  onClick={() => {
+                    onChange(optKey);
+                    setIsOpen(false);
+                  }}
+                  className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                    isSelected
+                      ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs'
+                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    {renderOption ? (
+                      renderOption(opt, isSelected)
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="truncate">{opt.label || opt.name}</span>
+                        {opt.id && (
+                          <span className="text-[10.5px] font-mono text-stone-400 shrink-0">
+                            ({opt.id})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProductsTab({
   products = [],
@@ -103,11 +244,11 @@ export default function ProductsTab({
     const resolvedWeights = finalWeights.length > 0 ? finalWeights : [
       { 
         id: 'opt-1', 
-        weight_key: 'std',
+        weight_key: 'std', 
         label: `1 ${newProduct.unit || 'kg'}`, 
         multiplier: 1, 
-        price_override: null,
-        is_default: true,
+        price_override: null, 
+        is_default: true, 
         sort_order: 0 
       }
     ];
@@ -170,23 +311,34 @@ export default function ProductsTab({
                 placeholder="VD: Nho Xanh Ninh Thuận (NH01-48)"
                 value={newProduct.name}
                 onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
+            {/* 1. CUSTOM DROPDOWN DANH MỤC PHÂN LOẠI */}
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Danh mục phân loại *</label>
-              <select
+              <CustomSelect
+                label="Danh mục phân loại *"
+                headerLabel="DANH MỤC TRONG CƠ SỞ DỮ LIỆU:"
+                icon={Tag}
+                options={categories}
                 value={newProduct.category}
-                onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 cursor-pointer focus:outline-none focus:border-amber-600"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.label} ({cat.id})
-                  </option>
-                ))}
-              </select>
+                onChange={(newCatId) => setNewProduct({ ...newProduct, category: newCatId })}
+                renderSelected={(opt) => (
+                  <span className="flex items-center gap-1.5">
+                    <span>{opt?.label}</span>
+                    <span className="text-[10px] font-mono text-stone-400 font-normal">({opt?.id})</span>
+                  </span>
+                )}
+                renderOption={(opt, isSelected) => (
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold">{opt.label}</span>
+                    <span className={`text-[10px] font-mono ${isSelected ? 'text-amber-800' : 'text-stone-400'}`}>
+                      {opt.id}
+                    </span>
+                  </div>
+                )}
+              />
             </div>
           </div>
 
@@ -201,7 +353,7 @@ export default function ProductsTab({
                 placeholder="VD: 65000"
                 value={newProduct.basePrice}
                 onChange={(e) => setNewProduct({ ...newProduct, basePrice: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -212,7 +364,7 @@ export default function ProductsTab({
                 placeholder="kg, hộp, chai, đòn..."
                 value={newProduct.unit}
                 onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -223,7 +375,7 @@ export default function ProductsTab({
                 placeholder="VD: Bao ngọt giàn, Hái sáng sớm"
                 value={newProduct.badge}
                 onChange={(e) => setNewProduct({ ...newProduct, badge: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
@@ -236,20 +388,36 @@ export default function ProductsTab({
                 placeholder="VD: Vườn nhà Tâm (Phước Hậu, Ninh Phước) hoặc Cảng cá Cà Ná"
                 value={newProduct.source}
                 onChange={(e) => setNewProduct({ ...newProduct, source: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
+            {/* 2. CUSTOM DROPDOWN TÌNH TRẠNG KHO */}
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Tình trạng kho</label>
-              <select
-                value={newProduct.inStock ? 'true' : 'false'}
-                onChange={(e) => setNewProduct({ ...newProduct, inStock: e.target.value === 'true' })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 cursor-pointer focus:outline-none focus:border-amber-600"
-              >
-                <option value="true">Đang có sẵn ở vườn (Đang bán)</option>
-                <option value="false">Tạm hết lứa</option>
-              </select>
+              <CustomSelect
+                label="Tình trạng kho"
+                headerLabel="TRẠNG THÁI MỞ BÁN:"
+                options={STOCK_STATUS_OPTIONS}
+                value={newProduct.inStock}
+                onChange={(newStockVal) => setNewProduct({ ...newProduct, inStock: newStockVal })}
+                renderSelected={(opt) => (
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${opt?.dotClass} ${opt?.value ? 'animate-pulse' : ''}`} />
+                    <span>{opt?.label}</span>
+                  </div>
+                )}
+                renderOption={(opt) => (
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <span className={`w-2 h-2 rounded-full ${opt.dotClass}`} />
+                      <span>{opt.label}</span>
+                    </div>
+                    <p className="text-[10px] text-stone-400 pl-3.5 font-light">
+                      {opt.subLabel}
+                    </p>
+                  </div>
+                )}
+              />
             </div>
           </div>
 
@@ -341,14 +509,14 @@ export default function ProductsTab({
               placeholder="Quả mọng, ngọt đậm vị thanh mát tự nhiên..."
               value={newProduct.desc}
               onChange={(e) => setNewProduct({ ...newProduct, desc: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600 leading-relaxed"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600 leading-relaxed"
             />
           </div>
 
           <div className="flex items-center justify-end pt-1">
             <button
               type="submit"
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Đăng Sản Phẩm Mới</span>

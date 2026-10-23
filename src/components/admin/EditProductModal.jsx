@@ -1,6 +1,6 @@
 // src/components/admin/EditProductModal.jsx
-import React, { useState, useEffect } from 'react';
-import { X, Check, Plus, Trash2, Star, Layers } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Check, Plus, Trash2, Star, Layers, ChevronDown } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
@@ -14,10 +14,168 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
 ];
 
+// CÁC TÙY CHỌN CƠ CHẾ TÍNH GIÁ
+const CALC_TYPE_OPTIONS = [
+  { value: 'multiplier', label: 'Nhân hệ số (x)' },
+  { value: 'fixed', label: 'Giá cố định (VNĐ)' }
+];
+
+// 1. DROPDOWN CHỌN LOẠI TÍNH GIÁ QUY CÁCH (BO TRÒN, KHÔNG BỊ VUÔNG XANH)
+function CustomCalcTypeSelect({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  const selectedOpt = CALC_TYPE_OPTIONS.find((o) => o.value === value) || CALC_TYPE_OPTIONS[0];
+
+  return (
+    <div className="relative w-36 shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full py-2 px-2.5 rounded-xl border text-left flex items-center justify-between gap-1 transition-all duration-200 cursor-pointer text-xs ${
+          isOpen
+            ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
+            : 'bg-stone-50 hover:bg-white border-stone-200 hover:border-amber-400 text-stone-800'
+        }`}
+      >
+        <span className="font-semibold truncate">{selectedOpt.label}</span>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-stone-500 shrink-0 transition-transform duration-200 ${
+            isOpen ? 'rotate-180 text-amber-700' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-30 p-1 rounded-2xl bg-white border border-amber-200/90 shadow-xl space-y-0.5 animate-fadeIn text-xs">
+          {CALC_TYPE_OPTIONS.map((opt) => {
+            const isSelected = opt.value === value;
+            return (
+              <div
+                key={opt.value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`px-2.5 py-2 rounded-xl cursor-pointer flex items-center justify-between transition-all ${
+                  isSelected
+                    ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80'
+                    : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                }`}
+              >
+                <span className="truncate">{opt.label}</span>
+                {isSelected && (
+                  <Check className="w-3.5 h-3.5 text-amber-800 shrink-0 stroke-[2.5]" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 2. DROPDOWN DANH MỤC PHÂN LOẠI
+function CustomCategorySelect({ label, options = [], value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const selectedOpt = options.find((opt) => opt.id === value) || options[0];
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      {label && <label className="font-semibold text-stone-600 block mb-1 text-xs">{label}</label>}
+
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
+          isOpen
+            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
+            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-bold text-stone-900 truncate">{selectedOpt?.label}</span>
+          <span className="text-[11px] font-mono text-stone-400 font-normal shrink-0">
+            ({selectedOpt?.id})
+          </span>
+        </div>
+
+        <ChevronDown
+          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-amber-700' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs">
+          <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400">
+            DANH SÁCH MẪU TRONG DATABASE:
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {options.map((opt) => {
+              const isSelected = opt.id === value;
+
+              return (
+                <div
+                  key={opt.id}
+                  onClick={() => {
+                    onChange(opt.id);
+                    setIsOpen(false);
+                  }}
+                  className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                    isSelected
+                      ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs'
+                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate">{opt.label}</span>
+                    <span className={`text-[10.5px] font-mono ${isSelected ? 'text-amber-800' : 'text-stone-400'}`}>
+                      ({opt.id})
+                    </span>
+                  </div>
+
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EditProductModal({ product, onClose, onSave }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
 
-  // Load danh mục động từ bảng categories nếu có
   useEffect(() => {
     async function loadDbCategories() {
       try {
@@ -92,7 +250,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
     const updated = [...formData.weights];
     const currentRow = { ...updated[index], [field]: value };
 
-    // Tự động đồng bộ trường multiplier & price_override theo calcType
     if (field === 'calcType' || field === 'val') {
       const type = field === 'calcType' ? value : currentRow.calcType;
       const valNum = Number(field === 'val' ? value : currentRow.val) || 0;
@@ -185,7 +342,9 @@ export default function EditProductModal({ product, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        
+        {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-3">
           <div>
             <h3 className="text-sm font-black text-stone-900">Chỉnh Sửa Đặc Sản & Quy Cách</h3>
@@ -194,7 +353,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
           <button
             type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer transition-colors"
+            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -208,24 +367,18 @@ export default function EditProductModal({ product, onClose, onSave }) {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Danh mục *</label>
-              <select
+              <CustomCategorySelect
+                label="Danh mục *"
+                options={categories}
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 cursor-pointer font-medium focus:outline-none focus:border-amber-600"
-              >
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.label} ({cat.id})
-                  </option>
-                ))}
-              </select>
+                onChange={(newCatId) => setFormData({ ...formData, category: newCatId })}
+              />
             </div>
 
             <div>
@@ -237,7 +390,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 step="1000"
                 value={formData.basePrice}
                 onChange={(e) => setFormData({ ...formData, basePrice: Number(e.target.value) || 0 })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -248,7 +401,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 placeholder="VD: kg, hộp, chai, đòn..."
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
@@ -261,7 +414,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 placeholder="VD: Vườn Phước Hậu, Làng chài Cà Ná..."
                 value={formData.source}
                 onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
@@ -272,7 +425,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
                 placeholder="VD: BÁN CHẠY, HÁI SỚM, MỚI..."
                 value={formData.badge}
                 onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
               />
             </div>
           </div>
@@ -332,16 +485,11 @@ export default function EditProductModal({ product, onClose, onSave }) {
                     />
                   </div>
 
-                  <div className="w-32 shrink-0">
-                    <select
-                      value={w.calcType}
-                      onChange={(e) => handleUpdateWeightRow(index, 'calcType', e.target.value)}
-                      className="w-full p-2 rounded-lg border border-stone-200 text-xs font-medium text-stone-700 cursor-pointer focus:outline-none focus:border-amber-600 bg-stone-50"
-                    >
-                      <option value="multiplier">Nhân hệ số (x)</option>
-                      <option value="fixed">Giá cố định (VNĐ)</option>
-                    </select>
-                  </div>
+                  {/* THAY THẾ SELECT CŨ BẰNG CUSTOM DROPDOWN BO GÓC TRÒN */}
+                  <CustomCalcTypeSelect
+                    value={w.calcType}
+                    onChange={(val) => handleUpdateWeightRow(index, 'calcType', val)}
+                  />
 
                   <div className="w-28 shrink-0">
                     <input
@@ -385,7 +533,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
               placeholder="Giới thiệu hương vị, độ ngọt, độ giòn và cách dùng..."
               value={formData.desc}
               onChange={(e) => setFormData({ ...formData, desc: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600"
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600"
             />
           </div>
 
@@ -410,7 +558,7 @@ export default function EditProductModal({ product, onClose, onSave }) {
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
                 <Check className="w-3.5 h-3.5" />
                 <span>Lưu Thay Đổi Sản Phẩm</span>

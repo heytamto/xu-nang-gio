@@ -13,12 +13,13 @@ import {
   HeartHandshake 
 } from 'lucide-react';
 
+// ĐỒNG BỘ CHUẨN SLUG TIẾNG ANH TỪ DATABASE SUPABASE & PostsTab
 const CATEGORY_LABELS = {
   'all': 'Tất cả bài viết',
-  'cam-nang': 'Cẩm nang chọn quả',
-  'suc-khoe': 'Dinh dưỡng & Sức khỏe',
-  'mon-ngon': 'Góc bếp & Món ngon',
-  'meo-vat': 'Mẹo vặt bảo quản'
+  'handbook': 'Cẩm nang chọn quả',
+  'health': 'Dinh dưỡng & Sức khỏe',
+  'cuisine': 'Góc bếp & Món ngon',
+  'tips': 'Mẹo vặt bảo quản'
 };
 
 function formatDate(dateVal) {
@@ -40,9 +41,20 @@ export default function BlogPage({ posts = [] }) {
 
   const rawPostList = Array.isArray(posts) ? posts : [];
 
+  // Chuẩn hóa slug cũ (nếu có bài cũ) về slug tiếng Anh
+  const normalizeCategory = (cat) => {
+    const map = {
+      'cam-nang': 'handbook',
+      'suc-khoe': 'health',
+      'mon-ngon': 'cuisine',
+      'meo-vat': 'tips'
+    };
+    return map[cat] || cat;
+  };
+
   const filteredPosts = useMemo(() => {
     if (selectedCategory === 'all') return rawPostList;
-    return rawPostList.filter(p => (p.category || p.tag) === selectedCategory);
+    return rawPostList.filter(p => normalizeCategory(p.category || p.tag) === selectedCategory);
   }, [rawPostList, selectedCategory]);
 
   const featuredPost = filteredPosts[0];
@@ -85,20 +97,22 @@ export default function BlogPage({ posts = [] }) {
         </section>
       )}
 
-      {/* ================= 2. GIAO DIỆN XEM CHI TIẾT BÀI VIẾT ================= */}
+      {/* ================= 2. GIAO DIỆN XEM CHI TIẾT BÀI VIẾT (CÂN THẲNG HÀNG VỚI NAVBAR) ================= */}
       {activePost ? (
-        <article className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
-          <div className="flex items-center justify-between pb-4 border-b border-stone-200">
+        <article className="w-full space-y-8 sm:space-y-10 animate-fadeIn">
+          
+          {/* THANH ĐIỀU HƯỚNG QUAY LẠI & CHIA SẺ */}
+          <div className="flex items-center justify-between pb-4 border-b border-stone-200/90 w-full">
             <button
               type="button"
               onClick={() => {
                 setActivePost(null);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="group inline-flex items-center gap-2 text-xs font-bold text-stone-600 hover:text-amber-800 transition-colors cursor-pointer"
+              className="group inline-flex items-center gap-2.5 text-xs sm:text-sm font-bold text-stone-600 hover:text-amber-800 transition-colors cursor-pointer"
             >
-              <div className="p-2 rounded-xl bg-stone-100 group-hover:bg-amber-100 transition-colors">
-                <ArrowLeft className="w-4 h-4" />
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-white border border-stone-200/80 group-hover:bg-amber-100 group-hover:border-amber-300 transition-all shadow-2xs">
+                <ArrowLeft className="w-4 h-4 text-stone-700 group-hover:text-amber-800" />
               </div>
               <span>Quay lại tất cả bài viết</span>
             </button>
@@ -106,53 +120,55 @@ export default function BlogPage({ posts = [] }) {
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
               title="Sao chép liên kết bài viết"
             >
-              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}
-              <span>{isCopied ? 'Đã chép link' : 'Chia sẻ'}</span>
+              {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-stone-600" />}
+              <span>{isCopied ? 'Đã chép link' : 'Chia sẻ bài viết'}</span>
             </button>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3 text-xs">
-              <span className="font-bold text-amber-800 bg-amber-100/80 border border-amber-300 px-3 py-1 rounded-full uppercase text-[10.5px] tracking-wide">
-                {CATEGORY_LABELS[activePost.category || activePost.tag] || activePost.category || activePost.tag || 'Cẩm nang'}
+          {/* TIÊU ĐỀ & METADATA */}
+          <div className="space-y-4 w-full">
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm">
+              <span className="font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-3.5 py-1 rounded-full uppercase text-[11px] tracking-wider">
+                {CATEGORY_LABELS[normalizeCategory(activePost.category || activePost.tag)] || activePost.category || 'Cẩm nang'}
               </span>
 
               {(activePost.created_at || activePost.date) && (
                 <span className="flex items-center gap-1.5 text-stone-500 font-medium">
-                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  <Calendar className="w-4 h-4 text-amber-600" />
                   <span>{formatDate(activePost.created_at || activePost.date)}</span>
                 </span>
               )}
 
               {(activePost.read_time || activePost.readTime) && (
                 <span className="flex items-center gap-1.5 text-stone-500 font-medium">
-                  <Clock className="w-3.5 h-3.5 text-stone-400" />
+                  <Clock className="w-4 h-4 text-stone-400" />
                   <span>{activePost.read_time || activePost.readTime}</span>
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl sm:text-4xl font-black text-stone-900 leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-stone-900 leading-tight tracking-tight">
               {activePost.title}
             </h1>
 
-            <div className="flex items-center gap-3 pt-2">
-              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-sm border border-amber-200 shadow-2xs">
+            <div className="flex items-center gap-3.5 pt-2">
+              <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base border border-amber-200 shadow-2xs">
                 {activePost.author ? activePost.author.charAt(0) : 'T'}
               </div>
-              <div className="text-xs">
-                <span className="font-bold text-stone-900 block">{activePost.author || 'Tâm Xứ Nắng'}</span>
+              <div className="text-xs sm:text-sm">
+                <span className="font-bold text-stone-900 block">{activePost.author || 'Tâm (Vườn Xứ Nắng Gió)'}</span>
                 <span className="text-stone-400 font-light">Người kể chuyện vườn Phan Rang</span>
               </div>
             </div>
           </div>
 
-          <div className="relative aspect-16/9 w-full rounded-3xl overflow-hidden bg-stone-100 border border-stone-200 shadow-sm">
+          {/* ẢNH BÌA BÀI VIẾT: RỘNG ĐẦY ĐỦ KHUNG 100% CÂN VỚI BANNER */}
+          <div className="relative aspect-16/9 sm:aspect-21/9 w-full rounded-3xl overflow-hidden bg-stone-100 border border-stone-200 shadow-sm">
             <img
-              src={activePost.image || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
+              src={activePost.image || activePost.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
               alt={activePost.title}
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -161,27 +177,31 @@ export default function BlogPage({ posts = [] }) {
             />
           </div>
 
-          {(activePost.excerpt || activePost.summary) && (
-            <div className="p-5 sm:p-6 rounded-2xl bg-amber-50/70 border-l-4 border-amber-600 text-stone-800 font-medium text-sm sm:text-base leading-relaxed italic">
-              "{activePost.excerpt || activePost.summary}"
+          {/* TRÍCH DẪN NGẮN (EXCERPT) */}
+          {(activePost.excerpt || activePost.summary || activePost.desc) && (
+            <div className="p-6 sm:p-7 rounded-3xl bg-amber-50/80 border-l-4 border-amber-600 text-stone-800 font-medium text-base sm:text-lg leading-relaxed italic shadow-2xs">
+              "{activePost.excerpt || activePost.summary || activePost.desc}"
             </div>
           )}
 
-          <div className="max-w-3xl mx-auto text-sm sm:text-base text-stone-700 leading-relaxed font-light whitespace-pre-line space-y-5 pt-2">
+          {/* NỘI DUNG CHI TIẾT */}
+          <div className="text-base sm:text-lg text-stone-700 leading-relaxed font-light whitespace-pre-line space-y-6 pt-2">
             {activePost.content || activePost.excerpt || activePost.summary}
           </div>
 
-          <div className="mt-12 p-6 sm:p-8 rounded-3xl bg-stone-900 text-white flex flex-col sm:flex-row items-center gap-5 shadow-lg border border-stone-800">
+          {/* BANNER HỖ TRỢ CHÂN TRANG */}
+          <div className="mt-14 p-6 sm:p-8 rounded-3xl bg-stone-900 text-white flex flex-col sm:flex-row items-center gap-5 shadow-xl border border-stone-800 w-full">
             <div className="w-12 h-12 rounded-2xl bg-amber-600/30 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
               <HeartHandshake className="w-6 h-6" />
             </div>
             <div className="space-y-1 text-center sm:text-left flex-1">
-              <h4 className="font-bold text-sm sm:text-base text-white">Bạn cần tư vấn thêm về cách bảo quản?</h4>
-              <p className="text-xs text-stone-400 font-light leading-relaxed">
-                Đừng ngại nhắn cho Tâm qua Zalo hoặc Hotline nếu hoa quả nhận về gặp bất kỳ sự cố dập nát nào trong quá trình gửi xe nhé.
+              <h4 className="font-bold text-base sm:text-lg text-white">Bạn cần tư vấn thêm về cách chọn và bảo quản?</h4>
+              <p className="text-xs sm:text-sm text-stone-400 font-light leading-relaxed">
+                Đừng ngại nhắn cho vườn qua Hotline hoặc Zalo nếu hoa quả nhận về gặp bất kỳ sự cố dập nát nào trong quá trình chuyển xe nhé.
               </p>
             </div>
           </div>
+
         </article>
       ) : (
         /* ================= 3. DANH SÁCH BÀI VIẾT ================= */
@@ -192,7 +212,7 @@ export default function BlogPage({ posts = [] }) {
             {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
               const count = key === 'all' 
                 ? rawPostList.length 
-                : rawPostList.filter(p => (p.category || p.tag) === key).length;
+                : rawPostList.filter(p => normalizeCategory(p.category || p.tag) === key).length;
 
               return (
                 <button
@@ -200,8 +220,8 @@ export default function BlogPage({ posts = [] }) {
                   type="button"
                   onClick={() => setSelectedCategory(key)}
                   className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    selectedCategory === key
-                      ? 'bg-amber-800 text-white shadow-sm'
+                    selectedCategory === key 
+                      ? 'bg-amber-800 text-white shadow-sm' 
                       : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50 hover:border-stone-300'
                   }`}
                 >
@@ -235,7 +255,7 @@ export default function BlogPage({ posts = [] }) {
                 >
                   <div className="lg:col-span-7 h-64 sm:h-80 lg:h-96 rounded-2xl overflow-hidden bg-stone-100 relative shadow-inner">
                     <img
-                      src={featuredPost.image}
+                      src={featuredPost.image || featuredPost.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
                       alt={featuredPost.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       loading="lazy"
@@ -252,7 +272,7 @@ export default function BlogPage({ posts = [] }) {
                   <div className="lg:col-span-5 space-y-3.5">
                     <div className="flex items-center gap-3 text-xs text-stone-400">
                       <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md uppercase text-[10px]">
-                        {CATEGORY_LABELS[featuredPost.category || featuredPost.tag] || 'Cẩm nang'}
+                        {CATEGORY_LABELS[normalizeCategory(featuredPost.category || featuredPost.tag)] || 'Cẩm nang'}
                       </span>
                       {(featuredPost.created_at || featuredPost.date) && (
                         <span className="flex items-center gap-1 font-medium text-stone-500">
@@ -273,7 +293,7 @@ export default function BlogPage({ posts = [] }) {
                     </h2>
 
                     <p className="text-xs sm:text-sm text-stone-500 line-clamp-3 leading-relaxed font-light">
-                      {featuredPost.excerpt || featuredPost.summary || featuredPost.content}
+                      {featuredPost.excerpt || featuredPost.summary || featuredPost.desc || featuredPost.content}
                     </p>
 
                     <div className="pt-2 flex items-center gap-2 text-xs font-bold text-amber-800 group-hover:translate-x-1 transition-transform">
@@ -299,16 +319,16 @@ export default function BlogPage({ posts = [] }) {
                       <div>
                         <div className="relative aspect-16/10 overflow-hidden bg-stone-100">
                           <img 
-                            src={post.image} 
+                            src={post.image || post.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"} 
                             alt={post.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                             loading="lazy"
                             onError={(e) => {
                               e.currentTarget.src = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80";
                             }}
                           />
                           <span className="absolute bottom-3 left-3 bg-stone-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">
-                            {CATEGORY_LABELS[post.category || post.tag] || 'Cẩm nang'}
+                            {CATEGORY_LABELS[normalizeCategory(post.category || post.tag)] || 'Cẩm nang'}
                           </span>
                         </div>
 
@@ -333,7 +353,7 @@ export default function BlogPage({ posts = [] }) {
                           </h3>
 
                           <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed font-light">
-                            {post.excerpt || post.summary || post.content}
+                            {post.excerpt || post.summary || post.desc || post.content}
                           </p>
                         </div>
                       </div>
