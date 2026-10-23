@@ -142,11 +142,18 @@ function StatusSelectDropdown({
   }, []);
 
   return (
-    <div ref={dropdownRef} className="relative inline-block text-left">
+    <div 
+      ref={dropdownRef} 
+      className="relative inline-block text-left"
+      onClick={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         disabled={isProcessing}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
         className={`text-[11px] font-bold px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50 ${statusMeta.bg}`}
       >
         <span>{statusMeta.label}</span>
@@ -172,7 +179,8 @@ function StatusSelectDropdown({
               <button
                 key={nextStatusCode}
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setIsOpen(false);
                   onSelectStatus(ord, nextStatusCode);
                 }}
@@ -238,31 +246,31 @@ function DashboardOrderRow({
 
   return (
     <div 
-      className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans ${
-        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/20' : ''
+      // 👉 Click vào bất kỳ đâu trên hàng là toggle chọn/bỏ chọn
+      onClick={() => onToggleSelect(ord.code)}
+      className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans cursor-pointer select-none ${
+        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : ''
       } ${
-        isBombedRisk 
+        !isSelected && isBombedRisk 
           ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-400 shadow-2xs' 
-          : isCancelledRisk
+          : !isSelected && isCancelledRisk
             ? 'bg-amber-50/50 border-amber-200 ring-1 ring-amber-300'
-            : isPardoned
+            : !isSelected && isPardoned
               ? 'bg-emerald-50/30 border-emerald-200/80'
-              : 'bg-white border-stone-200/90 shadow-2xs'
+              : !isSelected
+                ? 'bg-white border-stone-200/90 shadow-2xs hover:border-amber-300/80'
+                : ''
       }`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-start gap-2.5 flex-1 min-w-0">
-          <button
-            type="button"
-            onClick={() => onToggleSelect(ord.code)}
-            className="mt-1 text-stone-400 hover:text-amber-800 transition-colors cursor-pointer shrink-0"
-          >
+          <div className="mt-1 text-stone-400 hover:text-amber-800 transition-colors shrink-0">
             {isSelected ? (
               <CheckSquare className="w-4 h-4 text-amber-800 fill-amber-100" />
             ) : (
               <Square className="w-4 h-4 text-stone-300 hover:text-stone-500" />
             )}
-          </button>
+          </div>
 
           <div className="space-y-1.5 flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -274,6 +282,7 @@ function DashboardOrderRow({
               {ord.phone && (
                 <a
                   href={`tel:${ord.phone}`}
+                  onClick={(e) => e.stopPropagation()}
                   className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
                     isBombedRisk
                       ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-2xs'
@@ -365,7 +374,10 @@ function DashboardOrderRow({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div 
+            className="flex items-center gap-1.5"
+            onClick={(e) => e.stopPropagation()}
+          >
             {isLockedStatus ? (
               <div className="flex items-center gap-1">
                 <div 
@@ -379,7 +391,10 @@ function DashboardOrderRow({
                 {!isInspectingRefer && (
                   <button
                     type="button"
-                    onClick={() => onOpenOverride(ord)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenOverride(ord);
+                    }}
                     className="p-1.5 text-stone-400 hover:text-amber-700 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
                     title="Đính chính lại trạng thái (Khi nhân viên bấm nhầm)"
                   >
@@ -403,7 +418,10 @@ function DashboardOrderRow({
               <button
                 type="button"
                 disabled={isProcessing}
-                onClick={() => onDeleteOrder(ord.code)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteOrder(ord.code);
+                }}
                 className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
                 title="Xóa đơn hàng"
               >
@@ -415,20 +433,26 @@ function DashboardOrderRow({
       </div>
 
       {(hasRisk || isPardoned) && primaryRefer && (
-        <div className={`p-2.5 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
-          isBombedRisk 
-            ? 'bg-white border-red-200 text-red-950' 
-            : isPardoned
-              ? 'bg-white border-emerald-200 text-emerald-950'
-              : 'bg-white border-amber-200 text-amber-950'
-        }`}>
+        <div 
+          onClick={(e) => e.stopPropagation()}
+          className={`p-2.5 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
+            isBombedRisk 
+              ? 'bg-white border-red-200 text-red-950' 
+              : isPardoned
+                ? 'bg-white border-emerald-200 text-emerald-950'
+                : 'bg-white border-amber-200 text-amber-950'
+          }`}
+        >
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-1.5 font-bold">
               <History className={`w-3.5 h-3.5 ${isBombedRisk ? 'text-red-600' : isPardoned ? 'text-emerald-600' : 'text-amber-600'}`} />
               <span>Tham chiếu đơn cũ:</span>
               <button
                 type="button"
-                onClick={() => onInspectRefer(primaryRefer.orderCode)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onInspectRefer(primaryRefer.orderCode);
+                }}
                 className="font-mono font-black text-amber-900 bg-amber-100 hover:bg-amber-200 px-1.5 py-0.2 rounded underline inline-flex items-center gap-0.5 cursor-pointer"
                 title="Bấm để xem ngay đơn gốc này"
               >
@@ -530,32 +554,32 @@ function DashboardOrderGridCard({
 
   return (
     <div 
-      className={`rounded-2xl p-3.5 border transition-all flex flex-col justify-between gap-3 text-xs font-sans shadow-2xs hover:shadow-xs ${
-        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/20' : 'bg-white'
+      // 👉 Click vào bất kỳ đâu trên card khối là toggle chọn/bỏ chọn
+      onClick={() => onToggleSelect(ord.code)}
+      className={`rounded-2xl p-3.5 border transition-all flex flex-col justify-between gap-3 text-xs font-sans shadow-2xs hover:shadow-xs cursor-pointer select-none ${
+        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : 'bg-white'
       } ${
-        isBombedRisk 
+        !isSelected && isBombedRisk 
           ? 'border-rose-300 ring-1 ring-rose-400 bg-rose-50/40' 
-          : isCancelledRisk
+          : !isSelected && isCancelledRisk
             ? 'border-amber-200 ring-1 ring-amber-300 bg-amber-50/30'
-            : isPardoned
+            : !isSelected && isPardoned
               ? 'border-emerald-200/80 bg-emerald-50/20'
-              : 'border-stone-200/90'
+              : !isSelected
+                ? 'border-stone-200/90 hover:border-amber-300/80'
+                : ''
       }`}
     >
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onToggleSelect(ord.code)}
-              className="text-stone-400 hover:text-amber-800 transition-colors cursor-pointer"
-            >
+            <div className="text-stone-400 hover:text-amber-800 transition-colors">
               {isSelected ? (
                 <CheckSquare className="w-4 h-4 text-amber-800 fill-amber-100" />
               ) : (
                 <Square className="w-4 h-4 text-stone-300 hover:text-stone-500" />
               )}
-            </button>
+            </div>
             <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[10.5px]">
               {ord.code}
             </span>
@@ -572,6 +596,7 @@ function DashboardOrderGridCard({
             {ord.phone && (
               <a
                 href={`tel:${ord.phone}`}
+                onClick={(e) => e.stopPropagation()}
                 className="font-mono font-bold text-[11px] text-amber-800 hover:underline flex items-center gap-1"
               >
                 <PhoneCall className="w-3 h-3 text-stone-500" />
@@ -611,7 +636,10 @@ function DashboardOrderGridCard({
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
+        <div 
+          className="flex items-center justify-between gap-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           {isLockedStatus ? (
             <div className="flex items-center gap-1">
               <div className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border flex items-center gap-1 select-none ${statusMeta.bg}`}>
@@ -621,7 +649,10 @@ function DashboardOrderGridCard({
               {!isInspectingRefer && (
                 <button
                   type="button"
-                  onClick={() => onOpenOverride(ord)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenOverride(ord);
+                  }}
                   className="p-1 text-stone-400 hover:text-amber-700 rounded-lg hover:bg-stone-100"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -644,7 +675,10 @@ function DashboardOrderGridCard({
             <button
               type="button"
               disabled={isProcessing}
-              onClick={() => onDeleteOrder(ord.code)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteOrder(ord.code);
+              }}
               className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100"
             >
               <Trash2 className="w-3.5 h-3.5" />
