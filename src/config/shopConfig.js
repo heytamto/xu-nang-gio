@@ -9,7 +9,7 @@ const rawZalo = import.meta.env.VITE_ZALO_PHONE || '0848957345';
 export { VIETQR_BANKS };
 
 export const DEFAULT_SHOP_CONFIG = {
-  // 1. Tài khoản ngân hàng VietQR
+  // 1. Tài khoản ngân hàng VietQR & Chính sách tiền cọc
   bankBin: String(import.meta.env.VITE_BANK_BIN || '970422'),
   bankName: import.meta.env.VITE_BANK_NAME || 'MBBank',
   accountNo: String(import.meta.env.VITE_ACCOUNT_NO || '0848957345'),
@@ -20,14 +20,16 @@ export const DEFAULT_SHOP_CONFIG = {
 
   // 2. Thông tin liên hệ, Địa chỉ & Mạng xã hội từ .env
   brandName: 'Xứ Nắng Gió',
-  tagline: 'Đặc sản hái giàn chuẩn đất Phan Rang',
+  tagline: 'Đặc sản hái giàn chuẩn đất Ninh Thuận',
   hotline: rawHotline,
   phoneNumber: cleanPhone || rawZalo,
   zaloPhone: rawZalo,
   email: import.meta.env.VITE_EMAIL || 'xunanggio@gmail.com',
-  address: import.meta.env.VITE_STORE_ADDRESS || 'Trường Sanh, Phước Hậu, Ninh Phước',
+  address: import.meta.env.VITE_STORE_ADDRESS || 'Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận',
   originProvince: import.meta.env.VITE_ORIGIN_PROVINCE || 'Ninh Thuận',
   warehousePin: '1234',
+  autoSendEmail: true,
+  announcement: 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
   zaloUrl: rawZalo ? `https://zalo.me/${rawZalo}` : '',
   facebookUrl: import.meta.env.VITE_FACEBOOK_URL || 'https://facebook.com/xunanggio',
   tiktokUrl: import.meta.env.VITE_TIKTOK_URL || 'https://tiktok.com/@xunanggio',
@@ -45,48 +47,11 @@ export const DEFAULT_SHOP_CONFIG = {
     { id: 'gft05', title: 'Bánh tráng mắm ruốc nướng', tag: 'Quà Quê', type: 'combo_bonus' },
     { id: 'gft06', title: 'Hũ muối ớt xiêm xanh', tag: 'Gió Biển', type: 'combo_bonus' },
     { id: 'gft07', title: 'Chai mật nho mini 100ml', tag: 'Tri Ân', type: 'payment_reward' }
-  ],
-
-  // 5. Mã giảm giá (Khớp bảng vouchers PostgreSQL)
-  vouchers: [
-    {
-      code: 'TRIAN10',
-      type: 'percent',
-      value: 10,
-      minOrder: 200000,
-      maxDiscount: 50000,
-      canStack: true,
-      usageLimit: 100,
-      usedCount: 0,
-      desc: 'Giảm 10% tối đa 50k cho khách thân thiết ghé vườn'
-    },
-    {
-      code: 'FREESHIP',
-      type: 'fixed',
-      value: 30000,
-      minOrder: 300000,
-      maxDiscount: 30000,
-      canStack: true,
-      usageLimit: 200,
-      usedCount: 0,
-      desc: 'Hỗ trợ 30k cước gửi xe khách đơn từ 300k'
-    },
-    {
-      code: 'LAMQUEN',
-      type: 'fixed',
-      value: 15000,
-      minOrder: 100000,
-      maxDiscount: 15000,
-      canStack: true,
-      usageLimit: 0,
-      usedCount: 0,
-      desc: 'Quà làm quen từ vườn (Giảm 15.000đ cho đơn từ 100k)'
-    }
   ]
 };
 
 /**
- * Đọc cấu hình từ LocalStorage kèm Fallback an toàn
+ * Đọc cấu hình từ LocalStorage kèm Fallback an toàn (Đã loại bỏ cache vouchers thừa)
  */
 export function getShopConfig() {
   try {
@@ -97,15 +62,6 @@ export function getShopConfig() {
       const validAccountNo = (parsed.accountNo && String(parsed.accountNo) !== '0987654321')
         ? String(parsed.accountNo) 
         : DEFAULT_SHOP_CONFIG.accountNo;
-
-      const currentVouchers = Array.isArray(parsed.vouchers) ? parsed.vouchers : [];
-      const mergedVouchers = [...currentVouchers];
-
-      DEFAULT_SHOP_CONFIG.vouchers.forEach((defV) => {
-        if (!mergedVouchers.some((v) => v.code === defV.code)) {
-          mergedVouchers.push(defV);
-        }
-      });
 
       const updatedConfig = {
         ...DEFAULT_SHOP_CONFIG,
@@ -127,10 +83,11 @@ export function getShopConfig() {
         tiktokUrl: parsed.tiktokUrl || DEFAULT_SHOP_CONFIG.tiktokUrl,
         mapDirectionsUrl: parsed.mapDirectionsUrl || DEFAULT_SHOP_CONFIG.mapDirectionsUrl,
         mapEmbedUrl: parsed.mapEmbedUrl || DEFAULT_SHOP_CONFIG.mapEmbedUrl,
+        announcement: parsed.announcement || DEFAULT_SHOP_CONFIG.announcement,
+        autoSendEmail: parsed.autoSendEmail !== undefined ? parsed.autoSendEmail : DEFAULT_SHOP_CONFIG.autoSendEmail,
         giftsCatalog: Array.isArray(parsed.giftsCatalog) && parsed.giftsCatalog.length > 0 
           ? parsed.giftsCatalog 
-          : DEFAULT_SHOP_CONFIG.giftsCatalog,
-        vouchers: mergedVouchers
+          : DEFAULT_SHOP_CONFIG.giftsCatalog
       };
 
       localStorage.setItem('shop_config', JSON.stringify(updatedConfig));

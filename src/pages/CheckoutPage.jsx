@@ -4,7 +4,7 @@ import { ArrowLeft, ShoppingBag, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { 
-  verifyPreviousOrderVoucher, 
+  validateVoucherCode,
   findEligiblePreviousOrderVoucher,
   checkCustomerOrderRisk 
 } from '../services/orderService';
@@ -160,7 +160,7 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
-  // Phân tích lịch sử khách hàng (kết hợp cache local + Supabase rủi ro)
+  // Phân tích lịch sử khách hàng
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
@@ -263,7 +263,7 @@ export default function CheckoutPage({
     };
   }, [cleanPhone, isPhoneValid, shopConfig?.orders, dbRiskData]);
 
-  // Quét tìm đơn cũ đủ điều kiện (Hoàn thành + Review >= 4 sao + Chưa dùng)
+  // Quét tìm đơn cũ đủ điều kiện
   useEffect(() => {
     let isMounted = true;
 
@@ -290,47 +290,38 @@ export default function CheckoutPage({
     return cart.reduce((sum, item) => sum + (Number(item.price || item.base_price || 0) * Number(item.quantity || 1)), 0);
   }, [cart]);
 
-  // Tính toán giảm giá theo Voucher
+  // Tính toán giảm giá theo Voucher (Đọc động percent & maxDiscount từ cấu hình hoặc voucher object)
   const activeDiscount = useMemo(() => {
     if (!appliedVouchers.length) return 0;
-    let totalDisc = 0;
+    
+    const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
+    const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
 
+    let totalDisc = 0;
     appliedVouchers.forEach((v) => {
       if (v.isPreviousOrder || v.isLoyalty) {
-        if (v.discount) {
-          totalDisc += Number(v.discount);
-        } else {
-          const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
-          const disc = Math.round((clientSubtotal * rate) / 100);
-          const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
-          totalDisc += Math.min(disc, maxDisc);
-        }
-        return;
-      }
-
-      const voucherDef = (shopConfig.vouchers || []).find((def) => def.code === v.code);
-      if (voucherDef) {
-        if (clientSubtotal >= (Number(voucherDef.minOrder || voucherDef.min_order) || 0)) {
-          if (voucherDef.type === 'percent') {
-            const disc = Math.round((clientSubtotal * Number(voucherDef.value)) / 100);
-            const maxDisc = Number(voucherDef.maxDiscount || voucherDef.max_discount) || Infinity;
-            totalDisc += Math.min(disc, maxDisc);
-          } else {
-            totalDisc += Number(voucherDef.value || 0);
-          }
-        }
+        // Tự động tính lại theo % của giỏ hàng hiện tại (chuẩn 10% tối đa 50k)
+        const currentRate = Number(v.percent) || rate;
+        const currentMax = Number(v.maxDiscount) || maxDisc;
+        const disc = Math.round((clientSubtotal * currentRate) / 100);
+        totalDisc += Math.min(disc, currentMax);
+      } else {
+        totalDisc += Number(v.discount || v.value || 0);
       }
     });
 
     return Math.min(totalDisc, clientSubtotal);
-  }, [appliedVouchers, clientSubtotal, shopConfig.vouchers, shopConfig.loyaltyDiscountPercent, shopConfig.loyaltyMaxDiscount]);
+  }, [appliedVouchers, clientSubtotal, shopConfig?.loyaltyDiscountPercent, shopConfig?.loyaltyMaxDiscount]);
 
   const activeFinalTotal = Math.max(0, clientSubtotal - activeDiscount);
   const activeSubtotal = clientSubtotal;
   const activeCart = cart;
 
   const paymentGifts = useMemo(() => Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : (shopConfig?.paymentGifts || []), [shopConfig]);
-  const depositAmount = Number(shopConfig?.depositAmount || shopConfig?.deposit_amount) || 100000;
+  
+  // Tiền cọc giữ đơn: Đọc từ cấu hình, không bao giờ vượt quá tổng đơn hàng cuối
+  const configuredDeposit = Number(shopConfig?.depositAmount || shopConfig?.deposit_amount) || 50000;
+  const depositAmount = Math.min(configuredDeposit, activeFinalTotal);
 
   // Tự động chuyển đổi paymentMethod khi rơi vào tập rủi ro
   useEffect(() => {
@@ -355,22 +346,19 @@ export default function CheckoutPage({
           isLoyalty: true, 
           code: eligibleOldOrderVoucher.code, 
           title: `Tri ân khách quen (Đơn thứ ${customerHistory.orderCount + 1})`, 
-          desc: `Giảm ${rate}% từ mã đơn ${eligibleOldOrderVoucher.code} đã đánh giá ${eligibleOldOrderVoucher.rating}★` 
+          desc: `Giảm ${rate}% (tối đa 50.000đ) từ mã đơn ${eligibleOldOrderVoucher.code} đã đánh giá ${eligibleOldOrderVoucher.rating}★` 
         };
       }
       return null;
     }
 
     if (!customerHistory.isOldCustomer && !isWelcomeCodeApplied) {
-      const welcomeVoucher = (shopConfig?.vouchers || []).find((v) => v.code === 'LAMQUEN');
-      if (welcomeVoucher) {
-        return { 
-          isLoyalty: false, 
-          code: 'LAMQUEN', 
-          title: customerHistory.onlyHasBadHistory ? 'Mừng bạn quay lại đặt đơn!' : 'Chào bạn mới ghé vườn!', 
-          desc: welcomeVoucher.desc || 'Ưu đãi 15.000đ cho đơn hàng hoàn tất đầu tiên' 
-        };
-      }
+      return { 
+        isLoyalty: false, 
+        code: 'LAMQUEN', 
+        title: customerHistory.onlyHasBadHistory ? 'Mừng bạn quay lại đặt đơn!' : 'Chào bạn mới ghé vườn!', 
+        desc: 'Ưu đãi cho đơn hàng hoàn tất đầu tiên' 
+      };
     }
 
     return null;
@@ -379,63 +367,31 @@ export default function CheckoutPage({
     isPhoneValid, 
     eligibleOldOrderVoucher, 
     appliedVouchers, 
-    isWelcomeCodeApplied, 
-    shopConfig?.loyaltyDiscountPercent, 
-    shopConfig?.vouchers
+    isWelcomeCodeApplied,
+    shopConfig?.loyaltyDiscountPercent
   ]);
 
-  // Áp dụng mã giảm giá
+  // Áp dụng mã giảm giá trực tiếp từ bảng public.vouchers và mã đơn cũ
   const applySpecificCode = async (codeToApply) => {
     setVoucherError('');
     const code = String(codeToApply || '').trim().toUpperCase();
     if (!code) return;
 
-    if (appliedVouchers.some((v) => v.code === code)) {
-      setVoucherError(`Mã "${code}" đã được áp dụng.`);
+    if (code.startsWith('XNG') && !isPhoneValid) {
+      setVoucherError('Vui lòng nhập số điện thoại hợp lệ trước khi áp dụng mã đơn cũ.');
       return;
     }
 
-    if (code.startsWith('XNG')) {
-      if (!isPhoneValid) {
-        setVoucherError('Vui lòng nhập số điện thoại hợp lệ trước khi áp dụng mã đơn cũ.');
-        return;
-      }
+    setIsValidatingVoucher(true);
+    const result = await validateVoucherCode(code, clientSubtotal, cleanPhone, appliedVouchers);
+    setIsValidatingVoucher(false);
 
-      setIsValidatingVoucher(true);
-      const checkRes = await verifyPreviousOrderVoucher(code, cleanPhone);
-      setIsValidatingVoucher(false);
-
-      if (!checkRes.valid) {
-        setVoucherError(checkRes.message);
-        return;
-      }
-
-      setAppliedVouchers((prev) => [
-        ...prev, 
-        { 
-          code: checkRes.code, 
-          isLoyalty: true, 
-          isPreviousOrder: true, 
-          discount: checkRes.discountAmount 
-        }
-      ]);
-      setVoucherInput('');
+    if (!result.success) {
+      setVoucherError(result.error);
       return;
     }
 
-    const matchedDef = (shopConfig.vouchers || []).find((v) => v.code === code);
-    if (!matchedDef) {
-      setVoucherError(`Mã "${code}" không hợp lệ hoặc đã hết hạn.`);
-      return;
-    }
-
-    const minReq = Number(matchedDef.minOrder || matchedDef.min_order || 0);
-    if (clientSubtotal < minReq) {
-      setVoucherError(`Đơn hàng cần đạt tối thiểu ${minReq.toLocaleString('vi-VN')}đ để dùng mã này.`);
-      return;
-    }
-
-    setAppliedVouchers((prev) => [...prev, { code, isLoyalty: false }]);
+    setAppliedVouchers((prev) => [...prev, result.voucher]);
     setVoucherInput('');
   };
 
@@ -444,7 +400,7 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  // Submit đơn hàng (App.jsx sẽ chịu trách nhiệm lưu DB, mở Modal thành công và gửi Email)
+  // Submit đơn hàng
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -504,7 +460,6 @@ export default function CheckoutPage({
     }
 
     try {
-      // Bàn giao toàn bộ quy trình xử lý đơn hàng & kích hoạt gửi mail cho App.jsx
       if (onSubmitOrder) {
         await onSubmitOrder(orderPayload);
       }

@@ -41,7 +41,7 @@ export default function OrderReviewModal({
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [content, setContent] = useState('');
-  const [imageUrls, setImageUrls] = useState([]); // Mảng URL ảnh đính kèm
+  const [imageUrls, setImageUrls] = useState([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -49,7 +49,6 @@ export default function OrderReviewModal({
 
   if (!isOpen) return null;
 
-  // Gợi ý nhanh: Nhấn để tự thêm hoặc gỡ khỏi ô cảm nhận
   const handleToggleTag = (tagText) => {
     setContent((prev) => {
       const current = prev.trim();
@@ -122,7 +121,7 @@ export default function OrderReviewModal({
           const { error: mailError } = await supabase.functions.invoke('send-order-email', {
             body: {
               to: recipientEmail,
-              template_id: 'tpl0003', // Sử dụng template tpl0003 đã chuẩn hóa
+              template_id: 'tpl0003', // Sử dụng template tri ân chuẩn hóa
               customer_name: name.trim(),
               order_code: orderCode.trim(),
               data: {
@@ -332,7 +331,7 @@ export default function OrderReviewModal({
               />
             </div>
 
-            {/* TÍCH HỢP UPLOAD ẢNH NÔNG SẢN THỰC TẾ */}
+            {/* Upload ảnh thực tế */}
             <ImageUploadField
               label="Ảnh chụp kiện hàng thực tế"
               bucket="reviews"

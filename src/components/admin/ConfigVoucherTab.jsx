@@ -23,13 +23,16 @@ export default function ConfigVoucherTab({
     hotline: config.hotline || '0848.957.345',
     zaloPhone: config.zaloPhone || config.hotline || '0848957345',
     warehousePin: config.warehousePin || '1234',
-    address: config.address || 'Thôn Thái An, Xã Vĩnh Hải, Huyện Ninh Hải, Tỉnh Ninh Thuận',
+    address: config.address || 'Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận',
     announcement: config.announcement || 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
     loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
     loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
     autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
-    vouchers: config.vouchers || []
   }));
+
+  // Danh sách voucher lấy từ bảng public.vouchers
+  const [vouchers, setVouchers] = useState([]);
+  const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
@@ -79,7 +82,48 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  // 2. Tải cấu hình từ bảng shop_configs (Key-Value)
+  // 2. Tải danh sách vouchers trực tiếp từ bảng public.vouchers
+  const loadVouchersFromDb = useCallback(async () => {
+    setIsLoadingVouchers(true);
+    try {
+      const { data, error } = await supabase
+        .from('vouchers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // Fallback nếu bảng vouchers không có created_at
+        const { data: fallbackData, error: err2 } = await supabase
+          .from('vouchers')
+          .select('*');
+        if (err2) throw err2;
+        mapAndSetVouchers(fallbackData || []);
+      } else {
+        mapAndSetVouchers(data || []);
+      }
+    } catch (err) {
+      console.error('Lỗi tải danh sách vouchers:', err);
+    } finally {
+      setIsLoadingVouchers(false);
+    }
+  }, []);
+
+  const mapAndSetVouchers = (rows) => {
+    const formatted = rows.map((v) => ({
+      code: v.code,
+      type: v.type || 'percent',
+      value: Number(v.value) || 0,
+      maxDiscount: Number(v.max_discount ?? v.maxDiscount ?? 0),
+      minOrder: Number(v.min_order ?? v.minOrder ?? 0),
+      canStack: v.can_stack ?? v.canStack ?? true,
+      usageLimit: Number(v.usage_limit ?? v.usageLimit ?? 0),
+      usedCount: Number(v.used_count ?? v.usedCount ?? 0),
+      desc: v.description || v.desc || `Ưu đãi mã ${v.code}`
+    }));
+    setVouchers(formatted);
+  };
+
+  // 3. Tải cấu hình chuẩn từ bảng shop_configs
   const loadShopConfigsFromDb = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -94,32 +138,35 @@ export default function ConfigVoucherTab({
           if (typeof val === 'string') {
             try { val = JSON.parse(val); } catch { val = {}; }
           }
-          if (row.key === 'general') {
-            merged = { ...merged, ...val };
-          } else if (row.key === 'general_config') {
-            merged = { ...merged, ...val };
-          } else if (row.key === 'payment' || row.key === 'payment_config') {
-            merged = { ...merged, ...val };
-          } else if (row.key === 'loyalty') {
-            merged.loyaltyDiscountPercent = val?.percent ?? 10;
-            merged.loyaltyMaxDiscount = val?.maxDiscount ?? 50000;
-          } else if (row.key === 'vouchers') {
-            merged.vouchers = Array.isArray(val) ? val : [];
-          } else if (row.key === 'announcement') {
-            merged.announcement = val?.text || '';
+          if (val && typeof val === 'object') {
+            if (row.key === 'general' || row.key === 'general_config') {
+              merged = { ...merged, ...val };
+            } else if (row.key === 'payment' || row.key === 'payment_config') {
+              merged = { ...merged, ...val };
+            } else if (row.key === 'loyalty') {
+              merged.loyaltyDiscountPercent = val?.percent ?? 10;
+              merged.loyaltyMaxDiscount = val?.maxDiscount ?? 50000;
+            } else if (row.key === 'announcement') {
+              merged.announcement = val?.text || '';
+            }
           }
         });
 
         setCfg((prev) => ({
           ...prev,
-          ...merged,
-          vouchers: (merged.vouchers || prev.vouchers || []).map((v) => ({
-            ...v,
-            canStack: v.canStack ?? true,
-            maxDiscount: v.maxDiscount || 0,
-            usageLimit: v.usageLimit !== undefined ? v.usageLimit : 0,
-            usedCount: v.usedCount || 0
-          }))
+          bankBin: merged.bankBin || prev.bankBin,
+          bankName: merged.bankName || prev.bankName,
+          accountNo: merged.accountNo || prev.accountNo,
+          accountName: merged.accountName || prev.accountName,
+          depositAmount: merged.depositAmount !== undefined ? Number(merged.depositAmount) : prev.depositAmount,
+          hotline: merged.hotline || prev.hotline,
+          zaloPhone: merged.zaloPhone || merged.hotline || prev.zaloPhone,
+          warehousePin: merged.warehousePin || prev.warehousePin,
+          address: merged.address || prev.address,
+          announcement: merged.announcement || prev.announcement,
+          loyaltyDiscountPercent: merged.loyaltyDiscountPercent ?? prev.loyaltyDiscountPercent,
+          loyaltyMaxDiscount: merged.loyaltyMaxDiscount ?? prev.loyaltyMaxDiscount,
+          autoSendEmail: merged.autoSendEmail !== undefined ? merged.autoSendEmail : prev.autoSendEmail,
         }));
       }
     } catch (err) {
@@ -129,8 +176,9 @@ export default function ConfigVoucherTab({
 
   useEffect(() => {
     loadTemplatesFromDb();
+    loadVouchersFromDb();
     loadShopConfigsFromDb();
-  }, [loadTemplatesFromDb, loadShopConfigsFromDb]);
+  }, [loadTemplatesFromDb, loadVouchersFromDb, loadShopConfigsFromDb]);
 
   const activeTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || {
     id: 'empty',
@@ -254,88 +302,161 @@ export default function ConfigVoucherTab({
     desc: ''
   });
 
-  const handleAddVoucher = (e) => {
+  // THÊM VOUCHER TRỰC TIẾP VÀO BẢNG public.vouchers
+  const handleAddVoucher = async (e) => {
     e.preventDefault();
     if (!newVoucher.code.trim()) return;
     const formattedCode = newVoucher.code.trim().toUpperCase();
 
-    if (cfg.vouchers.some((v) => v.code === formattedCode)) {
+    if (vouchers.some((v) => v.code === formattedCode)) {
       onShowAlert?.('Mã voucher này đã có trong danh sách.');
       return;
     }
 
-    const updatedVouchers = [
-      ...cfg.vouchers,
-      {
-        ...newVoucher,
-        code: formattedCode,
-        value: Number(newVoucher.value) || 0,
-        maxDiscount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
-        minOrder: Number(newVoucher.minOrder) || 0,
-        usageLimit: Number(newVoucher.usageLimit) || 0,
-        usedCount: 0,
-        canStack: Boolean(newVoucher.canStack),
-        desc: newVoucher.desc.trim() || `Ưu đãi mã ${formattedCode}`
-      }
-    ];
+    const payload = {
+      code: formattedCode,
+      type: newVoucher.type,
+      value: Number(newVoucher.value) || 0,
+      max_discount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
+      min_order: Number(newVoucher.minOrder) || 0,
+      can_stack: Boolean(newVoucher.canStack),
+      usage_limit: Number(newVoucher.usageLimit) || 0,
+      used_count: 0
+    };
 
-    setCfg((prev) => ({ ...prev, vouchers: updatedVouchers }));
-    setNewVoucher({
-      code: '',
-      type: 'percent',
-      value: 10,
-      maxDiscount: 50000,
-      minOrder: 0,
-      canStack: true,
-      usageLimit: 0,
-      desc: ''
-    });
+    try {
+      const { error } = await supabase
+        .from('vouchers')
+        .insert([payload]);
+
+      if (error) throw error;
+
+      setVouchers((prev) => [
+        {
+          ...newVoucher,
+          code: formattedCode,
+          value: Number(newVoucher.value) || 0,
+          maxDiscount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
+          minOrder: Number(newVoucher.minOrder) || 0,
+          usageLimit: Number(newVoucher.usageLimit) || 0,
+          usedCount: 0,
+          canStack: Boolean(newVoucher.canStack),
+          desc: newVoucher.desc.trim() || `Ưu đãi mã ${formattedCode}`
+        },
+        ...prev
+      ]);
+
+      setNewVoucher({
+        code: '',
+        type: 'percent',
+        value: 10,
+        maxDiscount: 50000,
+        minOrder: 0,
+        canStack: true,
+        usageLimit: 0,
+        desc: ''
+      });
+
+      onShowAlert?.(`Đã tạo và kích hoạt mã ${formattedCode} thành công!`);
+    } catch (err) {
+      console.error('Lỗi thêm voucher:', err);
+      onShowAlert?.('Không thể thêm voucher: ' + err.message);
+    }
   };
 
-  const handleToggleVoucherStack = (code) => {
-    setCfg((prev) => ({
-      ...prev,
-      vouchers: prev.vouchers.map((v) => (v.code === code ? { ...v, canStack: !v.canStack } : v))
-    }));
+  // ĐỔI TRẠNG THÁI GỘP MÃ (can_stack) TRỰC TIẾP TRÊN DB
+  const handleToggleVoucherStack = async (code) => {
+    const current = vouchers.find((v) => v.code === code);
+    if (!current) return;
+    const nextVal = !current.canStack;
+
+    try {
+      const { error } = await supabase
+        .from('vouchers')
+        .update({ can_stack: nextVal })
+        .eq('code', code);
+
+      if (error) throw error;
+
+      setVouchers((prev) =>
+        prev.map((v) => (v.code === code ? { ...v, canStack: nextVal } : v))
+      );
+    } catch (err) {
+      console.error('Lỗi cập nhật gộp mã:', err);
+      onShowAlert?.('Lỗi cập nhật voucher: ' + err.message);
+    }
   };
 
+  // XÓA VOUCHER TRỰC TIẾP KHỎI BẢNG public.vouchers
   const handleRemoveVoucher = (code) => {
     setConfirmModalConfig({
       isAlert: false,
       title: 'Xóa Voucher',
-      message: `Bạn có chắc chắn muốn gỡ voucher ${code} khỏi danh sách?`,
+      message: `Bạn có chắc chắn muốn gỡ vĩnh viễn voucher "${code}" khỏi cơ sở dữ liệu?`,
       confirmLabel: 'Xác nhận xóa',
-      onConfirm: () => {
-        setCfg((prev) => ({
-          ...prev,
-          vouchers: prev.vouchers.filter((v) => v.code !== code)
-        }));
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase
+            .from('vouchers')
+            .delete()
+            .eq('code', code);
+
+          if (error) throw error;
+
+          setVouchers((prev) => prev.filter((v) => v.code !== code));
+          onShowAlert?.(`Đã xóa mã ${code} thành công!`);
+        } catch (err) {
+          console.error('Lỗi xóa voucher:', err);
+          onShowAlert?.('Lỗi khi xóa voucher: ' + err.message);
+        }
       }
     });
   };
 
-  const handleSaveEditedVoucher = (e) => {
+  // CẬP NHẬT VOUCHER TRỰC TIẾP LÊN DB
+  const handleSaveEditedVoucher = async (e) => {
     e.preventDefault();
     if (!editingVoucher) return;
 
-    setCfg((prev) => ({
-      ...prev,
-      vouchers: prev.vouchers.map((v) =>
-        v.code === editingVoucher.code
-          ? {
-              ...editingVoucher,
-              value: Number(editingVoucher.value) || 0,
-              maxDiscount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
-              minOrder: Number(editingVoucher.minOrder) || 0,
-              usageLimit: Number(editingVoucher.usageLimit) || 0,
-              canStack: Boolean(editingVoucher.canStack),
-              desc: (editingVoucher.desc || '').trim()
-            }
-          : v
-      )
-    }));
+    const payload = {
+      type: editingVoucher.type,
+      value: Number(editingVoucher.value) || 0,
+      max_discount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
+      min_order: Number(editingVoucher.minOrder) || 0,
+      usage_limit: Number(editingVoucher.usageLimit) || 0,
+      can_stack: Boolean(editingVoucher.canStack)
+    };
 
-    setEditingVoucher(null);
+    try {
+      const { error } = await supabase
+        .from('vouchers')
+        .update(payload)
+        .eq('code', editingVoucher.code);
+
+      if (error) throw error;
+
+      setVouchers((prev) =>
+        prev.map((v) =>
+          v.code === editingVoucher.code
+            ? {
+                ...editingVoucher,
+                value: Number(editingVoucher.value) || 0,
+                maxDiscount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
+                minOrder: Number(editingVoucher.minOrder) || 0,
+                usageLimit: Number(editingVoucher.usageLimit) || 0,
+                canStack: Boolean(editingVoucher.canStack),
+                desc: (editingVoucher.desc || '').trim()
+              }
+            : v
+        )
+      );
+
+      setEditingVoucher(null);
+      onShowAlert?.(`Đã cập nhật voucher ${editingVoucher.code}!`);
+    } catch (err) {
+      console.error('Lỗi cập nhật voucher:', err);
+      onShowAlert?.('Lỗi cập nhật: ' + err.message);
+    }
   };
 
   const handleSendTestEmail = async () => {
@@ -380,17 +501,17 @@ export default function ConfigVoucherTab({
     }
   };
 
-  // 3. LƯU THEO CẤU TRÚC KEY-VALUE CHUẨN CỦA BẢNG shop_configs
+  // 4. LƯU CẤU HÌNH GỌN GÀNG VÀO shop_configs & email_templates
   const handleSaveAll = async () => {
     setIsSaving(true);
     try {
       if (onSaveConfig) {
-        onSaveConfig(cfg);
+        onSaveConfig({ ...cfg, vouchers });
       }
 
       const nowIso = new Date().toISOString();
 
-      // Chuẩn bị payload tương ứng từng key trong shop_configs
+      // Chỉ lưu các key cấu hình thiết yếu, loại bỏ phân mảnh
       const configsToUpsert = [
         {
           key: 'general',
@@ -399,20 +520,12 @@ export default function ConfigVoucherTab({
             hotline: cfg.hotline,
             zaloPhone: cfg.zaloPhone,
             brandName: 'Xứ Nắng Gió',
-            tagline: 'Đặc sản hái giàn chuẩn đất Ninh Thuận'
-          },
-          description: 'Thông tin liên hệ chung',
-          updated_at: nowIso
-        },
-        {
-          key: 'general_config',
-          value: {
-            hotline: cfg.hotline.replace(/\D/g, ''),
-            zaloPhone: cfg.zaloPhone.replace(/\D/g, ''),
+            shopName: 'Xứ Nắng Gió',
+            tagline: 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
             warehousePin: cfg.warehousePin,
             autoSendEmail: cfg.autoSendEmail
           },
-          description: 'Cấu hình liên hệ và mã pin',
+          description: 'Thông tin liên hệ chung và cấu hình vận hành',
           updated_at: nowIso
         },
         {
@@ -424,19 +537,7 @@ export default function ConfigVoucherTab({
             accountName: cfg.accountName,
             depositAmount: cfg.depositAmount
           },
-          description: 'Thông tin tài khoản VietQR',
-          updated_at: nowIso
-        },
-        {
-          key: 'payment_config',
-          value: {
-            bankBin: cfg.bankBin,
-            bankName: cfg.bankName,
-            accountNo: cfg.accountNo,
-            accountName: cfg.accountName,
-            depositAmount: cfg.depositAmount
-          },
-          description: 'Thông tin thụ hưởng VietQR',
+          description: 'Thông tin tài khoản VietQR và tiền cọc',
           updated_at: nowIso
         },
         {
@@ -449,12 +550,6 @@ export default function ConfigVoucherTab({
           updated_at: nowIso
         },
         {
-          key: 'vouchers',
-          value: cfg.vouchers,
-          description: 'Danh sách mã ưu đãi voucher',
-          updated_at: nowIso
-        },
-        {
           key: 'announcement',
           value: {
             text: cfg.announcement
@@ -464,7 +559,6 @@ export default function ConfigVoucherTab({
         }
       ];
 
-      // Ghi Key-Value vào bảng shop_configs
       const { error: cfgErr } = await supabase
         .from('shop_configs')
         .upsert(configsToUpsert, { onConflict: 'key' });
@@ -489,7 +583,7 @@ export default function ConfigVoucherTab({
         if (tplErr) throw tplErr;
       }
 
-      onShowAlert?.('Đã lưu thành công Cấu hình Vườn & Email Templates vào Supabase!');
+      onShowAlert?.('Đã lưu thành công cấu hình vận hành & Email templates!');
     } catch (err) {
       console.error('Lỗi lưu cấu hình:', err);
       onShowAlert?.('Lỗi kết nối khi lưu: ' + err.message);
@@ -609,7 +703,7 @@ export default function ConfigVoucherTab({
               type="text"
               value={cfg.address || ''}
               onChange={(e) => setCfg({ ...cfg, address: e.target.value })}
-              placeholder="VD: Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận"
+              placeholder="VD: Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"
               className="w-full p-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium"
             />
           </div>
@@ -631,7 +725,225 @@ export default function ConfigVoucherTab({
         </div>
       </div>
 
-      {/* 2. CẤU HÌNH EMAIL TEMPLATES */}
+      {/* 2. CẤU HÌNH VOUCHER (ĐỒNG BỘ TRỰC TIẾP VỚI BẢNG public.vouchers) */}
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+            <Tag className="w-4 h-4 text-amber-600" />
+            <span>Danh Sách Mã Khuyến Mãi ({vouchers.length} mã)</span>
+          </div>
+          <span className="text-xs text-stone-500 hidden sm:inline">
+            Dữ liệu đồng bộ trực tiếp từ bảng <strong>public.vouchers</strong>
+          </span>
+        </div>
+
+        {/* Danh sách voucher */}
+        {isLoadingVouchers ? (
+          <div className="p-8 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+            <span>Đang tải danh sách voucher từ hệ thống...</span>
+          </div>
+        ) : vouchers.length === 0 ? (
+          <div className="p-6 text-center text-xs text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+            Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu tiên bên dưới!
+          </div>
+        ) : (
+          <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
+            {vouchers.map((v) => {
+              const limit = Number(v.usageLimit) || 0;
+              const used = Number(v.usedCount) || 0;
+              const remaining = limit > 0 ? Math.max(0, limit - used) : 'Vô hạn';
+              const isOutOfStock = limit > 0 && remaining === 0;
+
+              return (
+                <div key={v.code} className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs bg-white">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
+                        {v.code}
+                      </span>
+                      <span className="font-bold text-stone-800">
+                        {v.type === 'percent'
+                          ? `Giảm ${v.value}%${v.maxDiscount ? ` (Tối đa ${Number(v.maxDiscount).toLocaleString('vi-VN')}đ)` : ''}`
+                          : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
+                      </span>
+
+                      {v.canStack ? (
+                        <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>ĐƯỢC GỘP MÃ</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                          <span>ĐỘC QUYỀN (1 MÃ)</span>
+                        </span>
+                      )}
+
+                      {isOutOfStock ? (
+                        <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                          HẾT LƯỢT DÙNG
+                        </span>
+                      ) : (
+                        <span className="bg-stone-100 text-stone-600 font-semibold px-2 py-0.5 rounded-md text-[10px]">
+                          Còn lại: <strong className="font-mono text-amber-900">{remaining}</strong> {limit > 0 ? `(${used}/${limit} đã dùng)` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-stone-500 text-[11px]">
+                      {v.desc ? `${v.desc} • ` : ''}Đơn tối thiểu: <strong className="text-stone-700 font-mono">{v.minOrder ? `${Number(v.minOrder).toLocaleString('vi-VN')}đ` : '0đ'}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleVoucherStack(v.code)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                        v.canStack
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                          : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                      }`}
+                    >
+                      {v.canStack ? 'Cho phép gộp' : 'Không cho gộp'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingVoucher({ ...v })}
+                      className="p-1.5 text-stone-400 hover:text-amber-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                      title="Chỉnh sửa voucher"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVoucher(v.code)}
+                      className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                      title="Xóa voucher"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Form thêm voucher mới */}
+        <form onSubmit={handleAddVoucher} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
+          <span className="font-bold text-xs text-stone-800 block">Tạo voucher mới vào cơ sở dữ liệu:</span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
+            <div>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mã CODE *</label>
+              <input
+                type="text"
+                required
+                placeholder="VD: FREESHIP"
+                value={newVoucher.code}
+                onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value.toUpperCase() })}
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Loại giảm</label>
+              <select
+                value={newVoucher.type}
+                onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium cursor-pointer"
+              >
+                <option value="percent">Giảm theo %</option>
+                <option value="fixed">Giảm số tiền (VNĐ)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                {newVoucher.type === 'percent' ? 'Mức giảm (%) *' : 'Mức giảm (VNĐ) *'}
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={newVoucher.value}
+                onChange={(e) => setNewVoucher({ ...newVoucher, value: e.target.value })}
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold"
+              />
+            </div>
+
+            {newVoucher.type === 'percent' && (
+              <div>
+                <label className="text-[10px] text-stone-500 font-semibold block mb-1">Giảm tối đa (VNĐ)</label>
+                <input
+                  type="number"
+                  placeholder="0 = Không giới hạn"
+                  value={newVoucher.maxDiscount}
+                  onChange={(e) => setNewVoucher({ ...newVoucher, maxDiscount: e.target.value })}
+                  className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Đơn tối thiểu (VNĐ)</label>
+              <input
+                type="number"
+                value={newVoucher.minOrder}
+                onChange={(e) => setNewVoucher({ ...newVoucher, minOrder: e.target.value })}
+                placeholder="0"
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">SL Giới Hạn (Lượt)</label>
+              <input
+                type="number"
+                value={newVoucher.usageLimit}
+                onChange={(e) => setNewVoucher({ ...newVoucher, usageLimit: e.target.value })}
+                placeholder="0 = Vô hạn"
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold text-amber-800"
+              />
+            </div>
+
+            <div className={newVoucher.type === 'percent' ? 'lg:col-span-6' : 'lg:col-span-2'}>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mô tả hiển thị</label>
+              <input
+                type="text"
+                placeholder="VD: Miễn phí vận chuyển cho đơn từ 300k"
+                value={newVoucher.desc}
+                onChange={(e) => setNewVoucher({ ...newVoucher, desc: e.target.value })}
+                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-200/60">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+              <input
+                type="checkbox"
+                checked={newVoucher.canStack}
+                onChange={(e) => setNewVoucher({ ...newVoucher, canStack: e.target.checked })}
+                className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
+              />
+              <span>Cho phép gộp với các voucher khác (canStack)</span>
+            </label>
+
+            <button
+              type="submit"
+              className="px-4 py-2 bg-stone-900 hover:bg-amber-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Thêm Voucher Vào Hệ Thống</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 3. CẤU HÌNH EMAIL TEMPLATES */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
           <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -760,7 +1072,7 @@ export default function ConfigVoucherTab({
             <span>Các biến tự động chèn dữ liệu vào mẫu:</span>
           </div>
           <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
-            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}', '{{CAMPAIGN_PRODUCT_NAME}}'].map((tag) => (
+            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}'].map((tag) => (
               <span key={tag} className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold">
                 {tag}
               </span>
@@ -815,213 +1127,6 @@ export default function ConfigVoucherTab({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 3. CẤU HÌNH VOUCHER */}
-      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-          <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-            <Tag className="w-4 h-4 text-amber-600" />
-            <span>Danh Sách Voucher ({cfg.vouchers.length})</span>
-          </div>
-          <span className="text-xs text-stone-500 hidden sm:inline">
-            Cài đặt <strong>Trần giảm</strong>, <strong>Lượt dùng</strong> và <strong>Cờ gộp mã (canStack)</strong>
-          </span>
-        </div>
-
-        {/* Danh sách voucher */}
-        <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
-          {cfg.vouchers.map((v) => {
-            const limit = Number(v.usageLimit) || 0;
-            const used = Number(v.usedCount) || 0;
-            const remaining = limit > 0 ? Math.max(0, limit - used) : 'Vô hạn';
-            const isOutOfStock = limit > 0 && remaining === 0;
-
-            return (
-              <div key={v.code} className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
-                      {v.code}
-                    </span>
-                    <span className="font-bold text-stone-800">
-                      {v.type === 'percent'
-                        ? `Giảm ${v.value}%${v.maxDiscount ? ` (Tối đa ${Number(v.maxDiscount).toLocaleString('vi-VN')}đ)` : ''}`
-                        : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
-                    </span>
-
-                    {v.canStack ? (
-                      <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                        <Layers className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>ĐƯỢC GỘP MÃ</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                        <span>ĐỘC QUYỀN (1 MÃ)</span>
-                      </span>
-                    )}
-
-                    {isOutOfStock ? (
-                      <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                        HẾT LƯỢT DÙNG
-                      </span>
-                    ) : (
-                      <span className="bg-stone-200 text-stone-700 font-semibold px-2 py-0.5 rounded-md text-[10px]">
-                        Còn lại: <strong className="font-mono text-amber-900">{remaining}</strong> {limit > 0 ? `(${used}/${limit} đã dùng)` : ''}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-stone-500 text-[11px]">
-                    {v.desc ? `${v.desc} • ` : ''}Đơn tối thiểu: <strong className="text-stone-700 font-mono">{v.minOrder ? `${Number(v.minOrder).toLocaleString('vi-VN')}đ` : '0đ'}</strong>
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleVoucherStack(v.code)}
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
-                      v.canStack
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                        : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
-                    }`}
-                  >
-                    {v.canStack ? 'Cho phép gộp' : 'Không cho gộp'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setEditingVoucher({ ...v })}
-                    className="p-1.5 text-stone-400 hover:text-amber-600 rounded-lg hover:bg-stone-200/60 transition-colors cursor-pointer"
-                    title="Chỉnh sửa voucher"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveVoucher(v.code)}
-                    className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-200/60 transition-colors cursor-pointer"
-                    title="Xóa voucher"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Form thêm voucher mới */}
-        <form onSubmit={handleAddVoucher} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
-          <span className="font-bold text-xs text-stone-800 block">Tạo voucher mới:</span>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mã CODE *</label>
-              <input
-                type="text"
-                required
-                placeholder="VD: FREESHIP"
-                value={newVoucher.code}
-                onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value.toUpperCase() })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Loại giảm</label>
-              <select
-                value={newVoucher.type}
-                onChange={(e) => setNewVoucher({ ...newVoucher, type: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium cursor-pointer"
-              >
-                <option value="percent">Giảm theo %</option>
-                <option value="fixed">Giảm số tiền (VNĐ)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
-                {newVoucher.type === 'percent' ? 'Mức giảm (%) *' : 'Mức giảm (VNĐ) *'}
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={newVoucher.value}
-                onChange={(e) => setNewVoucher({ ...newVoucher, value: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold"
-              />
-            </div>
-
-            {newVoucher.type === 'percent' && (
-              <div>
-                <label className="text-[10px] text-stone-500 font-semibold block mb-1">Giảm tối đa (VNĐ)</label>
-                <input
-                  type="number"
-                  placeholder="0 = Không giới hạn"
-                  value={newVoucher.maxDiscount}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, maxDiscount: e.target.value })}
-                  className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Đơn tối thiểu (VNĐ)</label>
-              <input
-                type="number"
-                value={newVoucher.minOrder}
-                onChange={(e) => setNewVoucher({ ...newVoucher, minOrder: e.target.value })}
-                placeholder="0"
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">SL Giới Hạn (Lượt)</label>
-              <input
-                type="number"
-                value={newVoucher.usageLimit}
-                onChange={(e) => setNewVoucher({ ...newVoucher, usageLimit: e.target.value })}
-                placeholder="0 = Vô hạn"
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-mono font-bold text-amber-800"
-              />
-            </div>
-
-            <div className={newVoucher.type === 'percent' ? 'lg:col-span-6' : 'lg:col-span-2'}>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mô tả hiển thị</label>
-              <input
-                type="text"
-                placeholder="VD: Hỗ trợ tiền xe cho đơn từ 200k"
-                value={newVoucher.desc}
-                onChange={(e) => setNewVoucher({ ...newVoucher, desc: e.target.value })}
-                className="w-full p-2 rounded-xl border border-stone-200 bg-white font-medium"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-200/60">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
-              <input
-                type="checkbox"
-                checked={newVoucher.canStack}
-                onChange={(e) => setNewVoucher({ ...newVoucher, canStack: e.target.checked })}
-                className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
-              />
-              <span>Cho phép gộp với các voucher khác (canStack)</span>
-            </label>
-
-            <button
-              type="submit"
-              className="px-4 py-2 bg-stone-900 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Thêm Voucher Vào Hệ Thống</span>
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* 4. NÚT LƯU TOÀN BỘ CẤU HÌNH & TEMPLATES */}
