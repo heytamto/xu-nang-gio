@@ -999,3 +999,32 @@ export async function checkCustomerOrderRisk(phone) {
     return { lastOrderBombed: false, twoRecentCancelled: false, totalOrders: 0 };
   }
 }
+
+/**
+ * LẤY DANH SÁCH REVIEW ĐÃ DUYỆT PHÂN TRANG (ƯU TIÊN RATING CAO & MỚI NHẤT)
+ */
+export async function fetchPaginatedApprovedReviews(page = 0, pageSize = 6) {
+  try {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, count, error } = await supabase
+      .from('reviews')
+      .select('*', { count: 'exact' })
+      .eq('is_approved', true)
+      .order('rating', { ascending: false })     // Ưu tiên 5 sao trước
+      .order('created_at', { ascending: false }) // Ưu tiên mới nhất
+      .range(from, to);
+
+    if (error) throw error;
+
+    return {
+      reviews: data || [],
+      totalCount: count || 0,
+      hasMore: (count || 0) > to + 1
+    };
+  } catch (err) {
+    console.warn('Lỗi fetchPaginatedApprovedReviews:', err);
+    return { reviews: [], totalCount: 0, hasMore: false };
+  }
+}

@@ -4,7 +4,8 @@ import {
   Database, Loader2, RefreshCw, Search, X, 
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
-  Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift
+  Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift,
+  LayoutList, LayoutGrid, CheckSquare, Square, Layers, ArrowRight
 } from 'lucide-react';
 import { formatDateTime, getRemainingCancelMs, formatCountdownTimer } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -40,13 +41,12 @@ const FORWARD_STATUS_MAP = {
 // =========================================================================
 // HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG (HỖ TRỢ MẢNG 3NF, QUÀ TẶNG & TEXT CŨ)
 // =========================================================================
-function renderItemsSummary(items, rawSummary, ord) {
+function renderItemsSummary(items, rawSummary, ord, compact = false) {
   const activeItems = Array.isArray(items) && items.length > 0 ? items : (Array.isArray(ord?.cart) ? ord.cart : null);
 
-  // 1. Ưu tiên render từ quan hệ 3NF order_items / cart của Supabase
   if (Array.isArray(activeItems) && activeItems.length > 0) {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1">
         <div className="space-y-1">
           {activeItems.map((it, idx) => {
             const qty = it.quantity || 1;
@@ -56,23 +56,22 @@ function renderItemsSummary(items, rawSummary, ord) {
             const giftTitle = it.campaign_gift_title || it.campaignGiftTitle;
 
             return (
-              <div key={it.id || idx} className="leading-snug text-stone-800 font-medium">
+              <div key={it.id || idx} className="leading-snug text-stone-800 font-medium text-[11px]">
                 <div className="flex items-center justify-between gap-2">
-                  <span>
+                  <span className="truncate">
                     • {it.name || it.product_name} {spec ? `[${spec}]` : ''}{flavor} <strong className="text-amber-900 font-mono">x{qty}</strong>
                   </span>
-                  {price > 0 && (
-                    <span className="font-mono text-stone-500 text-[10.5px]">
+                  {price > 0 && !compact && (
+                    <span className="font-mono text-stone-500 text-[10.5px] shrink-0">
                       {price.toLocaleString('vi-VN')}đ
                     </span>
                   )}
                 </div>
 
-                {/* Quà tặng đính kèm sản phẩm */}
                 {giftTitle && (
-                  <div className="flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 mt-0.5 ml-2.5">
-                    <Gift className="w-3 h-3 text-emerald-600 shrink-0" />
-                    <span>Tặng kèm: {giftTitle}</span>
+                  <div className="flex items-center gap-1 text-[9.5px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-0.5 ml-2">
+                    <Gift className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                    <span className="truncate">Tặng: {giftTitle}</span>
                   </div>
                 )}
               </div>
@@ -80,18 +79,16 @@ function renderItemsSummary(items, rawSummary, ord) {
           })}
         </div>
 
-        {/* Quà tặng tri ân thanh toán đơn hàng (nếu có) */}
         {ord?.payment_gift && (
-          <div className="flex items-center gap-1.5 text-[10px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200/80 font-bold">
-            <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-            <span>Quà chuyển khoản: {ord.payment_gift}</span>
+          <div className="flex items-center gap-1.5 text-[9.5px] text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/80 font-bold mt-1">
+            <Gift className="w-3 h-3 text-amber-700 shrink-0" />
+            <span className="truncate">Quà CK: {ord.payment_gift}</span>
           </div>
         )}
       </div>
     );
   }
 
-  // 2. Fallback cho chuỗi rawSummary từ dữ liệu cũ
   if (!rawSummary) return <span className="text-stone-400 italic">Chi tiết trong đơn</span>;
 
   if (typeof rawSummary === 'string' && (rawSummary.includes('<div') || rawSummary.includes('<br') || rawSummary.includes('&#8226;'))) {
@@ -106,9 +103,9 @@ function renderItemsSummary(items, rawSummary, ord) {
     const lines = cleanText.split('\n').map((l) => l.trim()).filter(Boolean);
 
     return (
-      <div className="space-y-1">
+      <div className="space-y-0.5">
         {lines.map((line, idx) => (
-          <div key={idx} className="leading-snug text-stone-800 font-medium">
+          <div key={idx} className="leading-snug text-stone-800 font-medium text-[11px] truncate">
             {line.startsWith('•') ? line : `• ${line}`}
           </div>
         ))}
@@ -116,20 +113,7 @@ function renderItemsSummary(items, rawSummary, ord) {
     );
   }
 
-  if (typeof rawSummary === 'string' && rawSummary.includes(',')) {
-    const parts = rawSummary.split(',').map((p) => p.trim()).filter(Boolean);
-    return (
-      <div className="space-y-1">
-        {parts.map((p, idx) => (
-          <div key={idx} className="leading-snug text-stone-800 font-medium">
-            • {p}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return <div className="leading-snug text-stone-800 font-medium">{rawSummary}</div>;
+  return <div className="leading-snug text-stone-800 font-medium text-[11px] truncate">{rawSummary}</div>;
 }
 
 // =========================================================================
@@ -205,11 +189,13 @@ function StatusSelectDropdown({
 }
 
 // =========================================================================
-// SUB-COMPONENT TỪNG DÒNG ĐƠN HÀNG
+// SUB-COMPONENT: DÒNG ĐƠN HÀNG HÀNG NGANG (LIST ROW VIEW)
 // =========================================================================
 function DashboardOrderRow({
   ord,
   riskTrace,
+  isSelected,
+  onToggleSelect,
   isInspectingRefer,
   isProcessing,
   onSelectStatus,
@@ -242,7 +228,6 @@ function DashboardOrderRow({
     return () => clearInterval(timer);
   }, [currentStatusCode]);
 
-  // Áp dụng helper chuẩn hóa UTC, loại trừ hoàn toàn độ lệch múi giờ
   const remainingMs = getRemainingCancelMs(createdAtVal, now, 30);
   const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
 
@@ -254,6 +239,8 @@ function DashboardOrderRow({
   return (
     <div 
       className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans ${
+        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/20' : ''
+      } ${
         isBombedRisk 
           ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-400 shadow-2xs' 
           : isCancelledRisk
@@ -264,95 +251,108 @@ function DashboardOrderRow({
       }`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="space-y-1.5 flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
-              {ord.code}
-            </span>
-            <strong className="text-stone-900 text-sm">{customerName}</strong>
-            
-            {ord.phone && (
-              <a
-                href={`tel:${ord.phone}`}
-                className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
-                  isBombedRisk
-                    ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-2xs'
-                    : isCancelledRisk
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
-                      : isPardoned
-                        ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                        : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
-                }`}
-                title={isBombedRisk ? '⚠️ Khách đang bị treo án bom đơn gần nhất!' : isPardoned ? '✨ Khách từng có đơn xấu nhưng đã khôi phục uy tín thành công' : ''}
-              >
-                <PhoneCall className={`w-3 h-3 ${isBombedRisk || isCancelledRisk ? 'text-white' : 'text-stone-700'}`} />
-                <span>{ord.phone}</span>
-                {isBombedRisk && (
-                  <span className="text-[9px] bg-white text-red-700 px-1 rounded font-black ml-0.5">
-                    ĐANG TREO BOM
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+          <button
+            type="button"
+            onClick={() => onToggleSelect(ord.code)}
+            className="mt-1 text-stone-400 hover:text-amber-800 transition-colors cursor-pointer shrink-0"
+          >
+            {isSelected ? (
+              <CheckSquare className="w-4 h-4 text-amber-800 fill-amber-100" />
+            ) : (
+              <Square className="w-4 h-4 text-stone-300 hover:text-stone-500" />
+            )}
+          </button>
+
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[11px]">
+                {ord.code}
+              </span>
+              <strong className="text-stone-900 text-sm">{customerName}</strong>
+              
+              {ord.phone && (
+                <a
+                  href={`tel:${ord.phone}`}
+                  className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
+                    isBombedRisk
+                      ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-2xs'
+                      : isCancelledRisk
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                        : isPardoned
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                          : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
+                  }`}
+                  title={isBombedRisk ? '⚠️ Khách đang bị treo án bom đơn gần nhất!' : isPardoned ? '✨ Khách từng có đơn xấu nhưng đã khôi phục uy tín thành công' : ''}
+                >
+                  <PhoneCall className={`w-3 h-3 ${isBombedRisk || isCancelledRisk ? 'text-white' : 'text-stone-700'}`} />
+                  <span>{ord.phone}</span>
+                  {isBombedRisk && (
+                    <span className="text-[9px] bg-white text-red-700 px-1 rounded font-black ml-0.5">
+                      ĐANG TREO BOM
+                    </span>
+                  )}
+                </a>
+              )}
+
+              <span className="text-[10.5px] text-stone-400 font-mono inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-stone-400" />
+                <span>({formattedCreatedAt})</span>
+              </span>
+
+              {isBombedRisk ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
+                  <ShieldAlert className="w-3 h-3 text-red-700" />
+                  <span>Khách rủi ro cao</span>
+                </span>
+              ) : isPardoned ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                  <CheckCircle className="w-3 h-3 text-emerald-700" />
+                  <span>Đã khôi phục uy tín</span>
+                </span>
+              ) : isCancelledRisk ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  <History className="w-3 h-3 text-amber-700" />
+                  <span>Từng hủy nhiều lần</span>
+                </span>
+              ) : null}
+
+              {isStillInCancelWindow ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/90 text-amber-950 border border-amber-300 shadow-2xs">
+                  <Clock className="w-3 h-3 text-amber-600 animate-spin" />
+                  <span>
+                    Khách còn <strong>{formatCountdownTimer(remainingMs)}</strong> đổi ý
                   </span>
-                )}
-              </a>
+                </span>
+              ) : currentStatusCode === ORDER_STATUS.PENDING ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Đã qua 30p • Sẵn sàng duyệt</span>
+                </span>
+              ) : null}
+            </div>
+
+            {ord.address && (
+              <p className={`text-[11px] line-clamp-1 p-1 rounded-md transition-colors ${
+                isBombedRisk
+                  ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block'
+                  : isCancelledRisk
+                    ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300 inline-block'
+                    : 'text-stone-600'
+              }`}>
+                📍 <strong>Giao đến:</strong> {ord.address}
+              </p>
             )}
 
-            <span className="text-[10.5px] text-stone-400 font-mono inline-flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-stone-400" />
-              <span>({formattedCreatedAt})</span>
-            </span>
-
-            {isBombedRisk ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
-                <ShieldAlert className="w-3 h-3 text-red-700" />
-                <span>Khách rủi ro cao</span>
-              </span>
-            ) : isPardoned ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                <CheckCircle className="w-3 h-3 text-emerald-700" />
-                <span>Đã khôi phục uy tín</span>
-              </span>
-            ) : isCancelledRisk ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                <History className="w-3 h-3 text-amber-700" />
-                <span>Từng hủy nhiều lần</span>
-              </span>
-            ) : null}
-
-            {isStillInCancelWindow ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100/90 text-amber-950 border border-amber-300 shadow-2xs">
-                <Clock className="w-3 h-3 text-amber-600 animate-spin" />
-                <span>
-                  Khách còn <strong>{formatCountdownTimer(remainingMs)}</strong> đổi ý
+            {(ord.order_items?.length > 0 || ord.cart?.length > 0 || ord.itemsSummary) && (
+              <div className="text-stone-700 text-[11px] bg-stone-50 p-2.5 rounded-xl border border-stone-100">
+                <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
+                  🛍️ Sản phẩm đặt mua:
                 </span>
-              </span>
-            ) : currentStatusCode === ORDER_STATUS.PENDING ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                <span>Đã qua 30p • Sẵn sàng duyệt</span>
-              </span>
-            ) : null}
+                {renderItemsSummary(ord.order_items, ord.itemsSummary, ord)}
+              </div>
+            )}
           </div>
-
-          {ord.address && (
-            <p className={`text-[11px] line-clamp-1 p-1 rounded-md transition-colors ${
-              isBombedRisk
-                ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block'
-                : isCancelledRisk
-                  ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300 inline-block'
-                  : 'text-stone-600'
-            }`}>
-              📍 <strong>Giao đến:</strong> {ord.address}
-            </p>
-          )}
-
-          {/* HIỂN THỊ SẢN PHẨM: ƯU TIÊN 3NF ORDER_ITEMS & QUÀ TẶNG */}
-          {(ord.order_items?.length > 0 || ord.cart?.length > 0 || ord.itemsSummary) && (
-            <div className="text-stone-700 text-[11px] bg-stone-50 p-2.5 rounded-xl border border-stone-100">
-              <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
-                🛍️ Sản phẩm đặt mua:
-              </span>
-              {renderItemsSummary(ord.order_items, ord.itemsSummary, ord)}
-            </div>
-          )}
         </div>
 
         <div className="flex flex-row md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
@@ -482,6 +482,181 @@ function DashboardOrderRow({
 }
 
 // =========================================================================
+// SUB-COMPONENT: DẠNG KHỐI BẢNG / LƯỚI (GRID CARD VIEW)
+// =========================================================================
+function DashboardOrderGridCard({
+  ord,
+  riskTrace,
+  isSelected,
+  onToggleSelect,
+  isInspectingRefer,
+  isProcessing,
+  onSelectStatus,
+  onOpenOverride,
+  onDeleteOrder
+}) {
+  const currentStatusCode = normalizeOrderStatus(ord.status);
+  const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
+  
+  const paymentMethodVal = ord.payment_method || ord.paymentMethod;
+  const displayPayment = PAYMENT_LABELS[paymentMethodVal] || paymentMethodVal || 'Chưa chọn';
+
+  const { isBombedRisk, isCancelledRisk, isPardoned } = riskTrace;
+
+  const isFullPrepaid = 
+    String(paymentMethodVal || '').toLowerCase().includes('100%') || 
+    paymentMethodVal === 'full_qr';
+
+  const rawTotal = ord.final_total ?? ord.total ?? 0;
+  const cleanTotalNum = parseCleanMoney(rawTotal);
+  
+  const createdAtVal = ord.created_at || ord.createdAt;
+  const formattedCreatedAt = formatDateTime(createdAtVal, 'Vừa xong');
+
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (currentStatusCode !== ORDER_STATUS.PENDING) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [currentStatusCode]);
+
+  const remainingMs = getRemainingCancelMs(createdAtVal, now, 30);
+  const isStillInCancelWindow = currentStatusCode === ORDER_STATUS.PENDING && remainingMs > 0;
+
+  const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
+  const isTerminalStatus = allowedNextStatuses.length === 0;
+  const isLockedStatus = isInspectingRefer || isTerminalStatus;
+  const customerName = ord.customer_name || ord.name || 'Khách đặt';
+
+  return (
+    <div 
+      className={`rounded-2xl p-3.5 border transition-all flex flex-col justify-between gap-3 text-xs font-sans shadow-2xs hover:shadow-xs ${
+        isSelected ? 'ring-2 ring-amber-600 bg-amber-50/20' : 'bg-white'
+      } ${
+        isBombedRisk 
+          ? 'border-rose-300 ring-1 ring-rose-400 bg-rose-50/40' 
+          : isCancelledRisk
+            ? 'border-amber-200 ring-1 ring-amber-300 bg-amber-50/30'
+            : isPardoned
+              ? 'border-emerald-200/80 bg-emerald-50/20'
+              : 'border-stone-200/90'
+      }`}
+    >
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onToggleSelect(ord.code)}
+              className="text-stone-400 hover:text-amber-800 transition-colors cursor-pointer"
+            >
+              {isSelected ? (
+                <CheckSquare className="w-4 h-4 text-amber-800 fill-amber-100" />
+              ) : (
+                <Square className="w-4 h-4 text-stone-300 hover:text-stone-500" />
+              )}
+            </button>
+            <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md text-[10.5px]">
+              {ord.code}
+            </span>
+          </div>
+
+          <span className="text-[10px] text-stone-400 font-mono">
+            {formattedCreatedAt}
+          </span>
+        </div>
+
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <strong className="text-stone-900 font-bold text-sm truncate">{customerName}</strong>
+            {ord.phone && (
+              <a
+                href={`tel:${ord.phone}`}
+                className="font-mono font-bold text-[11px] text-amber-800 hover:underline flex items-center gap-1"
+              >
+                <PhoneCall className="w-3 h-3 text-stone-500" />
+                <span>{ord.phone}</span>
+              </a>
+            )}
+          </div>
+
+          {ord.address && (
+            <p className="text-[10.5px] text-stone-500 line-clamp-1">
+              📍 {ord.address}
+            </p>
+          )}
+
+          {isStillInCancelWindow && (
+            <div className="text-[10px] font-bold text-amber-900 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+              <Clock className="w-3 h-3 animate-spin text-amber-700" />
+              <span>Đổi ý: {formatCountdownTimer(remainingMs)}</span>
+            </div>
+          )}
+        </div>
+
+        {(ord.order_items?.length > 0 || ord.cart?.length > 0 || ord.itemsSummary) && (
+          <div className="bg-stone-50 p-2 rounded-xl border border-stone-100 max-h-28 overflow-y-auto">
+            {renderItemsSummary(ord.order_items, ord.itemsSummary, ord, true)}
+          </div>
+        )}
+      </div>
+
+      <div className="pt-2 border-t border-stone-100 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] text-stone-500 font-medium bg-stone-100 px-2 py-0.5 rounded-md">
+            {displayPayment}
+          </span>
+          <span className="font-mono font-black text-stone-900 text-sm">
+            {cleanTotalNum.toLocaleString('vi-VN')}đ
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          {isLockedStatus ? (
+            <div className="flex items-center gap-1">
+              <div className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border flex items-center gap-1 select-none ${statusMeta.bg}`}>
+                <span>{statusMeta.label}</span>
+                <Lock className="w-3 h-3 text-stone-400" />
+              </div>
+              {!isInspectingRefer && (
+                <button
+                  type="button"
+                  onClick={() => onOpenOverride(ord)}
+                  className="p-1 text-stone-400 hover:text-amber-700 rounded-lg hover:bg-stone-100"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <StatusSelectDropdown
+              ord={ord}
+              currentStatusCode={currentStatusCode}
+              statusMeta={statusMeta}
+              allowedNextStatuses={allowedNextStatuses}
+              isFullPrepaid={isFullPrepaid}
+              isProcessing={isProcessing}
+              onSelectStatus={onSelectStatus}
+            />
+          )}
+
+          {!isInspectingRefer && (
+            <button
+              type="button"
+              disabled={isProcessing}
+              onClick={() => onDeleteOrder(ord.code)}
+              className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
 // COMPONENT CHÍNH DASHBOARD TAB
 // =========================================================================
 export default function DashboardTab({
@@ -507,6 +682,22 @@ export default function DashboardTab({
     getRiskTraceDetails
   } = useAdminDashboard(orders, depositAmount);
 
+  // 1. Chế độ xem: 'list' (hàng ngang) hoặc 'grid' (dạng khối bảng)
+  const [viewMode, setViewMode] = useState(() => {
+    return localStorage.getItem('shop_admin_dashboard_view_mode') || 'list';
+  });
+
+  const handleToggleViewMode = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem('shop_admin_dashboard_view_mode', mode);
+  };
+
+  // 2. State chọn nhiều đơn hàng (Bulk Selection)
+  const [selectedOrderCodes, setSelectedOrderCodes] = useState([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [isBulkStatusDropdownOpen, setIsBulkStatusDropdownOpen] = useState(false);
+  const bulkDropdownRef = useRef(null);
+
   const [pendingStatusModal, setPendingStatusModal] = useState(null);
   const [statusReason, setStatusReason] = useState('');
   const [customReason, setCustomReason] = useState('');
@@ -524,10 +715,18 @@ export default function DashboardTab({
       if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target)) {
         setIsDateDropdownOpen(false);
       }
+      if (bulkDropdownRef.current && !bulkDropdownRef.current.contains(e.target)) {
+        setIsBulkStatusDropdownOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Xóa danh sách chọn khi thay đổi bộ lọc
+  useEffect(() => {
+    setSelectedOrderCodes([]);
+  }, [statusFilter, dateFilterType, searchQuery]);
 
   const statusCounts = useMemo(() => {
     const counts = { all: orders.length };
@@ -552,6 +751,106 @@ export default function DashboardTab({
     searchQuery.trim().toUpperCase().startsWith('XNG') && statusFilter === 'all'
   );
 
+  // Chọn hoặc bỏ chọn đơn lẻ
+  const handleToggleSelectOrder = (code) => {
+    setSelectedOrderCodes((prev) => 
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  // Chọn hoặc bỏ chọn toàn bộ đơn đang hiển thị
+  const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderCodes.length === filteredOrders.length;
+  const handleToggleSelectAll = () => {
+    if (isAllFilteredSelected) {
+      setSelectedOrderCodes([]);
+    } else {
+      setSelectedOrderCodes(filteredOrders.map((o) => o.code));
+    }
+  };
+
+  // =========================================================================
+  // 👉 THUẬT TOÁN RÀNG BUỘC TIẾN TRÌNH: TÍNH GIAO ĐIỂM (INTERSECTION) BƯỚC TIẾP THEO
+  // =========================================================================
+  const selectedOrderObjects = useMemo(() => {
+    return orders.filter((o) => selectedOrderCodes.includes(o.code));
+  }, [orders, selectedOrderCodes]);
+
+  const commonNextStatuses = useMemo(() => {
+    if (selectedOrderObjects.length === 0) return [];
+
+    const statusSets = selectedOrderObjects.map((ord) => {
+      const currentCode = normalizeOrderStatus(ord.status);
+      const allowed = FORWARD_STATUS_MAP[currentCode] || [];
+      
+      const paymentVal = ord.payment_method || ord.paymentMethod;
+      const isFullPrepaid = 
+        String(paymentVal || '').toLowerCase().includes('100%') || 
+        paymentVal === 'full_qr';
+
+      // Loại bỏ BOMBED nếu đơn này đã thanh toán 100%
+      return allowed.filter((st) => !(isFullPrepaid && st === ORDER_STATUS.BOMBED));
+    });
+
+    // Tìm giao điểm: Bước tiếp theo phải nằm trong danh sách cho phép của TẤT CẢ các đơn đang chọn
+    return statusSets.reduce((acc, currentList) => 
+      acc.filter((st) => currentList.includes(st))
+    );
+  }, [selectedOrderObjects]);
+
+  // Xử lý chuyển trạng thái hàng loạt
+  const handleBulkUpdateStatus = async (targetStatusCode) => {
+    if (selectedOrderCodes.length === 0) return;
+    setIsBulkStatusDropdownOpen(false);
+
+    const targetMeta = ORDER_STATUS_MAP[targetStatusCode];
+    setConfirmModalConfig({
+      isAlert: false,
+      title: 'Xác Nhận Chuyển Hàng Loạt',
+      message: `Bạn có chắc chắn muốn chuyển ${selectedOrderCodes.length} đơn hàng đã chọn sang trạng thái "${targetMeta?.label || targetStatusCode}" không?`,
+      confirmLabel: 'Xác nhận chuyển',
+      onConfirm: async () => {
+        setIsBulkProcessing(true);
+        try {
+          for (const code of selectedOrderCodes) {
+            await onUpdateStatus(code, targetStatusCode);
+          }
+          onShowAlert?.(`Đã chuyển thành công ${selectedOrderCodes.length} đơn sang "${targetMeta?.label || targetStatusCode}"!`);
+          setSelectedOrderCodes([]);
+        } catch (err) {
+          console.error('Lỗi chuyển trạng thái hàng loạt:', err);
+          onShowAlert?.('Có lỗi xảy ra trong quá trình xử lý hàng loạt.');
+        } finally {
+          setIsBulkProcessing(false);
+        }
+      }
+    });
+  };
+
+  // Xử lý xóa hàng loạt
+  const handleBulkDelete = () => {
+    if (selectedOrderCodes.length === 0) return;
+    setConfirmModalConfig({
+      isAlert: false,
+      title: 'Xóa Nhiều Đơn Hàng',
+      message: `CẢNH BÁO: Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedOrderCodes.length} đơn hàng đã chọn?`,
+      confirmLabel: 'Xác nhận xóa hết',
+      onConfirm: async () => {
+        setIsBulkProcessing(true);
+        try {
+          for (const code of selectedOrderCodes) {
+            await onDeleteOrder(code);
+          }
+          onShowAlert?.(`Đã xóa thành công ${selectedOrderCodes.length} đơn hàng!`);
+          setSelectedOrderCodes([]);
+        } catch (err) {
+          console.error('Lỗi xóa hàng loạt:', err);
+        } finally {
+          setIsBulkProcessing(false);
+        }
+      }
+    });
+  };
+
   const handleSelectStatus = (order, targetStatus) => {
     const normalizedTarget = normalizeOrderStatus(targetStatus);
     const paymentVal = order.payment_method || order.paymentMethod;
@@ -571,7 +870,6 @@ export default function DashboardTab({
     const currentStatusCode = normalizeOrderStatus(order.status);
     if (currentStatusCode === ORDER_STATUS.PENDING && normalizedTarget === ORDER_STATUS.CONFIRMED) {
       const createdAtVal = order.created_at || order.createdAt;
-      // Dùng hàm getRemainingCancelMs chuẩn UTC để kiểm tra
       const remainingCancelMs = getRemainingCancelMs(createdAtVal, Date.now(), 30);
 
       if (remainingCancelMs > 0) {
@@ -609,7 +907,7 @@ export default function DashboardTab({
   };
 
   return (
-    <div className="space-y-4 animate-fadeIn font-sans">
+    <div className="space-y-4 animate-fadeIn font-sans pb-16">
       {/* ================= 1. CARD TỔNG HỢP DOANH THU & KPI ================= */}
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs overflow-hidden">
         
@@ -733,9 +1031,9 @@ export default function DashboardTab({
       {/* ================= 2. KHU VỰC QUẢN LÝ ĐƠN HÀNG ================= */}
       <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-stone-200/90 shadow-xs space-y-3.5">
         
-        {/* HÀNG 1: TÌM KIẾM + BỘ LỌC NGÀY */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
+        {/* HÀNG 1: TÌM KIẾM + BỘ LỌC NGÀY + NÚT CHUYỂN CHẾ ĐỘ XEM */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
@@ -796,6 +1094,34 @@ export default function DashboardTab({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* NÚT CHUYỂN ĐỔI CHẾ ĐỘ XEM (LIST VS GRID) */}
+          <div className="flex items-center p-0.5 bg-stone-100 rounded-xl border border-stone-200 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleToggleViewMode('list')}
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-stone-900 shadow-2xs'
+                  : 'text-stone-400 hover:text-stone-700'
+              }`}
+              title="Xem danh sách hàng ngang"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleViewMode('grid')}
+              className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-stone-900 shadow-2xs'
+                  : 'text-stone-400 hover:text-stone-700'
+              }`}
+              title="Xem dạng khối bảng (Grid)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Reset Bộ Lọc */}
@@ -859,6 +1185,28 @@ export default function DashboardTab({
           })}
         </div>
 
+        {/* Khung chọn tất cả & thông báo số lượng */}
+        <div className="flex items-center justify-between text-xs px-1 text-stone-500 pt-1">
+          <label className="flex items-center gap-2 cursor-pointer font-bold hover:text-stone-800 select-none">
+            <button
+              type="button"
+              onClick={handleToggleSelectAll}
+              className="text-stone-400 hover:text-amber-800 cursor-pointer"
+            >
+              {isAllFilteredSelected ? (
+                <CheckSquare className="w-4 h-4 text-amber-800 fill-amber-100" />
+              ) : (
+                <Square className="w-4 h-4 text-stone-300" />
+              )}
+            </button>
+            <span>Chọn tất cả {filteredOrders.length} đơn</span>
+          </label>
+
+          <span className="text-[11px] font-medium">
+            Chế độ: <strong>{viewMode === 'list' ? 'Hàng ngang' : 'Khối bảng'}</strong>
+          </span>
+        </div>
+
         {/* Khung nhập khoảng ngày tùy chọn */}
         {dateFilterType === 'custom' && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200/60 text-xs">
@@ -904,24 +1252,26 @@ export default function DashboardTab({
           </div>
         )}
 
-        {/* Danh sách từng dòng đơn */}
-        <div className="divide-y divide-stone-100 space-y-2.5 pt-1">
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-8 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-              <p className="text-xs font-bold text-stone-600">
-                {statusFilter === ORDER_STATUS.PENDING 
-                  ? 'Hiện không có đơn hàng nào đang ở trạng thái "Chờ xác nhận"' 
-                  : 'Không tìm thấy đơn hàng nào khớp bộ lọc'}
-              </p>
-            </div>
-          ) : (
-            filteredOrders.map((ord) => (
+        {/* DANH SÁCH ĐƠN HÀNG (THEO VIEWMODE LIST HOẶC GRID) */}
+        {filteredOrders.length === 0 ? (
+          <div className="text-center py-8 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+            <p className="text-xs font-bold text-stone-600">
+              {statusFilter === ORDER_STATUS.PENDING 
+                ? 'Hiện không có đơn hàng nào đang ở trạng thái "Chờ xác nhận"' 
+                : 'Không tìm thấy đơn hàng nào khớp bộ lọc'}
+            </p>
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className="divide-y divide-stone-100 space-y-2.5 pt-1">
+            {filteredOrders.map((ord) => (
               <DashboardOrderRow
                 key={ord.code || ord.id}
                 ord={ord}
                 riskTrace={getRiskTraceDetails(ord)}
+                isSelected={selectedOrderCodes.includes(ord.code)}
+                onToggleSelect={handleToggleSelectOrder}
                 isInspectingRefer={isInspectingRefer}
-                isProcessing={actionLoadingCode === ord.code}
+                isProcessing={actionLoadingCode === ord.code || isBulkProcessing}
                 onSelectStatus={handleSelectStatus}
                 onInspectRefer={handleInspectReferOrder}
                 onOpenOverride={(targetOrd) => {
@@ -931,10 +1281,108 @@ export default function DashboardTab({
                 }}
                 onDeleteOrder={handleDeleteWithConfirm}
               />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+            {filteredOrders.map((ord) => (
+              <DashboardOrderGridCard
+                key={ord.code || ord.id}
+                ord={ord}
+                riskTrace={getRiskTraceDetails(ord)}
+                isSelected={selectedOrderCodes.includes(ord.code)}
+                onToggleSelect={handleToggleSelectOrder}
+                isInspectingRefer={isInspectingRefer}
+                isProcessing={actionLoadingCode === ord.code || isBulkProcessing}
+                onSelectStatus={handleSelectStatus}
+                onOpenOverride={(targetOrd) => {
+                  setOverrideModal(targetOrd);
+                  setOverrideTargetStatus(normalizeOrderStatus(targetOrd.status));
+                  setOverrideReason('');
+                }}
+                onDeleteOrder={handleDeleteWithConfirm}
+              />
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* ================= 3. THANH THAO TÁC HÀNG LOẠT NỔI (BULK ACTION BAR) ================= */}
+      {selectedOrderCodes.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-stone-700/80 flex items-center gap-3.5 animate-fadeIn max-w-[92vw] sm:max-w-xl text-xs font-sans">
+          <div className="flex items-center gap-2 font-bold shrink-0">
+            <span className="w-5 h-5 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center text-[11px] font-black">
+              {selectedOrderCodes.length}
+            </span>
+            <span className="hidden sm:inline">đơn đã chọn</span>
+          </div>
+
+          <div className="h-4 w-[1px] bg-stone-700 hidden sm:block shrink-0" />
+
+          {/* DROPDOWN CHỌN TRẠNG THÁI HÀNG LOẠT (CÓ RÀNG BUỘC) */}
+          <div ref={bulkDropdownRef} className="relative flex-1">
+            <button
+              type="button"
+              disabled={isBulkProcessing || commonNextStatuses.length === 0}
+              onClick={() => setIsBulkStatusDropdownOpen((prev) => !prev)}
+              className="w-full px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-100 rounded-xl font-bold flex items-center justify-between gap-1.5 transition-colors cursor-pointer border border-stone-600 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Layers className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {commonNextStatuses.length > 0 
+                    ? 'Chuyển bước kế tiếp...' 
+                    : 'Không cùng tiến trình'}
+                </span>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+            </button>
+
+            {isBulkStatusDropdownOpen && commonNextStatuses.length > 0 && (
+              <div className="absolute bottom-full mb-2 left-0 w-56 bg-white text-stone-800 rounded-2xl border border-stone-200 shadow-2xl p-1.5 z-50 animate-fadeIn space-y-0.5">
+                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
+                  Bước kế tiếp hợp lệ ({selectedOrderCodes.length} đơn):
+                </span>
+                {commonNextStatuses.map((statusCode) => {
+                  const info = ORDER_STATUS_MAP[statusCode];
+                  return (
+                    <button
+                      key={statusCode}
+                      type="button"
+                      onClick={() => handleBulkUpdateStatus(statusCode)}
+                      className="w-full px-2.5 py-2 rounded-xl text-left text-xs font-bold hover:bg-amber-50 hover:text-amber-900 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span>➔ {info?.label || statusCode}</span>
+                      <span className={`w-2 h-2 rounded-full ${info?.bg?.split(' ')[0] || 'bg-stone-400'}`} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* NÚT XÓA HÀNG LOẠT */}
+          <button
+            type="button"
+            disabled={isBulkProcessing}
+            onClick={handleBulkDelete}
+            className="p-2 bg-stone-800 hover:bg-rose-900/60 text-stone-400 hover:text-rose-400 rounded-xl transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+            title="Xóa tất cả đơn đã chọn"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+
+          {/* HỦY CHỌN */}
+          <button
+            type="button"
+            onClick={() => setSelectedOrderCodes([])}
+            className="p-1.5 text-stone-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+            title="Bỏ chọn tất cả"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* MODAL BẮT BUỘC CHỌN LÝ DO HỦY / BOM */}
       {pendingStatusModal && (

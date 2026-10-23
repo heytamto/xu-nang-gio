@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   ArrowRight, 
   ShieldCheck, 
@@ -31,10 +31,11 @@ import {
   PackageCheck,
   TrendingUp,
   Quote,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { fetchTotalOrdersCount, fetchApprovedReviews } from '../services/orderService';
+import { fetchTotalOrdersCount, fetchPaginatedApprovedReviews } from '../services/orderService';
 import { formatDate } from '../utils/dateUtils';
 
 // Bản đồ Icon dự phòng
@@ -47,7 +48,6 @@ const CATEGORY_ID_ICON_MAP = {
   cat06: Leaf         // Đặc Sản Sấy Dẻo
 };
 
-// DỮ LIỆU LỊCH MÙA VỤ BẢN ĐỊA PHAN RANG
 const HARVEST_SEASONS = [
   {
     name: "Nho Đỏ Red Cardinal",
@@ -79,9 +79,9 @@ const HARVEST_SEASONS = [
   }
 ];
 
-// DỮ LIỆU ĐÁNH GIÁ DỰ PHÒNG KHI CHƯA CÓ DATABASE REVIEWS
 const FALLBACK_CUSTOMER_REVIEWS = [
   {
+    id: "fb-1",
     customer_name: "Chị Ánh Tuyết",
     role: "Quận 7, TP.HCM",
     content: "Chùm nho xanh với táo gió mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị ngọt thanh mát tự nhiên chứ không gắt đường. Cả nhà ai cũng khen!",
@@ -90,6 +90,7 @@ const FALLBACK_CUSTOMER_REVIEWS = [
     created_at: new Date(Date.now() - 86400000 * 2).toISOString()
   },
   {
+    id: "fb-2",
     customer_name: "Anh Hoàng Nam",
     role: "Ba Đình, Hà Nội",
     content: "Đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị cấn dập. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
@@ -98,32 +99,16 @@ const FALLBACK_CUSTOMER_REVIEWS = [
     created_at: new Date(Date.now() - 86400000 * 4).toISOString()
   },
   {
+    id: "fb-3",
     customer_name: "Cô Mỹ Hạnh",
     role: "Hải Châu, Đà Nẵng",
     content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, bao ăn từng quả.",
     rating: 5,
     order_code: "XNG2608-1123",
     created_at: new Date(Date.now() - 86400000 * 7).toISOString()
-  },
-  {
-    customer_name: "Anh Thanh Tùng",
-    role: "Thủ Đức, TP.HCM",
-    content: "Giao xe trong đêm sáng sớm là nhận được ngay. Táo gió giòn rôm rốp, ngọt đậm vị nắng gió Phan Rang. Sẽ ủng hộ vườn dài dài!",
-    rating: 5,
-    order_code: "XNG2610-9012",
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString()
-  },
-  {
-    customer_name: "Chị Thu Thảo",
-    role: "Bình Thạnh, TP.HCM",
-    content: "Mực một nắng nướng lên thơm nức mũi, thịt dày ngọt đậm đà. Đóng thùng xốp sạch sẽ, bảo quản cẩn thận.",
-    rating: 5,
-    order_code: "XNG2609-3482",
-    created_at: new Date(Date.now() - 86400000 * 14).toISOString()
   }
 ];
 
-// DỮ LIỆU CẨM NANG 10 NÔNG SẢN NINH THUẬN CHUẨN GỐC
 const NINH_THUAN_EXPERIENCES = [
   {
     id: 'nho',
@@ -281,10 +266,29 @@ export default function HomePage({
   const reviewsScrollRef = useRef(null);
 
   const [realOrderCount, setRealOrderCount] = useState(1200);
-  const [dynamicReviews, setDynamicReviews] = useState([]);
-  
+
+  // 👉 LAZY LOADING CHO REVIEWS
+  const [reviewsList, setReviewsList] = useState([]);
+  const [totalReviewsCount, setTotalReviewsCount] = useState(0);
+  const [reviewPage, setReviewPage] = useState(0);
+  const [hasMoreReviews, setHasMoreReviews] = useState(true);
+  const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
+  const isFetchingRef = useRef(false);
+
+  // 👉 TỰ ĐỘNG TRƯỢT & KÉO CHUỘT
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeftState, setScrollLeftState] = useState(0);
+  const isDragMoved = useRef(false);
+  const autoScrollRafRef = useRef(null);
+
   // State quản lý xem phóng to ảnh review
   const [activeLightboxImg, setActiveLightboxImg] = useState(null);
+
+  // Kiểm soát bật/tắt mục đánh giá từ cấu hình Admin
+  const isReviewsEnabled = shopConfig?.showCustomerReviews !== false && 
+                           String(shopConfig?.showCustomerReviews).toUpperCase() !== 'FALSE';
 
   // Đóng modal khi bấm phím Esc
   useEffect(() => {
@@ -295,7 +299,7 @@ export default function HomePage({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Cuộn danh mục
+  // Cuộn danh mục sản phẩm
   const scrollCategories = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = direction === 'left' ? -280 : 280;
@@ -303,32 +307,138 @@ export default function HomePage({
     }
   };
 
-  // Cuộn thanh đánh giá chạy ngang
+  // 1. Tải mẻ đánh giá tiếp theo (Lazy Load)
+  const loadReviewsBatch = useCallback(async (pageToLoad = 0, isInitial = false) => {
+    if (isFetchingRef.current) return;
+    if (!isInitial && !hasMoreReviews) return;
+
+    isFetchingRef.current = true;
+    setIsLoadingMoreReviews(true);
+
+    try {
+      const res = await fetchPaginatedApprovedReviews(pageToLoad, 5);
+      setTotalReviewsCount(res.totalCount || 0);
+      setHasMoreReviews(res.hasMore);
+
+      if (res.reviews.length > 0) {
+        setReviewsList((prev) => {
+          if (isInitial) return res.reviews;
+          const existingIds = new Set(prev.map((r) => r.id || r.code || r.order_code));
+          const newUnique = res.reviews.filter((r) => !existingIds.has(r.id || r.code || r.order_code));
+          return [...prev, ...newUnique];
+        });
+        setReviewPage(pageToLoad);
+      } else if (isInitial) {
+        setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải đánh giá lazyload:', err);
+      if (isInitial) setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
+    } finally {
+      setIsLoadingMoreReviews(false);
+      isFetchingRef.current = false;
+    }
+  }, [hasMoreReviews]);
+
+  // Khởi tạo ban đầu
+  useEffect(() => {
+    if (isReviewsEnabled) {
+      loadReviewsBatch(0, true);
+    }
+    fetchTotalOrdersCount().then((count) => {
+      if (count > 0) setRealOrderCount(count);
+    }).catch(() => {});
+  }, [isReviewsEnabled, loadReviewsBatch]);
+
+  // 2. VÒNG LẶP TỰ ĐỘNG TRƯỢT NGANG (AUTO-SCROLL MARQUEE)
+  useEffect(() => {
+    if (!isReviewsEnabled) return;
+
+    const scrollContainer = reviewsScrollRef.current;
+    if (!scrollContainer) return;
+
+    let lastTimestamp = performance.now();
+
+    const step = (timestamp) => {
+      if (!isHovered && !isDragging && scrollContainer) {
+        const delta = timestamp - lastTimestamp;
+        // Tốc độ trượt ~36px / giây, mượt mà và dễ đọc
+        const move = (36 * delta) / 1000;
+        scrollContainer.scrollLeft += move;
+
+        // Nếu trượt gần đến cuối danh sách (còn 350px), kích hoạt nạp thêm mẻ lazy-load
+        const { scrollLeft, scrollWidth, clientWidth } = scrollContainer;
+        if (scrollLeft + clientWidth + 350 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+          loadReviewsBatch(reviewPage + 1);
+        }
+
+        // Nếu đã hết dữ liệu và chạm kịch mép phải, nhẹ nhàng quay lại đầu
+        if (!hasMoreReviews && scrollLeft + clientWidth >= scrollWidth - 2) {
+          scrollContainer.scrollLeft = 0;
+        }
+      }
+      lastTimestamp = timestamp;
+      autoScrollRafRef.current = requestAnimationFrame(step);
+    };
+
+    autoScrollRafRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+      }
+    };
+  }, [isHovered, isDragging, hasMoreReviews, isLoadingMoreReviews, reviewPage, loadReviewsBatch, isReviewsEnabled]);
+
+  // 3. XỬ LÝ KÉO THẢ CHUỘT TRỰC TIẾP TRÊN THẺ
+  const handleMouseDown = (e) => {
+    if (!reviewsScrollRef.current) return;
+    setIsDragging(true);
+    isDragMoved.current = false;
+    setStartX(e.pageX - reviewsScrollRef.current.offsetLeft);
+    setScrollLeftState(reviewsScrollRef.current.scrollLeft);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging || !reviewsScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - reviewsScrollRef.current.offsetLeft;
+    const walk = (x - startX) * 1.4;
+    if (Math.abs(walk) > 4) {
+      isDragMoved.current = true;
+    }
+    reviewsScrollRef.current.scrollLeft = scrollLeftState - walk;
+
+    const { scrollLeft, scrollWidth, clientWidth } = reviewsScrollRef.current;
+    if (scrollLeft + clientWidth + 350 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+      loadReviewsBatch(reviewPage + 1);
+    }
+  };
+
+  const handleMouseUpOrLeave = () => {
+    setIsDragging(false);
+  };
+
+  // Cuộn bằng nút mũi tên
   const scrollReviews = (direction) => {
     if (reviewsScrollRef.current) {
       const scrollAmount = direction === 'left' ? -340 : 340;
       reviewsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+      
+      const { scrollLeft, scrollWidth, clientWidth } = reviewsScrollRef.current;
+      if (direction === 'right' && scrollLeft + clientWidth + 400 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+        loadReviewsBatch(reviewPage + 1);
+      }
     }
   };
 
-  // Tải thống kê đơn hàng và danh sách review đã duyệt từ Supabase
-  useEffect(() => {
-    async function loadStatsAndReviews() {
-      try {
-        const [count, approvedRevs] = await Promise.all([
-          fetchTotalOrdersCount(),
-          fetchApprovedReviews(15)
-        ]);
-        if (count > 0) setRealOrderCount(count);
-        if (Array.isArray(approvedRevs) && approvedRevs.length > 0) {
-          setDynamicReviews(approvedRevs);
-        }
-      } catch (err) {
-        console.warn('Lỗi tải dữ liệu đánh giá/thống kê:', err);
-      }
+  // Bắt sự kiện cuộn ngang để Lazy Load
+  const handleReviewsScroll = (e) => {
+    const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
+    if (scrollLeft + clientWidth + 300 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+      loadReviewsBatch(reviewPage + 1);
     }
-    loadStatsAndReviews();
-  }, []);
+  };
 
   const goToShop = (catId = 'all') => {
     if (onNavigateShop) {
@@ -346,7 +456,6 @@ export default function HomePage({
   // Lọc và ưu tiên sản phẩm bán chạy nhất đẩy ra Home
   const featuredProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
-
     const salesCountMap = new Map();
 
     try {
@@ -392,16 +501,10 @@ export default function HomePage({
 
   const displayCategories = categories.filter(c => c.id !== 'all');
 
-  const finalReviewsList = useMemo(() => {
-    if (Array.isArray(reviews) && reviews.length > 0) return reviews;
-    if (dynamicReviews.length > 0) return dynamicReviews;
-    return FALLBACK_CUSTOMER_REVIEWS;
-  }, [reviews, dynamicReviews]);
-
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
       
-      {/* ================= 1. HERO BANNER MẶT TIỀN: PHONG CÁCH VƯỜN ĐẲNG CẤP ================= */}
+      {/* ================= 1. HERO BANNER MẶT TIỀN ================= */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 left-10 w-80 h-80 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -614,7 +717,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 4. MÓN NGON TUYỂN CHỌN: LỌC MÓN BÁN CHẠY NHẤT ================= */}
+      {/* ================= 4. MÓN NGON TUYỂN CHỌN ================= */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
@@ -686,7 +789,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 6. GÓC VĂN HÓA THỔ NHƯỠNG BẢN ĐỊA ================= */}
+      {/* ================= 6. GÓC VĂN HÓA THỔ NHƯỠNG ================= */}
       <section className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-3xl p-6 sm:p-8 border border-amber-200/70 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/50 pb-4">
           <div className="space-y-1">
@@ -739,127 +842,158 @@ export default function HomePage({
       {/* ================= 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA ================= */}
       <ExperienceGuideSection />
 
-      {/* ================= 8. ĐÁNH GIÁ ĐỘNG CHẠY NGANG (CAROUSEL / SCROLL) ================= */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between border-b border-stone-200 pb-4">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
-              <Heart className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
-              <span>Tình cảm của khách thương ({finalReviewsList.length}+ đánh giá)</span>
+      {/* ================= 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG ================= */}
+      {isReviewsEnabled && (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-stone-200 pb-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
+                <Heart className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
+                <span>
+                  Tình cảm của khách thương ({totalReviewsCount > 0 ? `${totalReviewsCount}+` : `${reviewsList.length}+`} đánh giá)
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight mt-1">
+                Khách Ăn Quả Xứ Nắng Nói Gì?
+              </h3>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight mt-1">
-              Khách Ăn Quả Xứ Nắng Nói Gì?
-            </h3>
-          </div>
 
-          {/* Nút điều hướng cuộn ngang */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => scrollReviews('left')}
-              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
-              title="Xem đánh giá trước"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => scrollReviews('right')}
-              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
-              title="Xem đánh giá tiếp theo"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Thanh cuộn ngang hiển thị nhiều đánh giá */}
-        <div 
-          ref={reviewsScrollRef}
-          className="flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 px-1 scroll-smooth select-none [scrollbar-color:#d6d3d1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-stone-300 hover:[&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-track]:bg-transparent"
-        >
-          {finalReviewsList.map((rev, idx) => {
-            const customerName = rev.customer_name || rev.name || 'Khách quý';
-            const orderCode = rev.order_code || rev.orderCode || '';
-            const ratingNum = Number(rev.rating) || 5;
-            const images = Array.isArray(rev.image_urls) ? rev.image_urls : (rev.image_url ? [rev.image_url] : []);
-
-            return (
-              <div 
-                key={rev.id || idx} 
-                className="w-[280px] sm:w-[320px] shrink-0 p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between space-y-3 relative group"
+            {/* Nút điều hướng cuộn ngang */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => scrollReviews('left')}
+                className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Xem đánh giá trước"
               >
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-0.5 text-amber-500">
-                      {[...Array(ratingNum)].map((_, i) => (
-                        <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      ))}
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollReviews('right')}
+                className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Xem đánh giá tiếp theo"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Thanh cuộn ngang: Tự động trượt marquee, kéo bằng chuột, ẩn thanh scrollbar */}
+          <div 
+            ref={reviewsScrollRef}
+            onScroll={handleReviewsScroll}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => {
+              setIsHovered(false);
+              handleMouseUpOrLeave();
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUpOrLeave}
+            className={`flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 px-1 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+              isDragging ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+          >
+            {reviewsList.map((rev, idx) => {
+              const customerName = rev.customer_name || rev.name || 'Khách quý';
+              const orderCode = rev.order_code || rev.orderCode || '';
+              const ratingNum = Number(rev.rating) || 5;
+              const images = Array.isArray(rev.image_urls) ? rev.image_urls : (rev.image_url ? [rev.image_url] : []);
+
+              return (
+                <div 
+                  key={rev.id || `${orderCode}-${idx}`} 
+                  // Khóa cứng chiều cao h-[210px] và bề rộng w-[280px] sm:w-[320px]
+                  className="w-[280px] sm:w-[320px] h-[210px] shrink-0 p-4 sm:p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
+                >
+                  <div className="space-y-2">
+                    {/* HÀNG SAO & MÃ ĐƠN */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-0.5 text-amber-500">
+                        {[...Array(ratingNum)].map((_, i) => (
+                          <Star key={i} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        ))}
+                      </div>
+
+                      {orderCode ? (
+                        <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                          #{orderCode}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {rev.tag || 'Khách đã mua'}
+                        </span>
+                      )}
                     </div>
 
-                    {orderCode ? (
-                      <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
-                        #{orderCode}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {rev.tag || 'Khách đã mua'}
-                      </span>
+                    {/* VÙNG NỘI DUNG NHẬN XÉT: Khóa khung min-h-[52px] và line-clamp-3 */}
+                    <div className="relative min-h-[52px] flex items-start">
+                      <Quote className="w-4 h-4 text-stone-200 absolute -top-1 -left-1 opacity-50 shrink-0" />
+                      <p className="text-xs text-stone-600 font-light leading-relaxed italic line-clamp-3 pl-2.5">
+                        "{rev.content}"
+                      </p>
+                    </div>
+
+                    {/* THUMBNAIL ẢNH ĐÍNH KÈM THỰC TẾ (NẾU CÓ) */}
+                    {images.length > 0 && (
+                      <div className="flex items-center gap-1.5 pt-0.5 pl-2">
+                        {images.slice(0, 3).map((imgUrl, imgIdx) => (
+                          <button
+                            key={imgIdx}
+                            type="button"
+                            onClick={(e) => {
+                              if (isDragMoved.current) {
+                                e.stopPropagation();
+                                return;
+                              }
+                              setActiveLightboxImg(imgUrl);
+                            }}
+                            className="relative w-9 h-9 rounded-lg overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in shrink-0"
+                            title="Bấm để xem ảnh phóng to"
+                          >
+                            <img
+                              src={imgUrl}
+                              alt={`review-proof-${imgIdx}`}
+                              className="w-full h-full object-cover pointer-events-none"
+                              onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
+                            />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  <div className="relative">
-                    <Quote className="w-5 h-5 text-stone-200 absolute -top-1 -left-1 -z-0 opacity-40" />
-                    <p className="text-xs text-stone-600 font-light leading-relaxed italic line-clamp-4 relative z-10 pl-2">
-                      "{rev.content}"
-                    </p>
-                  </div>
-
-                  {/* THUMBNAIL ẢNH ĐÍNH KÈM THỰC TẾ */}
-                  {images.length > 0 && (
-                    <div className="flex items-center gap-2 pt-1 pl-2">
-                      {images.map((imgUrl, imgIdx) => (
-                        <button
-                          key={imgIdx}
-                          type="button"
-                          onClick={() => setActiveLightboxImg(imgUrl)}
-                          className="relative w-12 h-12 rounded-xl overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in group/img shrink-0"
-                          title="Bấm để xem ảnh phóng to"
-                        >
-                          <img
-                            src={imgUrl}
-                            alt={`review-proof-${imgIdx}`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.currentTarget.parentElement.style.display = 'none'; }}
-                          />
-                          <div className="absolute inset-0 bg-black/10 group-hover/img:bg-transparent transition-colors" />
-                        </button>
-                      ))}
+                  {/* CHÂN THẺ ĐÁNH GIÁ (LUÔN CĂN ĐÁY) */}
+                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                    <div className="min-w-0 pr-2">
+                      <strong className="text-xs font-bold text-stone-900 block truncate">
+                        {customerName}
+                      </strong>
+                      <span className="text-[10px] text-stone-400 font-light block truncate">
+                        {rev.role || (orderCode ? 'Đã nhận hàng thành công' : 'Khách thân thiết')}
+                      </span>
                     </div>
-                  )}
-                </div>
 
-                <div className="pt-3 border-t border-stone-100 flex items-center justify-between">
-                  <div>
-                    <strong className="text-xs font-bold text-stone-900 block truncate max-w-[170px]">
-                      {customerName}
-                    </strong>
-                    <span className="text-[10.5px] text-stone-400 font-light block truncate max-w-[170px]">
-                      {rev.role || (orderCode ? 'Đã nhận hàng thành công' : 'Khách thân thiết')}
+                    <span className="text-[9.5px] font-medium text-stone-400 font-mono flex items-center gap-1 shrink-0 bg-stone-50 px-1.5 py-0.5 rounded-md border border-stone-100">
+                      <Clock className="w-2.5 h-2.5 text-stone-400" />
+                      <span>{formatDate(rev.created_at || rev.createdAt || new Date())}</span>
                     </span>
                   </div>
-
-                  {/* HIỂN THỊ NGÀY ĐÁNH GIÁ KÈM ICON ĐỒNG HỒ */}
-                  <span className="text-[10px] font-medium text-stone-400 font-mono flex items-center gap-1 shrink-0 bg-stone-50 px-2 py-0.5 rounded-md border border-stone-100">
-                    <Clock className="w-3 h-3 text-stone-400" />
-                    <span>{formatDate(rev.created_at || rev.createdAt || new Date())}</span>
-                  </span>
                 </div>
+              );
+            })}
+
+            {/* Ô LOADER LAZY LOADING KHI ĐANG TẢI THÊM */}
+            {isLoadingMoreReviews && (
+              <div className="w-[120px] h-[210px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
+                <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
+                <span className="text-[10.5px] font-medium">Tải thêm...</span>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ================= 9. BỐN CAM KẾT VƯỜN QUÊ ================= */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
@@ -963,7 +1097,7 @@ export default function HomePage({
 }
 
 // =========================================================================
-// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (10 MÓN + BẢO QUẢN + PROGRESS)
+// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (ĐÃ SỬA LỖI TỰ ĐỘNG CUỘN TRANG)
 // =========================================================================
 function ExperienceGuideSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -1000,12 +1134,21 @@ function ExperienceGuideSection() {
     return () => clearInterval(timer);
   }, [isPaused, currentIndex]);
 
+  // 👉 SỬA LỖI: Cuộn riêng thanh tab ngang, TUYỆT ĐỐI KHÔNG làm giật thanh cuộn của toàn trang
   useEffect(() => {
-    if (tabsContainerRef.current) {
-      const activeBtn = tabsContainerRef.current.children[currentIndex];
-      if (activeBtn) {
-        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
+    const container = tabsContainerRef.current;
+    if (!container) return;
+
+    const activeBtn = container.children[currentIndex];
+    if (activeBtn) {
+      const containerWidth = container.offsetWidth;
+      const btnOffsetLeft = activeBtn.offsetLeft;
+      const btnWidth = activeBtn.offsetWidth;
+      
+      container.scrollTo({
+        left: btnOffsetLeft - containerWidth / 2 + btnWidth / 2,
+        behavior: 'smooth'
+      });
     }
   }, [currentIndex]);
 
@@ -1017,7 +1160,6 @@ function ExperienceGuideSection() {
       onMouseLeave={() => setIsPaused(false)}
       className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 relative overflow-hidden"
     >
-      {/* THANH TIẾN TRÌNH TỰ ĐỘNG CHẠY 6S */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-stone-100 overflow-hidden">
         <div 
           key={currentIndex + (isPaused ? '-paused' : '-running')}
@@ -1040,7 +1182,6 @@ function ExperienceGuideSection() {
         }
       `}</style>
 
-      {/* HEADER SECTION */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4 pt-1">
         <div>
           <div className="flex items-center gap-2 text-amber-800 text-xs font-black tracking-wider uppercase">
@@ -1077,7 +1218,6 @@ function ExperienceGuideSection() {
         </div>
       </div>
 
-      {/* DẢI 10 TABS CHỌN ĐẶC SẢN */}
       <div 
         ref={tabsContainerRef}
         className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] scroll-smooth"
@@ -1098,7 +1238,6 @@ function ExperienceGuideSection() {
         ))}
       </div>
 
-      {/* NỘI DUNG CHI TIẾT */}
       <div 
         className={`grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch transition-all duration-300 ease-out transform ${
           isAnimating ? 'opacity-0 translate-y-2 scale-[0.99]' : 'opacity-100 translate-y-0 scale-100'
