@@ -417,7 +417,7 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 4. XỬ LÝ ĐẶT HÀNG: HIỂN THỊ MODAL & KÍCH HOẠT GỬI EMAIL CHUẨN TABLE
+  // 4. XỬ LÝ ĐẶT HÀNG: TÍNH TIỀN CỌC & COD CHUẨN XÁC GỬI SANG EMAIL
   // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
@@ -516,9 +516,25 @@ export default function App() {
 
       if (recipientEmail && recipientEmail.includes('@')) {
         const depositAmt = Number(shopConfig?.depositAmount) || 50000;
+        const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
+
+        // 👉 1. PHÂN LOẠI CHUẨN XÁC HÌNH THỨC THANH TOÁN
+        const isDepositOrder = currentMethod === 'deposit' || currentMethod.includes('cọc');
+        const isFullPrepaid = currentMethod === 'full_qr' || currentMethod.includes('100%');
+        const isCodOrder = currentMethod === 'cod';
+
+        // 👉 2. TÍNH TOÁN DỨT ĐIỂM SỐ TIỀN CỌC VÀ TIỀN THU COD
+        const finalDepositPaid = isDepositOrder
+          ? Math.min(depositAmt, finalTotalAmount)
+          : (isFullPrepaid ? finalTotalAmount : 0);
+
+        const finalRemainingCod = isDepositOrder
+          ? Math.max(0, finalTotalAmount - finalDepositPaid)
+          : (isCodOrder ? finalTotalAmount : 0);
+
         const paymentMethodLabel = 
-          orderPayload.paymentMethod === 'full_qr' ? 'Chuyển khoản 100% (VietQR)' :
-          orderPayload.paymentMethod === 'deposit' ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
+          isFullPrepaid ? 'Chuyển khoản 100% (VietQR)' :
+          isDepositOrder ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
           'Thanh toán khi nhận hàng (COD)';
 
         // TẠO HTML DANH SÁCH SẢN PHẨM DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ TRÊN GMAIL)
@@ -552,12 +568,20 @@ export default function App() {
             customer_name: recipientName,
             order_code: orderCode,
             cart: orderPayload.cart,
+            // 👉 Truyền đầy đủ số tiền và phương thức đã chuẩn hóa
+            payment_method: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
+            paymentMethod: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
+            deposit_paid: finalDepositPaid,
+            remaining_cod: finalRemainingCod,
+            final_total: finalTotalAmount,
             data: {
               CUSTOMER_NAME: recipientName,
               ORDER_CODE: orderCode,
-              FINAL_TOTAL: `${finalTotalAmount.toLocaleString('vi-VN')} đ`,
+              FINAL_TOTAL: `${finalTotalAmount.toLocaleString('vi-VN')}đ`,
               TOTAL: finalTotalAmount.toLocaleString('vi-VN') + 'đ',
               PAYMENT_METHOD: paymentMethodLabel,
+              DEPOSIT_PAID: finalDepositPaid.toLocaleString('vi-VN') + 'đ',
+              REMAINING_COD: finalRemainingCod.toLocaleString('vi-VN') + 'đ',
               SHIPPING_ADDRESS: recipientAddress,
               ADDRESS: recipientAddress,
               GIFT_TITLE: orderPayload.paymentGift || 'Nông sản biếu tặng',

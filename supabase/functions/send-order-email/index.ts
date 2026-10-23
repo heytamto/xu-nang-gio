@@ -284,7 +284,7 @@ Deno.serve(async (req: Request) => {
         };
       }
     } else {
-      // 👉 Tự động ép đổi link nút bấm sang {{TRACKING_URL}} nếu template DB còn lưu link cũ
+      // Tự động ép đổi link nút bấm sang {{TRACKING_URL}} nếu template DB còn lưu link cũ
       if (template.body) {
         template.body = template.body
           .replaceAll('href="{{SHOP_WEBSITE}}"', 'href="{{TRACKING_URL}}"')
@@ -293,10 +293,47 @@ Deno.serve(async (req: Request) => {
     }
 
     const totalAmount = Number(String(order.final_total).replace(/\D/g, "")) || 0;
-    const isDeposit = String(order.payment_method || "").toLowerCase().includes("deposit") || String(order.payment_method).includes("cọc");
-    const depositPaid = isDeposit ? Math.min(shop.depositAmount, totalAmount) : totalAmount;
-    const remainingCod = isDeposit ? Math.max(0, totalAmount - depositPaid) : 0;
-    const paymentLabel = formatPaymentMethodLabel(order.payment_method);
+
+    // 👉 ƯU TIÊN SỐ TIỀN DO CLIENT TRUYỀN SANG ĐỂ TRÁNH TÍNH NHẦM THÀNH 0Đ
+    let depositPaid = 0;
+    let remainingCod = totalAmount;
+
+    if (body.data?.DEPOSIT_PAID && body.data?.REMAINING_COD) {
+      depositPaid = Number(String(body.data.DEPOSIT_PAID).replace(/\D/g, "")) || 0;
+      remainingCod = Number(String(body.data.REMAINING_COD).replace(/\D/g, "")) || 0;
+    } else if (body.deposit_paid !== undefined) {
+      depositPaid = Number(body.deposit_paid) || 0;
+      remainingCod = body.remaining_cod !== undefined ? Number(body.remaining_cod) : Math.max(0, totalAmount - depositPaid);
+    } else {
+      const rawMethod = String(
+        body.payment_method ||
+        body.paymentMethod ||
+        dbOrder?.payment_method ||
+        order.payment_method ||
+        ""
+      ).toLowerCase();
+
+      const isDeposit = rawMethod === "deposit" || rawMethod.includes("cọc");
+      const isFullPrepaid = rawMethod === "full_qr" || rawMethod.includes("100%");
+      const isCod = rawMethod === "cod";
+
+      if (isDeposit) {
+        depositPaid = Math.min(shop.depositAmount, totalAmount);
+        remainingCod = Math.max(0, totalAmount - depositPaid);
+      } else if (isFullPrepaid) {
+        depositPaid = totalAmount;
+        remainingCod = 0;
+      } else if (isCod) {
+        depositPaid = 0;
+        remainingCod = totalAmount;
+      } else {
+        // Fallback an toàn: Mặc định là cọc 50.000đ
+        depositPaid = Math.min(shop.depositAmount, totalAmount);
+        remainingCod = Math.max(0, totalAmount - depositPaid);
+      }
+    }
+
+    const paymentLabel = body.data?.PAYMENT_METHOD || formatPaymentMethodLabel(order.payment_method);
 
     // 👉 RENDER DANH SÁCH MÓN DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ x160.000đ)
     let itemsSummaryHtml = body.data?.ITEMS_SUMMARY || body.itemsSummaryHtml;

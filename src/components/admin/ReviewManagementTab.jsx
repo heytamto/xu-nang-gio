@@ -1,20 +1,39 @@
 // src/components/admin/ReviewManagementTab.jsx
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Star, EyeOff, CheckCircle2, Trash2, Loader2, MessageSquare 
+  Search, Star, EyeOff, CheckCircle2, Trash2, Loader2, MessageSquare,
+  Globe, Power
 } from 'lucide-react';
 import { 
   fetchAllReviewsForAdmin, 
   toggleReviewApproval, 
   deleteReviewById 
 } from '../../services/orderService';
+import { supabase } from '../../supabaseClient';
 
-export default function ReviewManagementTab({ onShowToast }) {
+export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onShowToast }) {
   const [reviewsList, setReviewsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'approved' | 'pending'
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  // Trạng thái Bật/Tắt hiển thị đánh giá ngoài Trang chủ
+  const [showReviewsOnHome, setShowReviewsOnHome] = useState(() => {
+    return shopConfig?.showCustomerReviews !== false && 
+           String(shopConfig?.showCustomerReviews).toUpperCase() !== 'FALSE';
+  });
+  const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
+
+  // Đồng bộ lại khi shopConfig từ cha thay đổi
+  useEffect(() => {
+    if (shopConfig && shopConfig.showCustomerReviews !== undefined) {
+      setShowReviewsOnHome(
+        shopConfig.showCustomerReviews !== false &&
+        String(shopConfig.showCustomerReviews).toUpperCase() !== 'FALSE'
+      );
+    }
+  }, [shopConfig]);
 
   const loadData = async () => {
     setLoading(true);
@@ -26,6 +45,69 @@ export default function ReviewManagementTab({ onShowToast }) {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Xử lý bật/tắt hiển thị đánh giá ngoài trang chủ
+  const handleToggleShowOnHome = async () => {
+    setIsUpdatingConfig(true);
+    const nextState = !showReviewsOnHome;
+    setShowReviewsOnHome(nextState);
+
+    try {
+      // 1. Đọc cấu hình 'general' hiện tại trong DB
+      const { data: currentRows, error: fetchErr } = await supabase
+        .from('shop_configs')
+        .select('*')
+        .eq('key', 'general')
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+
+      let generalVal = {};
+      if (currentRows?.value) {
+        generalVal = typeof currentRows.value === 'string' 
+          ? JSON.parse(currentRows.value) 
+          : currentRows.value;
+      }
+
+      // 2. Cập nhật cờ showCustomerReviews
+      const updatedGeneral = {
+        ...generalVal,
+        showCustomerReviews: nextState
+      };
+
+      const { error: upsertErr } = await supabase
+        .from('shop_configs')
+        .upsert(
+          { key: 'general', value: updatedGeneral },
+          { onConflict: 'key' }
+        );
+
+      if (upsertErr) throw upsertErr;
+
+      // 3. Cập nhật state shopConfig ở component cha
+      if (onSaveConfig) {
+        onSaveConfig({
+          ...shopConfig,
+          showCustomerReviews: nextState
+        });
+      }
+
+      if (onShowToast) {
+        onShowToast(
+          nextState 
+            ? 'Đã BẬT hiển thị mục đánh giá ngoài Trang chủ!' 
+            : 'Đã ẨN mục đánh giá khỏi Trang chủ!'
+        );
+      }
+    } catch (err) {
+      console.error('Lỗi cập nhật cấu hình hiển thị đánh giá:', err);
+      // Rollback lại UI nếu lỗi
+      setShowReviewsOnHome(!nextState);
+      alert('Không thể lưu cấu hình: ' + (err.message || String(err)));
+    } finally {
+      setIsUpdatingConfig(false);
+    }
+  };
 
   const handleToggleApprove = async (rev) => {
     setActionLoadingId(rev.id);
@@ -73,10 +155,54 @@ export default function ReviewManagementTab({ onShowToast }) {
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Thanh tìm kiếm & Lọc trạng thái */}
+      {/* ================= 1. CÔNG TẮC BẬT/TẮT HIỂN THỊ MỤC ĐÁNH GIÁ NGOÀI TRANG CHỦ ================= */}
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+            <Globe className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-stone-900">
+                Hiển Thị Đánh Giá Ngoài Trang Chủ
+              </h3>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                showReviewsOnHome 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : 'bg-stone-100 text-stone-600 border-stone-300'
+              }`}>
+                {showReviewsOnHome ? '🟢 Đang hiển thị' : '🔴 Đang ẩn'}
+              </span>
+            </div>
+            <p className="text-xs text-stone-500 font-light mt-0.5">
+              Kiểm soát việc có hiển thị mục "Khách Ăn Quả Xứ Nắng Nói Gì" và dải thẻ trượt tự động ngoài Trang chủ hay không.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={isUpdatingConfig}
+          onClick={handleToggleShowOnHome}
+          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 shrink-0 ${
+            showReviewsOnHome
+              ? 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+              : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-700/20'
+          }`}
+        >
+          {isUpdatingConfig ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Power className="w-4 h-4" />
+          )}
+          <span>{showReviewsOnHome ? 'Tắt hiển thị ngoài Home' : 'Bật hiển thị ngoài Home'}</span>
+        </button>
+      </div>
+
+      {/* ================= 2. THANH TÌM KIẾM & BỘ LỌC DUYỆT TỪNG REVIEW ================= */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200/90 shadow-2xs">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
@@ -108,7 +234,7 @@ export default function ReviewManagementTab({ onShowToast }) {
         </div>
       </div>
 
-      {/* Danh sách review */}
+      {/* ================= 3. DANH SÁCH REVIEW ================= */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-stone-400 text-xs gap-2 bg-white rounded-3xl border border-stone-200/90">
           <Loader2 className="w-6 h-6 animate-spin text-amber-700" />
@@ -172,7 +298,7 @@ export default function ReviewManagementTab({ onShowToast }) {
                 </div>
               </div>
 
-              {/* Thao tác Duyệt / Ẩn / Xóa */}
+              {/* Thao tác Duyệt / Ẩn / Xóa từng review */}
               <div className="flex items-center gap-2 pt-2 border-t border-stone-100">
                 <button
                   type="button"
