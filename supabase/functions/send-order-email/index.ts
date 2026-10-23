@@ -8,14 +8,12 @@ declare const Deno: {
   serve(handler: (req: Request) => Promise<Response> | Response): void;
 };
 
-// 1. Khai báo CORS headers dùng chung cho mọi phản hồi
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// 2. Biến môi trường hệ thống & Khóa Service Role
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
@@ -56,31 +54,36 @@ function renderTemplate(
   return result;
 }
 
-// Bóc tách cấu hình từ bảng shop_configs
-function parseShopConfig(rawConfigs: any[] | null) {
-  const configMap: Record<string, any> = {};
-  (rawConfigs || []).forEach((row: any) => {
+type ShopConfigRecord = Record<string, unknown>;
+
+function parseShopConfig(
+  rawConfigs: Array<{ key: string; value: unknown }> | null
+) {
+  const configMap: Record<string, ShopConfigRecord> = {};
+  (rawConfigs || []).forEach((row) => {
     let val = row.value;
     if (typeof val === "string") {
       try {
         val = JSON.parse(val);
       } catch {
-        // Bỏ qua nếu chuỗi thường
+        // bỏ qua nếu parse lỗi
       }
     }
-    if (val && typeof val === "object") {
-      configMap[row.key] = val;
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      configMap[row.key] = val as ShopConfigRecord;
     }
   });
 
   const generalData = configMap["general"] || configMap["general_config"] || {};
   const paymentData = configMap["payment"] || configMap["payment_config"] || {};
+  const getString = (value: unknown, fallback: string) =>
+    typeof value === "string" && value ? value : fallback;
 
   return {
-    shopName: generalData.brandName || generalData.shop_name || "Xứ Nắng Gió",
-    shopAddress: generalData.address || "Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận",
-    shopHotline: generalData.hotline || generalData.zaloPhone || "0848.957.345",
-    shopWebsite: generalData.website || "https://xunanggio.com",
+    shopName: getString(generalData.brandName, getString(generalData.shop_name, "Xứ Nắng Gió")),
+    shopAddress: getString(generalData.address, "Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"),
+    shopHotline: getString(generalData.hotline, getString(generalData.zaloPhone, "0848.957.345")),
+    shopWebsite: getString(generalData.website, "https://xunanggio.com").replace(/\/+$/, ""),
     depositAmount: Number(paymentData.depositAmount ?? 50000),
   };
 }
@@ -93,10 +96,9 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
 
-    // 👉 NHÁNH 1: GỬI TRỰC TIẾP HTML (TEST TỪ ADMIN HOẶC DỰNG SẴN TỪ CLIENT)
+    // 1. Nhánh gửi trực tiếp HTML
     if ((body.is_test || body.html) && (body.to || body.email)) {
       const recipientEmail = body.to || body.email;
-
       let finalHtml = body.html || "<p>Nội dung thông báo</p>";
       let finalSubject = body.subject || "[Xứ Nắng Gió] Thông báo từ nhà vườn";
 
@@ -136,7 +138,6 @@ Deno.serve(async (req: Request) => {
 
       const resData = await res.json();
       if (!res.ok) {
-        console.error("Resend API báo lỗi (Nhánh gửi trực tiếp HTML):", resData);
         return new Response(JSON.stringify({ error: resData }), {
           status: res.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -149,7 +150,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 👉 NHÁNH 2: XỬ LÝ GỬI THEO TEMPLATE TỰ ĐỘNG
+    // 2. Nhánh gửi theo Template
     const targetCode =
       body.record?.code ||
       body.order_code ||
@@ -201,10 +202,11 @@ Deno.serve(async (req: Request) => {
 
     const shop = parseShopConfig(configRes.data);
 
-    // Xử lý fallback template nếu chưa có trong DB
+    // 👉 TẠO LINK TRA CỨU ĐƠN HÀNG TRỰC TIẾP KÈM MÃ ĐƠN
+    const trackingUrl = `${shop.shopWebsite}?lookup=${encodeURIComponent(order.code)}`;
+
     let template = templateRes.data;
     if (!template) {
-      console.warn(`Không tìm thấy template [${requestedTemplateId}] trong DB, kích hoạt fallback.`);
       if (requestedTemplateId === "tpl0003") {
         template = {
           id: "tpl0003",
@@ -226,33 +228,67 @@ Deno.serve(async (req: Request) => {
           id: "tpl0001",
           name: "Email xác nhận đơn hàng",
           subject: "[Xứ Nắng Gió] Xác nhận đơn hàng #{{ORDER_CODE}} • Cảm ơn {{CUSTOMER_NAME}}",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 560px;">
-            <h2 style="color: #78350f; margin-top: 0;">🍇 {{SHOP_NAME}}</h2>
-            <p>Chào <strong>{{CUSTOMER_NAME}}</strong>,</p>
-            <p>Nhà vườn đã nhận được đơn hàng <strong>#{{ORDER_CODE}}</strong> của bạn.</p>
-            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background: #fafaf9; border-left: 4px solid #b45309; border-radius: 12px; padding: 14px 18px; margin: 16px 0;">
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
+            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
+            <p style="font-size: 14px; line-height: 1.6; color: #44403c;">
+              Nhà vườn trân trọng cảm ơn bạn đã đặt niềm tin nơi nông sản Ninh Thuận. Đơn hàng của bạn đã được ghi nhận trên hệ thống và chuẩn bị bước vào khâu chọn lọc cắt hái:
+            </p>
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background: #fafaf9; border-left: 4px solid #b45309; border-radius: 12px; margin: 18px 0;">
               <tr>
-                <td align="left" style="vertical-align: top;">
+                <td align="left" style="padding: 14px 18px; vertical-align: middle;">
                   <div style="font-size: 11px; font-weight: bold; color: #78716c; text-transform: uppercase;">MÃ TRA CỨU ĐƠN</div>
                   <div style="font-size: 16px; font-weight: 900; font-family: monospace; color: #b45309; margin-top: 4px;">#{{ORDER_CODE}}</div>
                 </td>
-                <td align="right" style="vertical-align: top;">
+                <td align="right" style="padding: 14px 18px; vertical-align: middle;">
                   <div style="font-size: 11px; font-weight: bold; color: #78716c; text-transform: uppercase;">HÌNH THỨC</div>
                   <div style="font-size: 13.5px; font-weight: bold; color: #292524; margin-top: 4px;">{{PAYMENT_METHOD}}</div>
                 </td>
               </tr>
             </table>
-            <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 16px; border-radius: 12px; margin: 16px 0;">
-              <div style="font-weight: bold; color: #92400e; margin-bottom: 8px;">Chi tiết kiện hàng:</div>
+            <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
+              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
               {{ITEMS_SUMMARY}}
               {{GIFTS_BLOCK}}
-              <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid #fde68a; font-weight: bold; color: #b45309; text-align: right;">
-                Tổng thanh toán: {{TOTAL}}
-              </div>
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
+                <tr>
+                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng thanh toán:</td>
+                  <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 6px;">Tiền cọc thanh toán:</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #047857; padding-top: 6px;">{{DEPOSIT_PAID}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 4px;">Còn lại thu khi nhận (COD):</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #292524; padding-top: 4px;">{{REMAINING_COD}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Địa chỉ giao:</td>
+                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
+                </tr>
+              </table>
             </div>
-            <p style="font-size: 13px; color: #78716c;">Hotline hỗ trợ: <strong>{{SHOP_HOTLINE}}</strong> • {{SHOP_ADDRESS}}</p>
+            <div style="text-align: center; margin: 24px 0 16px 0;">
+              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
+                Tra Cứu Tiến Độ Kiện Hàng →
+              </a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
+              <tr>
+                <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
+                <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
+              </tr>
+            </table>
           </div>`
         };
+      }
+    } else {
+      // 👉 Tự động ép đổi link nút bấm sang {{TRACKING_URL}} nếu template DB còn lưu link cũ
+      if (template.body) {
+        template.body = template.body
+          .replaceAll('href="{{SHOP_WEBSITE}}"', 'href="{{TRACKING_URL}}"')
+          .replaceAll('href="https://xunanggio.com"', 'href="{{TRACKING_URL}}"');
       }
     }
 
@@ -262,7 +298,7 @@ Deno.serve(async (req: Request) => {
     const remainingCod = isDeposit ? Math.max(0, totalAmount - depositPaid) : 0;
     const paymentLabel = formatPaymentMethodLabel(order.payment_method);
 
-    // 👉 RENDER DANH SÁCH MÓN DÙNG <table> ĐỂ KHÔNG BỊ COLLAPSE THÀNH x160.000đ
+    // 👉 RENDER DANH SÁCH MÓN DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ x160.000đ)
     let itemsSummaryHtml = body.data?.ITEMS_SUMMARY || body.itemsSummaryHtml;
     if (!itemsSummaryHtml) {
       const items = (itemsRes.data && itemsRes.data.length > 0) ? itemsRes.data : (body.cart || []);
@@ -320,7 +356,10 @@ Deno.serve(async (req: Request) => {
       GIFTS_BLOCK: giftsHtml,
       gifts_block: giftsHtml,
 
-      // Thông tin shop
+      // 👉 Cung cấp biến link tra cứu trực tiếp
+      TRACKING_URL: trackingUrl,
+      tracking_url: trackingUrl,
+
       SHOP_NAME: shop.shopName,
       shop_name: shop.shopName,
       SHOP_ADDRESS: shop.shopAddress,
@@ -351,7 +390,6 @@ Deno.serve(async (req: Request) => {
 
     const resData = await res.json();
     if (!res.ok) {
-      console.error("Resend API báo lỗi:", resData);
       return new Response(JSON.stringify({ error: resData }), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -364,7 +402,6 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error("Lỗi Edge Function send-order-email:", errorMsg);
     return new Response(JSON.stringify({ error: errorMsg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

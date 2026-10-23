@@ -112,17 +112,23 @@ export default function App() {
   const [initialLookupCode, setInitialLookupCode] = useState('');
 
   // -------------------------------------------------------------
-  // 1. XỬ LÝ URL PARAMS & SỰ KIỆN POPSTATE (BACK/FORWARD TRÌNH DUYỆT)
+  // 1. XỬ LÝ URL PARAMS & TỰ ĐỘNG BẬT MODAL KHI CÓ LINK TỪ EMAIL
   // -------------------------------------------------------------
   useEffect(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const orderCodeFromUrl = urlParams.get('order') || urlParams.get('lookup') || urlParams.get('code');
+      const orderCodeFromUrl = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
       const pageFromUrl = urlParams.get('page');
 
+      // Tự động mở modal tra cứu khi click từ link email (https://domain.com?lookup=XNG...)
       if (orderCodeFromUrl) {
-        setInitialLookupCode(orderCodeFromUrl.trim().toUpperCase());
+        const cleanCode = orderCodeFromUrl.trim().toUpperCase();
+        setInitialLookupCode(cleanCode);
         setIsLookupModalOpen(true);
+
+        // Xóa param query trên thanh địa chỉ để giữ URL sạch đẹp
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
       }
 
       if (pageFromUrl && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing'].includes(pageFromUrl)) {
@@ -411,7 +417,7 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // 4. XỬ LÝ ĐẶT HÀNG: CHẠY ANIMATION VÀ GỬI EMAIL THÔNG BÁO TỨC THÌ
+  // 4. XỬ LÝ ĐẶT HÀNG: HIỂN THỊ MODAL & KÍCH HOẠT GỬI EMAIL CHUẨN TABLE
   // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
@@ -424,7 +430,6 @@ export default function App() {
       .map((item) => `${item.name}: ${item.campaign_gift_title}`)
       .join(' | ');
 
-    // Trạng thái khởi tạo luôn là key tiếng Anh 'pending'
     const initialStatus = ORDER_STATUS.PENDING;
 
     const recipientEmail = (orderData.email || orderData.customer?.email || '').trim();
@@ -480,11 +485,10 @@ export default function App() {
       status: initialStatus
     };
 
-    // ⚡ BƯỚC 1: KÍCH HOẠT HIỆU ỨNG MÁY IN VÀ MODAL TỨC THÌ (0ms)
+    // BƯỚC 1: KÍCH HOẠT HIỆU ỨNG THÀNH CÔNG TỨC THÌ
     setSuccessOrderInfo(orderPayload);
     setIsSuccessModalOpen(true);
 
-    // Cập nhật state đơn hàng và dọn giỏ hàng ngay lập tức
     setOrders((prev) => {
       const nextOrders = [orderPayload, ...prev.filter((o) => o.code !== orderCode)];
       try {
@@ -498,7 +502,7 @@ export default function App() {
       localStorage.removeItem('shop_cart');
     } catch (e) { console.error(e); }
 
-    // ⚡ BƯỚC 2: GỬI LÊN SUPABASE VÀ KÍCH HOẠT GỬI EMAIL CHẠY NGẦM SONG SONG
+    // BƯỚC 2: GỬI LÊN SUPABASE & KÍCH HOẠT GỬI EMAIL CHẠY NGẦM
     try {
       submitOrderToSupabase(orderPayload)
         .then((res) => {
@@ -510,7 +514,6 @@ export default function App() {
           console.error('Lỗi network khi gửi đơn ngầm:', err);
         });
 
-      // KÍCH HOẠT GỬI EMAIL XÁC NHẬN NẾU CÓ EMAIL HỢP LỆ
       if (recipientEmail && recipientEmail.includes('@')) {
         const depositAmt = Number(shopConfig?.depositAmount) || 50000;
         const paymentMethodLabel = 
@@ -518,17 +521,23 @@ export default function App() {
           orderPayload.paymentMethod === 'deposit' ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
           'Thanh toán khi nhận hàng (COD)';
 
-        // TẠO TRỰC TIẾP HTML DANH SÁCH SẢN PHẨM KHỚP KHUÔN KHỔ TEMPLATE TPL0001
+        // TẠO HTML DANH SÁCH SẢN PHẨM DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ TRÊN GMAIL)
         const itemsSummaryHtml = orderPayload.cart.length > 0
           ? orderPayload.cart.map((it) => {
               const qty = Number(it.quantity) || 1;
               const lineTotal = (Number(it.price) || 0) * qty;
               const weight = it.weightLabel ? ` (${it.weightLabel})` : '';
               return `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px dashed #fde68a;">
-                  <span style="color: #292524; font-size: 14px;">• <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span></span>
-                  <span style="font-weight: 700; color: #78350f; font-size: 14px;">${lineTotal.toLocaleString('vi-VN')}đ</span>
-                </div>
+                <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 8px; border-bottom: 1px dashed #fde68a; padding-bottom: 6px;">
+                  <tr>
+                    <td align="left" style="font-size: 13.5px; color: #292524; font-family: Arial, sans-serif;">
+                      • <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span>
+                    </td>
+                    <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: Arial, sans-serif; white-space: nowrap; padding-left: 12px;">
+                      ${lineTotal.toLocaleString('vi-VN')}đ
+                    </td>
+                  </tr>
+                </table>
               `;
             }).join('')
           : 'Đặc sản Ninh Thuận hái tươi tại giàn';
@@ -547,7 +556,7 @@ export default function App() {
               CUSTOMER_NAME: recipientName,
               ORDER_CODE: orderCode,
               FINAL_TOTAL: `${finalTotalAmount.toLocaleString('vi-VN')} đ`,
-              TOTAL: finalTotalAmount.toLocaleString('vi-VN'),
+              TOTAL: finalTotalAmount.toLocaleString('vi-VN') + 'đ',
               PAYMENT_METHOD: paymentMethodLabel,
               SHIPPING_ADDRESS: recipientAddress,
               ADDRESS: recipientAddress,
@@ -555,7 +564,7 @@ export default function App() {
               ITEMS_SUMMARY: itemsSummaryHtml
             }
           }
-        })
+        });
       }
     } catch (err) {
       console.error('Lỗi khởi tạo đồng bộ đơn ngầm:', err);
@@ -636,6 +645,7 @@ export default function App() {
           <HomePage
             products={products}
             categories={categories}
+            shopConfig={shopConfig}
             onAddToCart={handleAddToCart}
             onNavigateShop={handleNavigateToShopCategory}
             onNavigateStory={() => navigateTo('story')}
@@ -736,15 +746,13 @@ export default function App() {
         shopConfig={shopConfig}
       />
 
+      {/* MODAL TRA CỨU ĐƠN HÀNG (TỰ ĐỘNG BẬT KHI CÓ LINK TỪ EMAIL) */}
       <OrderLookupModal
         isOpen={isLookupModalOpen}
         initialCode={initialLookupCode}
         onClose={() => {
           setIsLookupModalOpen(false);
           setInitialLookupCode('');
-          if (window.location.search.includes('order=') || window.location.search.includes('lookup=')) {
-            window.history.replaceState({}, '', window.location.pathname);
-          }
         }}
         shopConfig={shopConfig}
       />
@@ -761,6 +769,7 @@ export default function App() {
         />
       )}
 
+      {/* HIỆU ỨNG NẢY SẢN PHẨM VÀO GIỎ */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 
