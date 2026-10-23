@@ -207,7 +207,7 @@ export default function OrderSuccessModal({
                   </strong>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-stone-500">Hình thức:</span>
+                  <span className="text-stone-500">Phương thức:</span>
                   <span className="font-semibold text-stone-800 text-[10.5px] font-sans">
                     {getPaymentLabel(orderInfo.payment_method || orderInfo.paymentMethod)}
                   </span>
@@ -218,7 +218,7 @@ export default function OrderSuccessModal({
               <div className="space-y-1.5">
                 <div className="flex justify-between font-bold text-[10px] text-stone-400 border-b border-stone-200 pb-1">
                   <span>TÊN MÓN</span>
-                  <span>T.TIỀN</span>
+                  <span>THÀNH TIỀN</span>
                 </div>
 
                 <div className="max-h-36 overflow-y-auto space-y-1 pr-1">

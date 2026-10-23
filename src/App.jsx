@@ -121,13 +121,11 @@ export default function App() {
       const orderCodeFromUrl = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
       const pageFromUrl = urlParams.get('page');
 
-      // Tự động mở modal tra cứu khi click từ link email (https://domain.com?lookup=XNG...)
       if (orderCodeFromUrl) {
         const cleanCode = orderCodeFromUrl.trim().toUpperCase();
         setInitialLookupCode(cleanCode);
         setIsLookupModalOpen(true);
 
-        // Xóa param query trên thanh địa chỉ để giữ URL sạch đẹp
         const cleanUrl = window.location.pathname + window.location.hash;
         window.history.replaceState({}, document.title, cleanUrl);
       }
@@ -205,7 +203,6 @@ export default function App() {
         });
       }
 
-      // Tải các đơn hàng vận hành & chuẩn hóa status về key tiếng Anh
       const activeOrders = await fetchActiveProcessingOrders();
       if (Array.isArray(activeOrders)) {
         const normalizedOrders = activeOrders.map((o) => ({
@@ -272,7 +269,6 @@ export default function App() {
     };
   }, []);
 
-  // CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG TRỰC TIẾP LÊN SUPABASE (LƯU MÃ TIẾNG ANH)
   const handleUpdateOrderStatus = async (orderCode, newStatus, reason = null) => {
     const statusCode = normalizeOrderStatus(newStatus);
 
@@ -308,7 +304,6 @@ export default function App() {
     }
   };
 
-  // THÊM MÓN & ANIMATION NẢY GIỎ HÀNG
   const handleAddToCart = (product, weightObj, quantity = 1) => {
     if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
@@ -417,9 +412,6 @@ export default function App() {
     );
   };
 
-  // -------------------------------------------------------------
-  // 4. XỬ LÝ ĐẶT HÀNG: TÍNH TIỀN CỌC & COD CHUẨN XÁC GỬI SANG EMAIL
-  // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
     const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
@@ -486,7 +478,6 @@ export default function App() {
       status: initialStatus
     };
 
-    // BƯỚC 1: KÍCH HOẠT HIỆU ỨNG THÀNH CÔNG TỨC THÌ
     setSuccessOrderInfo(orderPayload);
     setIsSuccessModalOpen(true);
 
@@ -503,7 +494,6 @@ export default function App() {
       localStorage.removeItem('shop_cart');
     } catch (e) { console.error(e); }
 
-    // BƯỚC 2: GỬI LÊN SUPABASE & KÍCH HOẠT GỬI EMAIL CHẠY NGẦM
     try {
       submitOrderToSupabase(orderPayload)
         .then((res) => {
@@ -519,12 +509,10 @@ export default function App() {
         const depositAmt = Number(shopConfig?.depositAmount) || 50000;
         const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
 
-        // 👉 1. PHÂN LOẠI CHUẨN XÁC HÌNH THỨC THANH TOÁN
         const isDepositOrder = currentMethod === 'deposit' || currentMethod.includes('cọc');
         const isFullPrepaid = currentMethod === 'full_qr' || currentMethod.includes('100%');
         const isCodOrder = currentMethod === 'cod';
 
-        // 👉 2. TÍNH TOÁN DỨT ĐIỂM SỐ TIỀN CỌC VÀ TIỀN THU COD
         const finalDepositPaid = isDepositOrder
           ? Math.min(depositAmt, finalTotalAmount)
           : (isFullPrepaid ? finalTotalAmount : 0);
@@ -538,7 +526,6 @@ export default function App() {
           isDepositOrder ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
           'Thanh toán khi nhận hàng (COD)';
 
-        // TẠO HTML DANH SÁCH SẢN PHẨM DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ TRÊN GMAIL)
         const itemsSummaryHtml = orderPayload.cart.length > 0
           ? orderPayload.cart.map((it) => {
               const qty = Number(it.quantity) || 1;
@@ -569,7 +556,6 @@ export default function App() {
             customer_name: recipientName,
             order_code: orderCode,
             cart: orderPayload.cart,
-            // 👉 Truyền đầy đủ số tiền và phương thức đã chuẩn hóa
             payment_method: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
             paymentMethod: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
             deposit_paid: finalDepositPaid,
@@ -646,7 +632,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
+    /* THAY overflow-x-hidden THÀNH [overflow-x:clip] ĐỂ CHO PHÉP STICKY HOẠT ĐỘNG */
+    <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
       {currentPage !== 'admin' && currentPage !== 'packing' && (
         <Navbar
           currentPage={currentPage}
@@ -665,6 +652,7 @@ export default function App() {
         />
       )}
 
+      {/* Trang admin không dùng padding-top (pt-16) của navbar vì admin có header riêng */}
       <main className={`flex-1 w-full max-w-full ${currentPage !== 'admin' && currentPage !== 'packing' ? 'pt-16' : ''}`}>
         {currentPage === 'home' && (
           <HomePage

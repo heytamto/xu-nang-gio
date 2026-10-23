@@ -788,362 +788,368 @@ export default function PackingPage({
     );
   }
 
+  // GIAO DIỆN KHO ĐÓNG GÓI KHI ĐÃ ĐĂNG NHẬP
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 font-sans animate-fadeIn">
-      {/* Header & Tabs */}
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onNavigateHome}
-              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
-              title="Về Trang Chủ"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-              <PackageCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
-                {isLoading && <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />}
-              </div>
-              <p className="text-xs text-stone-500">
-                Có <strong className="text-amber-800 font-mono">{packableOrders.length}</strong> đơn hợp lệ chờ đóng thùng
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {packableOrders.length > 0 && (
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
+      
+      {/* KHỐI HEADER ĐƯỢC FIX CỨNG BẰNG STICKY TOP-0 (ĐỒNG BỘ Y HỆT TRANG ADMIN) */}
+      <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
+        <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm transition-all active:scale-95 cursor-pointer"
-                title="In hàng loạt tất cả tem chờ đóng"
+                onClick={onNavigateHome}
+                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+                title="Về Trang Chủ"
               >
-                <Layers className="w-3.5 h-3.5" />
-                <span>In Hết ({packableOrders.length} Tem)</span>
+                <ArrowLeft className="w-4 h-4" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={fetchPackableOrders}
-              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-colors cursor-pointer"
-              title="Làm mới dữ liệu từ Supabase"
-            >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogoutWarehouse}
-              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
-              title="Khóa lại giao diện kho"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Tab chuyển đổi */}
-        <div className="bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('picking')}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'picking' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <span>📋 Bảng Soạn Hàng Tổng Hợp</span>
-            <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
-              {completedPickingCount}/{pickingSummary.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('orders')}
-            className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeTab === 'orders' ? 'bg-white text-stone-900 shadow-xs' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <span>📦 Danh Sách Đóng Kiện</span>
-            <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
-              {packableOrders.length}
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {/* TAB 1: BẢNG SOẠN HÀNG TỔNG HỢP */}
-      {activeTab === 'picking' && (
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between border-b border-stone-100 pb-3 gap-2">
-            <div>
-              <h3 className="text-sm font-black text-stone-900">Nông Sản & Quà Tặng Cần Gom</h3>
-              <p className="text-xs text-stone-500">
-                Bấm vào món để đánh dấu đã gom đủ số lượng ngoài giàn / trong kho
-              </p>
+              <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <PackageCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-lg font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
+                  {isLoading && <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />}
+                </div>
+                <p className="text-xs text-stone-500">
+                  Có <strong className="text-amber-800 font-mono">{packableOrders.length}</strong> đơn hợp lệ chờ đóng thùng
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-                Đã gom: {completedPickingCount}/{pickingSummary.length} món
-              </span>
-              {completedPickingCount > 0 && (
+              {packableOrders.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleResetPickingTicks}
-                  className="px-2.5 py-1 text-xs font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Bỏ chọn tất cả"
+                  onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm active:scale-95 cursor-pointer transition-colors"
+                  title="In hàng loạt tất cả tem chờ đóng"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Reset</span>
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>In Hết ({packableOrders.length} Tem)</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={fetchPackableOrders}
+                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 active:scale-95 cursor-pointer transition-colors"
+                title="Làm mới dữ liệu từ Supabase"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogoutWarehouse}
+                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
+                title="Khóa lại giao diện kho"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {pickingSummary.length === 0 ? (
-            <p className="text-xs text-stone-400 py-10 text-center italic">Hiện không có đơn nào cần chuẩn bị hàng.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {pickingSummary.map((item) => {
-                const isPicked = !!pickedItems[item.key];
+          {/* 2 Tab chuyển đổi */}
+          <div className="bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 gap-2 border border-stone-200/50">
+            <button
+              type="button"
+              onClick={() => setActiveTab('picking')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-colors ${
+                activeTab === 'picking' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <span>📋 Bảng Soạn Hàng Tổng Hợp</span>
+              <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                {completedPickingCount}/{pickingSummary.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('orders')}
+              className={`py-2 px-3 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-colors ${
+                activeTab === 'orders' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <span>📦 Danh Sách Đóng Kiện</span>
+              <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                {packableOrders.length}
+              </span>
+            </button>
+          </div>
+        </header>
+      </div>
+
+      {/* CÁC TAB NỘI DUNG NẰM LIỀN MẠCH PHÍA DƯỚI */}
+      <div className="space-y-6 pt-3">
+        {activeTab === 'picking' && (
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between border-b border-stone-100 pb-3 gap-2">
+              <div>
+                <h3 className="text-sm font-black text-stone-900">Nông Sản & Quà Tặng Cần Gom</h3>
+                <p className="text-xs text-stone-500">
+                  Bấm vào món để đánh dấu đã gom đủ số lượng ngoài giàn / trong kho
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
+                  Đã gom: {completedPickingCount}/{pickingSummary.length} món
+                </span>
+                {completedPickingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetPickingTicks}
+                    className="px-2.5 py-1 text-xs font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Bỏ chọn tất cả"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {pickingSummary.length === 0 ? (
+              <p className="text-xs text-stone-400 py-10 text-center italic">Hiện không có đơn nào cần chuẩn bị hàng.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {pickingSummary.map((item) => {
+                  const isPicked = !!pickedItems[item.key];
+
+                  return (
+                    <div 
+                      key={item.key} 
+                      onClick={() => togglePickedItem(item.key)}
+                      className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-2xs cursor-pointer select-none active:scale-[0.98] ${
+                        isPicked 
+                          ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300' 
+                          : item.isGift 
+                            ? 'bg-amber-50/70 border-amber-200 hover:border-amber-400' 
+                            : 'bg-stone-50 border-stone-200/80 hover:border-stone-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5 pr-2 min-w-0">
+                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${
+                          isPicked 
+                            ? 'bg-emerald-600 border-emerald-600 text-white' 
+                            : 'border-stone-300 bg-white'
+                        }`}>
+                          {isPicked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+
+                        <div className="space-y-0.5 min-w-0">
+                          <span className={`font-bold text-xs block leading-snug line-clamp-2 ${
+                            isPicked 
+                              ? 'text-emerald-950 line-through opacity-80' 
+                              : item.isGift 
+                                ? 'text-amber-950 flex items-center gap-1' 
+                                : 'text-stone-900'
+                          }`}>
+                            {item.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+                            <span>{item.name}</span>
+                          </span>
+                          
+                          <div className="flex items-center gap-1.5 text-[10.5px]">
+                            <span className={`${isPicked ? 'text-emerald-700' : 'text-stone-500'} font-medium`}>
+                              {item.spec}
+                            </span>
+                            {isPicked && (
+                              <span className="font-bold text-emerald-700 text-[10px]">
+                                • Đã gom đủ
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className={`text-base font-black font-mono px-2.5 py-1 rounded-xl border ${
+                          isPicked 
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                            : 'text-amber-900 bg-amber-100/90 border-amber-200'
+                        }`}>
+                          x{item.quantity}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'orders' && (
+          <div className="space-y-4">
+            {packableOrders.length === 0 ? (
+              <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 text-stone-400 text-xs">
+                Hiện không có đơn nào ở trạng thái chờ đóng.
+              </div>
+            ) : (
+              packableOrders.map((ord) => {
+                const orderCode = ord.code || ord.orderId;
+                const currentStatusCode = normalizeOrderStatus(ord.status);
+                const isPackingNow = currentStatusCode === ORDER_STATUS.PACKING;
+                const collectInfo = getCollectInfo(ord);
+                const items = parseOrderItems(ord);
+                const cleanNote = String(ord.customer_note || ord.note || '').trim();
 
                 return (
                   <div 
-                    key={item.key} 
-                    onClick={() => togglePickedItem(item.key)}
-                    className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-2xs cursor-pointer select-none transition-all duration-200 active:scale-[0.98] ${
-                      isPicked 
-                        ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300' 
-                        : item.isGift 
-                          ? 'bg-amber-50/70 border-amber-200 hover:border-amber-400' 
-                          : 'bg-stone-50 border-stone-200/80 hover:border-stone-300'
+                    key={orderCode} 
+                    className={`bg-white rounded-3xl border shadow-xs p-5 sm:p-6 space-y-4 ${
+                      isPackingNow 
+                        ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10' 
+                        : 'border-stone-200/90'
                     }`}
                   >
-                    <div className="flex items-start gap-2.5 pr-2 min-w-0">
-                      <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                        isPicked 
-                          ? 'bg-emerald-600 border-emerald-600 text-white' 
-                          : 'border-stone-300 bg-white'
-                      }`}>
-                        {isPicked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                      </div>
-
-                      <div className="space-y-0.5 min-w-0">
-                        <span className={`font-bold text-xs block leading-snug line-clamp-2 transition-all ${
-                          isPicked 
-                            ? 'text-emerald-950 line-through opacity-80' 
-                            : item.isGift 
-                              ? 'text-amber-950 flex items-center gap-1' 
-                              : 'text-stone-900'
-                        }`}>
-                          {item.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
-                          <span>{item.name}</span>
-                        </span>
-                        
-                        <div className="flex items-center gap-1.5 text-[10.5px]">
-                          <span className={`${isPicked ? 'text-emerald-700' : 'text-stone-500'} font-medium`}>
-                            {item.spec}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md text-xs">
+                            {orderCode}
                           </span>
-                          {isPicked && (
-                            <span className="font-bold text-emerald-700 text-[10px]">
-                              • Đã gom đủ
+                          <strong className="text-stone-900 text-sm">{ord.customer_name || ord.name || ord.customerName || ''}</strong>
+                          {ord.phone && (
+                            <span className="text-xs font-mono font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-lg">
+                              {ord.phone}
                             </span>
                           )}
+
+                          {isPackingNow ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-900 border-purple-300">
+                              <Package className="w-3.5 h-3.5 text-purple-700" />
+                              <span>Đang đóng gói</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-900 border-blue-300">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-700" />
+                              <span>Đã xác nhận (Chờ kho gói)</span>
+                            </span>
+                          )}
+
+                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md ${collectInfo.badgeStyle}`}>
+                            {collectInfo.type === 'PAID_FULL' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
+                            {collectInfo.type === 'DEPOSIT_REMAINING' && <AlertCircle className="w-3.5 h-3.5 text-amber-600" />}
+                            {collectInfo.type === 'COD_FULL' && <Banknote className="w-3.5 h-3.5 text-rose-600" />}
+                            <span>{collectInfo.badgeText}</span>
+                          </span>
                         </div>
+
+                        <p className="text-stone-600 text-xs">
+                          📍 <strong>Điểm giao / Bến xe:</strong> {ord.address}
+                        </p>
+
+                        {cleanNote && (
+                          <p className="text-rose-700 italic text-xs">
+                            * Ghi chú khách: {cleanNote}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => executeFastPrint([ord], `Tem_${orderCode}`)}
+                          className="px-3.5 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-stone-500" />
+                          <span>In Tem</span>
+                        </button>
+
+                        {!isPackingNow ? (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
+                            className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                          >
+                            <Package className="w-4 h-4" />
+                            <span>Bắt Đầu Đóng</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
+                            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Đã Gói Xong ➔ Giao Xe</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <span className={`text-base font-black font-mono px-2.5 py-1 rounded-xl border transition-colors ${
-                        isPicked 
-                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
-                          : 'text-amber-900 bg-amber-100/90 border-amber-200'
-                      }`}>
-                        x{item.quantity}
+                    <div className="space-y-1.5 bg-stone-50/70 p-4 rounded-2xl border border-stone-200/60">
+                      <span className="text-[11px] font-extrabold uppercase text-stone-500 tracking-wider block mb-1">
+                        Món cần bỏ vào thùng xốp ({items.length} món):
                       </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {items.map((it, idx) => {
+                          const boxKey = `${orderCode}_${idx}`;
+                          const isBoxChecked = !!checkedBoxItems[boxKey];
+
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => toggleBoxItem(orderCode, idx)}
+                              className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-2xs cursor-pointer select-none ${
+                                isBoxChecked 
+                                  ? 'bg-emerald-50/80 border-emerald-300' 
+                                  : it.isGift 
+                                    ? 'bg-amber-50/90 border-amber-300 hover:border-amber-400' 
+                                    : 'bg-white border-stone-200/80 hover:border-stone-300'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                                  isBoxChecked 
+                                    ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                    : 'border-stone-300 bg-white'
+                                }`}>
+                                  {isBoxChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className={`font-bold text-xs truncate ${
+                                    isBoxChecked 
+                                      ? 'text-emerald-950 line-through opacity-80' 
+                                      : it.isGift 
+                                        ? 'text-amber-950 flex items-center gap-1' 
+                                        : 'text-stone-900'
+                                  }`}>
+                                    {it.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+                                    <span>{it.name}</span>
+                                  </div>
+                                  <div className="text-[10.5px] text-stone-500 font-medium">
+                                    Quy cách: {it.spec}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <span className={`font-mono font-black text-sm px-2.5 py-0.5 rounded-lg border shrink-0 ${
+                                isBoxChecked 
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                                  : it.isGift 
+                                    ? 'bg-amber-200 text-amber-950 border-amber-300' 
+                                    : 'bg-amber-100 text-amber-900 border-amber-200'
+                              }`}>
+                                x{it.quantity}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+              })
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* TAB 2: DANH SÁCH ĐÓNG TỪNG KIỆN */}
-      {activeTab === 'orders' && (
-        <div className="space-y-4">
-          {packableOrders.length === 0 ? (
-            <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 text-stone-400 text-xs">
-              Hiện không có đơn nào ở trạng thái chờ đóng.
-            </div>
-          ) : (
-            packableOrders.map((ord) => {
-              const orderCode = ord.code || ord.orderId;
-              const currentStatusCode = normalizeOrderStatus(ord.status);
-              const isPackingNow = currentStatusCode === ORDER_STATUS.PACKING;
-              const collectInfo = getCollectInfo(ord);
-              const items = parseOrderItems(ord);
-              const cleanNote = String(ord.customer_note || ord.note || '').trim();
-
-              return (
-                <div 
-                  key={orderCode} 
-                  className={`bg-white rounded-3xl border shadow-xs p-5 sm:p-6 space-y-4 transition-all ${
-                    isPackingNow 
-                      ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10' 
-                      : 'border-stone-200/90'
-                  }`}
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md text-xs">
-                          {orderCode}
-                        </span>
-                        <strong className="text-stone-900 text-sm">{ord.customer_name || ord.name || ord.customerName || ''}</strong>
-                        {ord.phone && (
-                          <span className="text-xs font-mono font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-lg">
-                            {ord.phone}
-                          </span>
-                        )}
-
-                        {isPackingNow ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-900 border-purple-300">
-                            <Package className="w-3.5 h-3.5 text-purple-700" />
-                            <span>Đang đóng gói</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-900 border-blue-300">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-700" />
-                            <span>Đã xác nhận (Chờ kho gói)</span>
-                          </span>
-                        )}
-
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md ${collectInfo.badgeStyle}`}>
-                          {collectInfo.type === 'PAID_FULL' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
-                          {collectInfo.type === 'DEPOSIT_REMAINING' && <AlertCircle className="w-3.5 h-3.5 text-amber-600" />}
-                          {collectInfo.type === 'COD_FULL' && <Banknote className="w-3.5 h-3.5 text-rose-600" />}
-                          <span>{collectInfo.badgeText}</span>
-                        </span>
-                      </div>
-
-                      <p className="text-stone-600 text-xs">
-                        📍 <strong>Điểm giao / Bến xe:</strong> {ord.address}
-                      </p>
-
-                      {cleanNote && (
-                        <p className="text-rose-700 italic text-xs">
-                          * Ghi chú khách: {cleanNote}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => executeFastPrint([ord], `Tem_${orderCode}`)}
-                        className="px-3.5 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-stone-500" />
-                        <span>In Tem</span>
-                      </button>
-
-                      {!isPackingNow ? (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
-                          className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-                        >
-                          <Package className="w-4 h-4" />
-                          <span>Bắt Đầu Đóng</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
-                          className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Đã Gói Xong ➔ Giao Xe</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 bg-stone-50/70 p-4 rounded-2xl border border-stone-200/60">
-                    <span className="text-[11px] font-extrabold uppercase text-stone-500 tracking-wider block mb-1">
-                      Món cần bỏ vào thùng xốp ({items.length} món):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                      {items.map((it, idx) => {
-                        const boxKey = `${orderCode}_${idx}`;
-                        const isBoxChecked = !!checkedBoxItems[boxKey];
-
-                        return (
-                          <div 
-                            key={idx} 
-                            onClick={() => toggleBoxItem(orderCode, idx)}
-                            className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-2xs cursor-pointer select-none transition-colors ${
-                              isBoxChecked 
-                                ? 'bg-emerald-50/80 border-emerald-300' 
-                                : it.isGift 
-                                  ? 'bg-amber-50/90 border-amber-300 hover:border-amber-400' 
-                                  : 'bg-white border-stone-200/80 hover:border-stone-300'
-                            }`}
-                          >
-                            <div className="flex items-start gap-2.5 min-w-0">
-                              <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                                isBoxChecked 
-                                  ? 'bg-emerald-600 border-emerald-600 text-white' 
-                                  : 'border-stone-300 bg-white'
-                              }`}>
-                                {isBoxChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                              </div>
-
-                              <div className="min-w-0">
-                                <div className={`font-bold text-xs truncate ${
-                                  isBoxChecked 
-                                    ? 'text-emerald-950 line-through opacity-80' 
-                                    : it.isGift 
-                                      ? 'text-amber-950 flex items-center gap-1' 
-                                      : 'text-stone-900'
-                                }`}>
-                                  {it.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
-                                  <span>{it.name}</span>
-                                </div>
-                                <div className="text-[10.5px] text-stone-500 font-medium">
-                                  Quy cách: {it.spec}
-                                </div>
-                              </div>
-                            </div>
-
-                            <span className={`font-mono font-black text-sm px-2.5 py-0.5 rounded-lg border shrink-0 ${
-                              isBoxChecked 
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
-                                : it.isGift 
-                                  ? 'bg-amber-200 text-amber-950 border-amber-300' 
-                                  : 'bg-amber-100 text-amber-900 border-amber-200'
-                            }`}>
-                              x{it.quantity}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
     </div>
   );
 }

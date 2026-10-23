@@ -29,10 +29,11 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 animate-fadeIn font-sans text-stone-800">
+    /* NÂNG MAX-WIDTH LÊN max-w-7xl ĐỒNG BỘ CHUẨN THẲNG MẶT NAVBAR */
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 animate-fadeIn font-sans text-stone-800">
       
-      {/* 1. THANH ĐIỀU HƯỚNG TINH GỌN */}
-      <div className="flex items-center justify-between">
+      {/* 1. THANH ĐIỀU HƯỚNG TINH GỌN (THẲNG TẮP HAI MÉP NAVBAR) */}
+      <div className="flex items-center justify-between w-full">
         <button
           type="button"
           onClick={goHome}
@@ -52,12 +53,12 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
         </button>
       </div>
 
-      {/* 2. BANNER HERO HIỆN ĐẠI (ĐÃ CÂN CHỈNH NỘI DUNG VỪA VẶN TOÀN KHUNG) */}
-      <div className="relative rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-7 sm:p-12 lg:p-14 overflow-hidden border border-stone-800/80 shadow-xl">
+      {/* 2. BANNER HERO HIỆN ĐẠI (BUNG RỘNG ĐỀU, TRẢI DÀI VĂN BẢN VÀ CHỈ SỐ) */}
+      <div className="relative rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-7 sm:p-12 lg:p-14 overflow-hidden border border-stone-800/80 shadow-xl w-full">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl lg:max-w-4xl space-y-4">
+        <div className="relative z-10 max-w-5xl space-y-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-mono font-bold tracking-wide">
             <SunMedium className="w-3.5 h-3.5" />
             <span>MINH BẠCH • TẬN TÂM • UY TÍN NHÀ VƯỜN</span>
@@ -67,12 +68,12 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
             Chính Sách Bán Hàng & Quyền Lợi Khách Thương
           </h1>
 
-          <p className="text-sm sm:text-base text-stone-300 font-light leading-relaxed max-w-2xl lg:max-w-3xl">
+          <p className="text-sm sm:text-base text-stone-300 font-light leading-relaxed max-w-4xl">
             Nông sản tươi cắt giàn vận chuyển đường dài cần sự thấu hiểu từ hai phía. Dưới đây là những cam kết chất lượng cùng các điều khoản bảo vệ trọn vẹn quyền lợi và sự an tâm của bạn.
           </p>
         </div>
 
-        {/* 4 Chỉ số tóm tắt: Trải rộng, thoáng và cân đối */}
+        {/* 4 Chỉ số tóm tắt: Trải đều 4 cột rộng rãi */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pt-8 mt-8 border-t border-white/10 text-xs">
           <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-between">
             <span className="text-stone-400 block text-[10px] uppercase font-bold tracking-wider mb-1">Cam kết</span>

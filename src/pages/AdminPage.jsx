@@ -184,7 +184,6 @@ export default function AdminPage({
         return;
       }
 
-      // Lấy order_items theo order_code
       const orderCodes = ordersData.map(o => o.code).filter(Boolean);
       let itemsMap = {};
 
@@ -239,9 +238,8 @@ export default function AdminPage({
     setTimeout(() => setSavedNotice(false), 2500);
   };
 
-  // 3. Cập nhật trạng thái đơn hàng trên Supabase (LUÔN CHUẨN HÓA VỀ KEY TIẾNG ANH)
+  // 3. Cập nhật trạng thái đơn hàng trên Supabase
   const handleUpdateStatus = async (orderCode, newStatusRaw, reason = null) => {
-    // Ép chuẩn hóa về enum key tiếng Anh: 'pending', 'confirmed', 'packing', 'shipping', 'completed', 'cancelled', 'bombed'
     const normalizedStatus = normalizeOrderStatus(newStatusRaw);
 
     setActionLoadingCode(orderCode);
@@ -334,19 +332,16 @@ export default function AdminPage({
     });
   };
 
-  // 5. Đồng bộ Sản phẩm sang Supabase
   const handleSaveProducts = async (newProducts) => {
     if (onSaveProducts) onSaveProducts(newProducts);
     showSavedToast('Đã lưu danh mục sản phẩm!');
   };
 
-  // 6. Đồng bộ Chuyện vườn sang Supabase
   const handleSaveStories = async (newStories) => {
     if (onSaveStories) onSaveStories(newStories);
     showSavedToast('Đã lưu danh sách chuyện vườn!');
   };
 
-  // 7. Đồng bộ Bài viết sang Supabase
   const handleSavePosts = async (newPosts) => {
     if (onSavePosts) onSavePosts(newPosts);
     showSavedToast('Đã lưu bài viết cẩm nang!');
@@ -427,274 +422,274 @@ export default function AdminPage({
 
   // GIAO DIỆN QUẢN TRỊ KHI ĐÃ ĐĂNG NHẬP
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 font-sans animate-fadeIn">
-      {/* Header điều hướng 6 Tab */}
-      <div className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onNavigateHome}
-              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
-              title="Về Trang Chủ"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base sm:text-lg font-black text-stone-900">Trang Quản Trị Vườn</h1>
-                {adminUser?.email && (
-                  <span className="text-[10.5px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
-                    {adminUser.email}
-                  </span>
-                )}
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
+      
+      {/* KHỐI HEADER ĐƯỢC FIX CỨNG BẰNG STICKY TOP-0 (KHÔNG RUNG LẮC, KHÔNG TRỄ) */}
+      <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
+        <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onNavigateHome}
+                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+                title="Về Trang Chủ"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-lg font-black text-stone-900">Trang Quản Trị Vườn</h1>
+                  {adminUser?.email && (
+                    <span className="text-[10.5px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                      {adminUser.email}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] sm:text-xs text-stone-500">Hệ thống quản lý thời gian thực Supabase PostgreSQL</p>
               </div>
-              <p className="text-xs text-stone-500">Hệ thống quản lý thời gian thực Supabase PostgreSQL</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {onNavigatePacking && (
+                <button
+                  type="button"
+                  onClick={onNavigatePacking}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold rounded-xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
+                  title="Mở Bảng Gom & Đóng Thùng Xốp"
+                >
+                  <PackageCheck className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Kho Đóng Kiện</span>
+                </button>
+              )}
+              
+              <button
+                type="button"
+                disabled={isLoadingOrders}
+                onClick={fetchOrdersFromDatabase}
+                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 active:scale-95 cursor-pointer disabled:opacity-50 transition-colors"
+                title="Làm mới dữ liệu từ Supabase"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-amber-700' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-2 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
+                title="Đăng xuất khỏi trang quản trị"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {onNavigatePacking && (
-              <button
-                type="button"
-                onClick={onNavigatePacking}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer shadow-2xs"
-                title="Mở Bảng Gom & Đóng Thùng Xốp"
-              >
-                <PackageCheck className="w-3.5 h-3.5 text-amber-700" />
-                <span>Kho Đóng Kiện</span>
-              </button>
-            )}
-            
+          {/* 6 Tab điều hướng */}
+          <div className="w-full bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5 border border-stone-200/50">
             <button
               type="button"
-              disabled={isLoadingOrders}
-              onClick={fetchOrdersFromDatabase}
-              className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Làm mới dữ liệu từ Supabase"
+              onClick={() => setActiveTab('dashboard')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
             >
-              <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-amber-700' : ''}`} />
+              <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Đơn Hàng ({dbOrders.length})</span>
             </button>
 
             <button
               type="button"
-              onClick={handleLogout}
-              className="p-2 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
-              title="Đăng xuất khỏi trang quản trị"
+              onClick={() => setActiveTab('products')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'products' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
             >
-              <LogOut className="w-4 h-4" />
+              <ShoppingBag className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Sản Phẩm ({products.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('stories')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'stories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <Feather className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Chuyện Vườn ({stories.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('posts')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Cẩm Nang ({posts.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reviews')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'reviews' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Đánh Giá</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('config')}
+              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === 'config' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Cấu Hình & Mã</span>
             </button>
           </div>
-        </div>
-
-        {/* 6 Tab chuyển đổi */}
-        <div className="w-full bg-stone-100 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveTab('dashboard')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Đơn Hàng ({dbOrders.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('products')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'products' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Sản Phẩm ({products.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('stories')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'stories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <Feather className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Chuyện Vườn ({stories.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('posts')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Cẩm Nang ({posts.length})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('reviews')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'reviews' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Đánh Giá</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('config')}
-            className={`w-full py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'config' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <Settings className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>Cấu Hình & Mã</span>
-          </button>
-        </div>
+        </header>
       </div>
 
-      {/* TAB 1: DASHBOARD ĐƠN HÀNG */}
-      {activeTab === 'dashboard' && (
-        <DashboardTab
-          orders={dbOrders}
-          isLoading={isLoadingOrders}
-          onRefresh={fetchOrdersFromDatabase}
-          onUpdateStatus={handleUpdateStatus}
-          onDeleteOrder={handleDeleteOrder}
-          depositAmount={shopConfig?.depositAmount || 50000}
-          actionLoadingCode={actionLoadingCode}
-          onShowAlert={(msg) => setModalConfig({ title: 'Thông Báo', message: msg, isAlert: true })}
-        />
-      )}
+      {/* CÁC TAB NỘI DUNG BÊN DƯỚI */}
+      <div className="space-y-6 pt-3">
+        {activeTab === 'dashboard' && (
+          <DashboardTab
+            orders={dbOrders}
+            isLoading={isLoadingOrders}
+            onRefresh={fetchOrdersFromDatabase}
+            onUpdateStatus={handleUpdateStatus}
+            onDeleteOrder={handleDeleteOrder}
+            depositAmount={shopConfig?.depositAmount || 50000}
+            actionLoadingCode={actionLoadingCode}
+            onShowAlert={(msg) => setModalConfig({ title: 'Thông Báo', message: msg, isAlert: true })}
+          />
+        )}
 
-      {/* TAB 2: SẢN PHẨM */}
-      {activeTab === 'products' && (
-        <ProductsTab
-          products={products}
-          onAddProduct={(newProd) => {
-            const item = {
-              id: 'sp-' + Date.now(),
-              ...newProd,
-              basePrice: Number(newProd.basePrice) || 0,
-            };
-            handleSaveProducts([item, ...products]);
-          }}
-          onEditProduct={(p) => setEditingProduct(p)}
-          onToggleStock={(id) => {
-            const updated = products.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p));
-            handleSaveProducts(updated);
-          }}
-          onDeleteProduct={(id, name) => {
-            setModalConfig({
-              title: 'Gỡ Khỏi Kệ Bán',
-              message: `Xóa "${name}" khỏi kệ hàng?`,
-              confirmLabel: 'Đồng ý xóa',
-              onConfirm: () => {
-                handleSaveProducts(products.filter((p) => p.id !== id));
-              }
-            });
-          }}
-          onResetProducts={() => {
-            setModalConfig({
-              title: 'Khôi Phục',
-              message: 'Khôi phục danh sách sản phẩm mặc định ban đầu?',
-              confirmLabel: 'Khôi phục',
-              onConfirm: onResetProducts
-            });
-          }}
-        />
-      )}
+        {activeTab === 'products' && (
+          <ProductsTab
+            products={products}
+            onAddProduct={(newProd) => {
+              const item = {
+                id: 'sp-' + Date.now(),
+                ...newProd,
+                basePrice: Number(newProd.basePrice) || 0,
+              };
+              handleSaveProducts([item, ...products]);
+            }}
+            onEditProduct={(p) => setEditingProduct(p)}
+            onToggleStock={(id) => {
+              const updated = products.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p));
+              handleSaveProducts(updated);
+            }}
+            onDeleteProduct={(id, name) => {
+              setModalConfig({
+                title: 'Gỡ Khỏi Kệ Bán',
+                message: `Xóa "${name}" khỏi kệ hàng?`,
+                confirmLabel: 'Đồng ý xóa',
+                onConfirm: () => {
+                  handleSaveProducts(products.filter((p) => p.id !== id));
+                }
+              });
+            }}
+            onResetProducts={() => {
+              setModalConfig({
+                title: 'Khôi Phục',
+                message: 'Khôi phục danh sách sản phẩm mặc định ban đầu?',
+                confirmLabel: 'Khôi phục',
+                onConfirm: onResetProducts
+              });
+            }}
+          />
+        )}
 
-      {/* TAB 3: CHUYỆN VƯỜN */}
-      {activeTab === 'stories' && (
-        <StoriesTab
-          stories={stories}
-          onAddStory={(newStory) => {
-            const item = {
-              id: 'story-' + Date.now(),
-              ...newStory,
-              date: formatDate(new Date())
-            };
-            handleSaveStories([item, ...stories]);
-          }}
-          onEditStory={(s) => setEditingStory(s)}
-          onDeleteStory={(id, title) => {
-            setModalConfig({
-              title: 'Xóa Chuyện Vườn',
-              message: `Xóa mẩu chuyện "${title}" khỏi hệ thống?`,
-              confirmLabel: 'Xóa chuyện',
-              onConfirm: () => {
-                handleSaveStories(stories.filter((s) => s.id !== id));
-              }
-            });
-          }}
-          onResetStories={onResetStories ? () => {
-            setModalConfig({
-              title: 'Khôi Phục',
-              message: 'Khôi phục danh sách câu chuyện mặc định?',
-              confirmLabel: 'Khôi phục',
-              onConfirm: onResetStories
-            });
-          } : null}
-        />
-      )}
+        {activeTab === 'stories' && (
+          <StoriesTab
+            stories={stories}
+            onAddStory={(newStory) => {
+              const item = {
+                id: 'story-' + Date.now(),
+                ...newStory,
+                date: formatDate(new Date())
+              };
+              handleSaveStories([item, ...stories]);
+            }}
+            onEditStory={(s) => setEditingStory(s)}
+            onDeleteStory={(id, title) => {
+              setModalConfig({
+                title: 'Xóa Chuyện Vườn',
+                message: `Xóa mẩu chuyện "${title}" khỏi hệ thống?`,
+                confirmLabel: 'Xóa chuyện',
+                onConfirm: () => {
+                  handleSaveStories(stories.filter((s) => s.id !== id));
+                }
+              });
+            }}
+            onResetStories={onResetStories ? () => {
+              setModalConfig({
+                title: 'Khôi Phục',
+                message: 'Khôi phục danh sách câu chuyện mặc định?',
+                confirmLabel: 'Khôi phục',
+                onConfirm: onResetStories
+              });
+            } : null}
+          />
+        )}
 
-      {/* TAB 4: CẨM NANG & BÀI VIẾT */}
-      {activeTab === 'posts' && (
-        <PostsTab
-          posts={posts}
-          onAddPost={(newPost) => {
-            const item = {
-              id: 'post-' + Date.now(),
-              ...newPost,
-              date: formatDate(new Date())
-            };
-            handleSavePosts([item, ...posts]);
-          }}
-          onEditPost={(p) => setEditingPost(p)}
-          onDeletePost={(id, title) => {
-            setModalConfig({
-              title: 'Xóa Bài Viết',
-              message: `Xóa bài "${title}" khỏi cẩm nang?`,
-              confirmLabel: 'Xóa bài',
-              onConfirm: () => {
-                handleSavePosts(posts.filter((p) => p.id !== id));
-              }
-            });
-          }}
-          onResetPosts={() => {
-            setModalConfig({
-              title: 'Khôi Phục',
-              message: 'Khôi phục danh sách bài viết mặc định?',
-              confirmLabel: 'Khôi phục',
-              onConfirm: onResetPosts
-            });
-          }}
-        />
-      )}
+        {activeTab === 'posts' && (
+          <PostsTab
+            posts={posts}
+            onAddPost={(newPost) => {
+              const item = {
+                id: 'post-' + Date.now(),
+                ...newPost,
+                date: formatDate(new Date())
+              };
+              handleSavePosts([item, ...posts]);
+            }}
+            onEditPost={(p) => setEditingPost(p)}
+            onDeletePost={(id, title) => {
+              setModalConfig({
+                title: 'Xóa Bài Viết',
+                message: `Xóa bài "${title}" khỏi cẩm nang?`,
+                confirmLabel: 'Xóa bài',
+                onConfirm: () => {
+                  handleSavePosts(posts.filter((p) => p.id !== id));
+                }
+              });
+            }}
+            onResetPosts={() => {
+              setModalConfig({
+                title: 'Khôi Phục',
+                message: 'Khôi phục danh sách bài viết mặc định?',
+                confirmLabel: 'Khôi phục',
+                onConfirm: onResetPosts
+              });
+            }}
+          />
+        )}
 
-      {/* TAB 5: KIỂM DUYỆT ĐÁNH GIÁ */}
-      {activeTab === 'reviews' && (
-        <ReviewManagementTab onShowToast={showSavedToast} />
-      )}
+        {activeTab === 'reviews' && (
+          <ReviewManagementTab onShowToast={showSavedToast} />
+        )}
 
-      {/* TAB 6: CẤU HÌNH & VOUCHER */}
-      {activeTab === 'config' && (
-        <ConfigVoucherTab
-          config={shopConfig}
-          onSaveConfig={(newCfg) => {
-            if (onSaveConfig) onSaveConfig(newCfg);
-            showSavedToast('Đã lưu cấu hình shop!');
-          }}
-          onShowAlert={(msg) => setModalConfig({ title: 'Thông Báo', message: msg, isAlert: true })}
-        />
-      )}
+        {activeTab === 'config' && (
+          <ConfigVoucherTab
+            config={shopConfig}
+            onSaveConfig={(newCfg) => {
+              if (onSaveConfig) onSaveConfig(newCfg);
+              showSavedToast('Đã lưu cấu hình shop!');
+            }}
+            onShowAlert={(msg) => setModalConfig({ title: 'Thông Báo', message: msg, isAlert: true })}
+          />
+        )}
+      </div>
 
-      {/* Modal Sửa Sản Phẩm */}
+      {/* CÁC MODAL THAO TÁC */}
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
@@ -706,7 +701,6 @@ export default function AdminPage({
         />
       )}
 
-      {/* Modal Sửa Chuyện Vườn */}
       {editingStory && (
         <EditStoryModal
           story={editingStory}
@@ -718,7 +712,6 @@ export default function AdminPage({
         />
       )}
 
-      {/* Modal Sửa Bài Viết */}
       {editingPost && (
         <EditPostModal
           post={editingPost}
@@ -730,15 +723,13 @@ export default function AdminPage({
         />
       )}
 
-      {/* Modal Xác Nhận Chung */}
       <ConfirmModal
         modalConfig={modalConfig}
         onClose={() => setModalConfig(null)}
       />
 
-      {/* Toast thông báo lưu thành công */}
       {savedNotice && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 bg-stone-900/95 text-white border border-emerald-500/40 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-2xl backdrop-blur-md animate-fadeIn">
+        <div className="fixed bottom-6 right-6 z-50 p-4 bg-stone-900/95 text-white border border-emerald-500/40 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
           <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5 stroke-[3]" />
           </div>
