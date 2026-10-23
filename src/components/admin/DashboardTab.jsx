@@ -5,7 +5,7 @@ import {
   PhoneCall, Trash2, Clock, Calendar, 
   AlertTriangle, ShieldAlert, History, ArrowUpRight, ArrowLeft, Info, CheckCircle,
   Lock, Edit3, CheckCircle2, ChevronDown, Check, Gift,
-  LayoutList, LayoutGrid, CheckSquare, Square, Layers, Ban
+  LayoutList, LayoutGrid, CheckSquare, Square, Layers, Ban, ShieldCheck
 } from 'lucide-react';
 import { formatDateTime, getRemainingCancelMs, formatCountdownTimer } from '../../utils/dateUtils';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../../constants/orderStatus';
@@ -209,7 +209,10 @@ function DashboardOrderRow({
   onSelectStatus,
   onInspectRefer,
   onOpenOverride,
-  onDeleteOrder
+  onDeleteOrder,
+  onRequestConfirmPayment,
+  confirmingOrderCode,
+  depositAmount = 50000
 }) {
   const currentStatusCode = normalizeOrderStatus(ord.status);
   const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
@@ -243,6 +246,9 @@ function DashboardOrderRow({
   const isTerminalStatus = allowedNextStatuses.length === 0;
   const isLockedStatus = isInspectingRefer || isTerminalStatus;
   const customerName = ord.customer_name || ord.name || 'Khách đặt';
+
+  const isPaid = ord.payment_verified;
+  const isConfirming = confirmingOrderCode === ord.code;
 
   return (
     <div 
@@ -308,6 +314,19 @@ function DashboardOrderRow({
                 <span>({formattedCreatedAt})</span>
               </span>
 
+              {/* Huy hiệu trạng thái thanh toán / cọc */}
+              {isPaid ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Đã cọc {Number(ord.deposit_paid || depositAmount).toLocaleString('vi-VN')}đ</span>
+                </span>
+              ) : paymentMethodVal !== 'cod' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                  <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
+                  <span>Chờ nổ tiền MB</span>
+                </span>
+              ) : null}
+
               {isBombedRisk ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
                   <ShieldAlert className="w-3 h-3 text-red-700" />
@@ -342,8 +361,8 @@ function DashboardOrderRow({
 
             {ord.address && (
               <p className={`text-[11px] line-clamp-1 p-1 rounded-md transition-colors ${
-                isBombedRisk
-                  ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block'
+                isBombedRisk 
+                  ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block' 
                   : isCancelledRisk
                     ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300 inline-block'
                     : 'text-stone-600'
@@ -377,6 +396,32 @@ function DashboardOrderRow({
             className="flex items-center gap-1.5"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* NÚT BẬT MODAL XÁC NHẬN CỌC / CHUYỂN KHOẢN */}
+            {!isPaid && paymentMethodVal !== 'cod' && (
+              <button
+                type="button"
+                disabled={isConfirming || isProcessing}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRequestConfirmPayment && onRequestConfirmPayment(ord);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Bấm để xác nhận kiểm tra tiền về MB Bank trước khi chuyển đơn sang Đã Xác Nhận"
+              >
+                {isConfirming ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang duyệt...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{paymentMethodVal === 'deposit' ? 'Đã Nhận Cọc' : 'Đã Nhận Đủ'}</span>
+                  </>
+                )}
+              </button>
+            )}
+
             {isLockedStatus ? (
               <div className="flex items-center gap-1">
                 <div 
@@ -516,7 +561,10 @@ function DashboardOrderGridCard({
   isProcessing,
   onSelectStatus,
   onOpenOverride,
-  onDeleteOrder
+  onDeleteOrder,
+  onRequestConfirmPayment,
+  confirmingOrderCode,
+  depositAmount = 50000
 }) {
   const currentStatusCode = normalizeOrderStatus(ord.status);
   const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
@@ -550,6 +598,9 @@ function DashboardOrderGridCard({
   const isTerminalStatus = allowedNextStatuses.length === 0;
   const isLockedStatus = isInspectingRefer || isTerminalStatus;
   const customerName = ord.customer_name || ord.name || 'Khách đặt';
+
+  const isPaid = ord.payment_verified;
+  const isConfirming = confirmingOrderCode === ord.code;
 
   return (
     <div 
@@ -609,6 +660,18 @@ function DashboardOrderGridCard({
             </p>
           )}
 
+          {isPaid ? (
+            <div className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-900 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-md">
+              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+              <span>Đã cọc {Number(ord.deposit_paid || depositAmount).toLocaleString('vi-VN')}đ</span>
+            </div>
+          ) : paymentMethodVal !== 'cod' ? (
+            <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md">
+              <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
+              <span>Chờ nổ tiền MB</span>
+            </div>
+          ) : null}
+
           {isStillInCancelWindow && (
             <div className="text-[10px] font-bold text-amber-900 bg-amber-100/80 border border-amber-300 px-2 py-0.5 rounded-md flex items-center gap-1">
               <Clock className="w-3 h-3 animate-spin text-amber-700" />
@@ -638,6 +701,32 @@ function DashboardOrderGridCard({
           className="flex items-center justify-between gap-2"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* NÚT BẬT MODAL DUYỆT TRÊN CARD VIEW */}
+          {!isPaid && paymentMethodVal !== 'cod' && (
+            <button
+              type="button"
+              disabled={isConfirming || isProcessing}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRequestConfirmPayment && onRequestConfirmPayment(ord);
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Xác nhận kiểm tra tiền về MB Bank"
+            >
+              {isConfirming ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span>Duyệt...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>{paymentMethodVal === 'deposit' ? 'Đã Nhận Cọc' : 'Đã Nhận Đủ'}</span>
+                </>
+              )}
+            </button>
+          )}
+
           {isLockedStatus ? (
             <div className="flex items-center gap-1">
               <div className={`text-[11px] font-bold px-2.5 py-1 rounded-xl border flex items-center gap-1 select-none ${statusMeta.bg}`}>
@@ -697,6 +786,8 @@ export default function DashboardTab({
   onRefresh,
   onUpdateStatus,
   onDeleteOrder,
+  onConfirmPayment,
+  confirmingOrderCode = null,
   depositAmount = 50000,
   actionLoadingCode = null,
   onShowAlert
@@ -735,6 +826,9 @@ export default function DashboardTab({
   const [statusReason, setStatusReason] = useState('');
   const [customReason, setCustomReason] = useState('');
 
+  // Modal xác nhận duyệt nhận cọc / chuyển khoản ngân hàng
+  const [paymentVerificationModal, setPaymentVerificationModal] = useState(null);
+
   const [overrideModal, setOverrideModal] = useState(null);
   const [overrideTargetStatus, setOverrideTargetStatus] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
@@ -756,7 +850,6 @@ export default function DashboardTab({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Xóa danh sách chọn khi thay đổi bộ lọc
   useEffect(() => {
     setSelectedOrderCodes([]);
   }, [statusFilter, dateFilterType, searchQuery]);
@@ -784,14 +877,12 @@ export default function DashboardTab({
     searchQuery.trim().toUpperCase().startsWith('XNG') && statusFilter === 'all'
   );
 
-  // Chọn hoặc bỏ chọn đơn lẻ
   const handleToggleSelectOrder = (code) => {
     setSelectedOrderCodes((prev) => 
       prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
     );
   };
 
-  // Chọn hoặc bỏ chọn toàn bộ đơn đang hiển thị
   const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderCodes.length === filteredOrders.length;
   const handleToggleSelectAll = () => {
     if (isAllFilteredSelected) {
@@ -801,9 +892,6 @@ export default function DashboardTab({
     }
   };
 
-  // =========================================================================
-  // THUẬT TOÁN RÀNG BUỘC TIẾN TRÌNH: TÍNH GIAO ĐIỂM (INTERSECTION) BƯỚC TIẾP THEO
-  // =========================================================================
   const selectedOrderObjects = useMemo(() => {
     return orders.filter((o) => selectedOrderCodes.includes(o.code));
   }, [orders, selectedOrderCodes]);
@@ -820,7 +908,6 @@ export default function DashboardTab({
         String(paymentVal || '').toLowerCase().includes('100%') || 
         paymentVal === 'full_qr';
 
-      // Loại bỏ BOMBED nếu đơn này đã thanh toán 100%
       return allowed.filter((st) => !(isFullPrepaid && st === ORDER_STATUS.BOMBED));
     });
 
@@ -829,10 +916,8 @@ export default function DashboardTab({
     );
   }, [selectedOrderObjects]);
 
-  // Kiểm tra điều kiện có được phép Hủy / Bom hàng loạt hay không
   const canBulkCancel = useMemo(() => {
     if (selectedOrderObjects.length === 0) return false;
-    // Chỉ hủy được các đơn chưa vào trạng thái kết thúc
     return selectedOrderObjects.every((o) => {
       const st = normalizeOrderStatus(o.status);
       return st !== ORDER_STATUS.COMPLETED && st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED;
@@ -848,17 +933,14 @@ export default function DashboardTab({
         String(paymentVal || '').toLowerCase().includes('100%') || 
         paymentVal === 'full_qr';
 
-      // Bom hàng chỉ áp dụng khi đang giao hàng (shipping) và KHÔNG ĐƯỢC thanh toán 100%
       return st === ORDER_STATUS.SHIPPING && !isFullPrepaid;
     });
   }, [selectedOrderObjects]);
 
-  // Xử lý chuyển trạng thái hàng loạt (cho các bước chuyển tiếp thông thường)
   const handleBulkUpdateStatus = async (targetStatusCode) => {
     if (selectedOrderCodes.length === 0) return;
     setIsBulkStatusDropdownOpen(false);
 
-    // Nếu chọn Hủy hoặc Bom trong danh sách thì chuyển hướng mở Modal lý do
     if (targetStatusCode === ORDER_STATUS.CANCELLED) {
       handleOpenBulkCancelModal();
       return;
@@ -892,7 +974,6 @@ export default function DashboardTab({
     });
   };
 
-  // Mở modal xác nhận HỦY HÀNG LOẠT kèm lý do
   const handleOpenBulkCancelModal = () => {
     setIsBulkStatusDropdownOpen(false);
     if (!canBulkCancel) {
@@ -914,7 +995,6 @@ export default function DashboardTab({
     setCustomReason('');
   };
 
-  // Mở modal xác nhận BOM HÀNG LOẠT kèm lý do
   const handleOpenBulkBombModal = () => {
     setIsBulkStatusDropdownOpen(false);
     if (!canBulkBomb) {
@@ -936,7 +1016,6 @@ export default function DashboardTab({
     setCustomReason('');
   };
 
-  // Xử lý xóa hàng loạt
   const handleBulkDelete = () => {
     if (selectedOrderCodes.length === 0) return;
     setConfirmModalConfig({
@@ -1018,6 +1097,20 @@ export default function DashboardTab({
       message: `Bạn có chắc chắn muốn xóa đơn hàng ${code} không? Dữ liệu trên hệ thống sẽ bị xóa bỏ hoàn toàn.`,
       confirmLabel: 'Xác nhận xóa',
       onConfirm: () => onDeleteOrder(code)
+    });
+  };
+
+  // Kích hoạt mở modal xác nhận tiền cọc
+  const handleRequestConfirmPayment = (ord) => {
+    const isDeposit = (ord.payment_method || ord.paymentMethod) === 'deposit';
+    const totalNum = parseCleanMoney(ord.final_total ?? ord.total ?? 0);
+    const expectedAmount = isDeposit ? Math.min(depositAmount, totalNum) : totalNum;
+
+    setPaymentVerificationModal({
+      order: ord,
+      isDeposit,
+      expectedAmount,
+      totalNum
     });
   };
 
@@ -1395,6 +1488,9 @@ export default function DashboardTab({
                   setOverrideReason('');
                 }}
                 onDeleteOrder={handleDeleteWithConfirm}
+                onRequestConfirmPayment={handleRequestConfirmPayment}
+                confirmingOrderCode={confirmingOrderCode}
+                depositAmount={depositAmount}
               />
             ))}
           </div>
@@ -1416,6 +1512,9 @@ export default function DashboardTab({
                   setOverrideReason('');
                 }}
                 onDeleteOrder={handleDeleteWithConfirm}
+                onRequestConfirmPayment={handleRequestConfirmPayment}
+                confirmingOrderCode={confirmingOrderCode}
+                depositAmount={depositAmount}
               />
             ))}
           </div>
@@ -1476,7 +1575,7 @@ export default function DashboardTab({
             )}
           </div>
 
-          {/* 👉 NÚT HỦY HÀNG LOẠT */}
+          {/* NÚT HỦY HÀNG LOẠT */}
           <button
             type="button"
             disabled={isBulkProcessing || !canBulkCancel}
@@ -1488,7 +1587,7 @@ export default function DashboardTab({
             <span className="hidden md:inline">Hủy</span>
           </button>
 
-          {/* 👉 NÚT BOM HÀNG LOẠT */}
+          {/* NÚT BOM HÀNG LOẠT */}
           <button
             type="button"
             disabled={isBulkProcessing || !canBulkBomb}
@@ -1520,6 +1619,102 @@ export default function DashboardTab({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* ================= MODAL XÁC NHẬN DUYỆT TIỀN CỌC / CHUYỂN KHOẢN MB ================= */}
+      {paymentVerificationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-stone-900">
+                    {paymentVerificationModal.isDeposit ? 'Xác Nhận Đã Nhận Tiền Cọc' : 'Xác Nhận Đã Nhận Đủ 100%'}
+                  </h4>
+                  <p className="text-[11px] text-stone-500 font-mono">
+                    Mã đơn: <strong className="text-amber-900">{paymentVerificationModal.order.code}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setPaymentVerificationModal(null)}
+                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Chi tiết số tiền & tài khoản đối soát */}
+            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-stone-600">
+                <span>Khách hàng:</span>
+                <span className="font-bold text-stone-900">
+                  {paymentVerificationModal.order.customer_name || paymentVerificationModal.order.name || 'Khách đặt'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-stone-600">
+                <span>Số điện thoại:</span>
+                <span className="font-mono font-bold text-stone-800">
+                  {paymentVerificationModal.order.phone}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-stone-600">
+                <span>Tổng giá trị đơn hàng:</span>
+                <span className="font-mono font-bold text-stone-900">
+                  {paymentVerificationModal.totalNum.toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-stone-200/70 flex justify-between items-center">
+                <span className="font-bold text-emerald-950">
+                  {paymentVerificationModal.isDeposit ? 'Số tiền cọc cần đối soát:' : 'Số tiền 100% cần đối soát:'}
+                </span>
+                <span className="font-mono font-black text-emerald-700 text-base">
+                  {paymentVerificationModal.expectedAmount.toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-[11px] text-amber-950 flex items-start gap-2">
+              <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <span>
+                Vui lòng mở ứng dụng <strong>MB Bank</strong> và kiểm tra biến động số dư đúng mã <strong>{paymentVerificationModal.order.code}</strong> trước khi xác nhận. Sau khi xác nhận, đơn sẽ tự động chuyển sang trạng thái <strong>Đã Xác Nhận (Confirmed)</strong> để chuyển giao qua tổ Đóng gói.
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setPaymentVerificationModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 hover:bg-stone-100 font-bold text-xs text-stone-600 transition-colors cursor-pointer"
+              >
+                Chưa nhận, Đóng
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const targetOrd = paymentVerificationModal.order;
+                  setPaymentVerificationModal(null);
+                  if (onConfirmPayment) {
+                    await onConfirmPayment(targetOrd);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Đã Nhận Đủ Tiền</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

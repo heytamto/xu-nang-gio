@@ -7,18 +7,21 @@ export default function PaymentMethodSelector({
   setPaymentMethod,
   customerHistory = {},
   depositAmount = 50000,
+  finalTotalAmount = 0,
 }) {
   const safeDeposit = Number(depositAmount) || 50000;
+  const totalAmount = Number(finalTotalAmount) || 0;
+
+  // Khi tổng đơn nhỏ hơn hoặc bằng mức cọc (ví dụ: đơn 31.500đ <= 50.000đ)
+  const isTotalLowerThanDeposit = totalAmount > 0 && totalAmount <= safeDeposit;
 
   // 1. Phân tích lịch sử đơn hàng của khách
-  // Đơn kề trước (gần nhất) có trạng thái là bombed
   const isLastOrderBombed = Boolean(
     customerHistory?.lastOrderBombed || 
     customerHistory?.lastOrderStatus === 'bombed' ||
     customerHistory?.hasBombedHistory
   );
 
-  // 2 đơn liên tục gần nhất đều bị hủy (cancelled)
   const isTwoRecentCancelled = Boolean(
     customerHistory?.twoRecentCancelled || 
     customerHistory?.consecutiveCancelledCount >= 2
@@ -27,17 +30,22 @@ export default function PaymentMethodSelector({
   // Khóa COD nếu: Đơn kề trước bị bom HOẶC 2 đơn gần nhất liên tục bị hủy
   const isCodBlocked = isLastOrderBombed || isTwoRecentCancelled;
 
-  // Khóa Cọc nếu: Đơn kề trước bị bom (Bắt buộc trả 100%)
-  const isDepositBlocked = isLastOrderBombed;
+  // Khóa Cọc nếu: Đơn kề trước bị bom HOẶC tổng đơn nhỏ hơn/bằng tiền cọc
+  const isDepositBlocked = isLastOrderBombed || isTotalLowerThanDeposit;
 
-  // 2. Tự động chuyển hình thức thanh toán hợp lệ nếu phương thức đang chọn bị khóa
+  // 2. Tự động chuyển hình thức thanh toán hợp lệ
   useEffect(() => {
     if (isLastOrderBombed && paymentMethod !== 'full_qr') {
+      // Bị bom đơn kề trước -> Ép chuyển khoản 100%
       setPaymentMethod('full_qr');
+    } else if (isTotalLowerThanDeposit && paymentMethod === 'deposit') {
+      // Tổng đơn nhỏ hơn cọc -> Tự động chuyển sang Chuyển khoản 100% (hoặc COD nếu không bị chặn)
+      setPaymentMethod(isCodBlocked ? 'full_qr' : 'full_qr');
     } else if (isCodBlocked && paymentMethod === 'cod') {
-      setPaymentMethod('deposit');
+      // Bị chặn COD -> Chuyển về cọc (nếu còn cọc) hoặc full_qr (nếu đơn nhỏ hơn cọc)
+      setPaymentMethod(isTotalLowerThanDeposit ? 'full_qr' : 'deposit');
     }
-  }, [isLastOrderBombed, isCodBlocked, paymentMethod, setPaymentMethod]);
+  }, [isLastOrderBombed, isTotalLowerThanDeposit, isCodBlocked, paymentMethod, setPaymentMethod]);
 
   return (
     <div className="space-y-2.5 font-sans">
@@ -64,7 +72,11 @@ export default function PaymentMethodSelector({
             <QrCode className={`w-4 h-4 shrink-0 ${paymentMethod === 'full_qr' ? 'text-amber-700' : 'text-stone-400'}`} />
             <div>
               <div className="flex items-center gap-1.5">
-                <strong className="text-xs text-stone-900 font-bold">Chuyển khoản 100%</strong>
+                <strong className="text-xs text-stone-900 font-bold">
+                  {isTotalLowerThanDeposit && totalAmount > 0 
+                    ? `Chuyển khoản toàn bộ (${totalAmount.toLocaleString('vi-VN')}đ)` 
+                    : 'Chuyển khoản 100%'}
+                </strong>
                 <span className="text-[9.5px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.2 rounded-md font-bold">
                   + Tặng Quà Vườn
                 </span>
@@ -84,56 +96,58 @@ export default function PaymentMethodSelector({
           />
         </label>
 
-        {/* 2. Cọc giữ đơn (Bị khóa nếu đơn kề trước bị bom) */}
-        {!isDepositBlocked ? (
-          <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
-            paymentMethod === 'deposit' 
-              ? 'border-amber-600 bg-amber-50 ring-1 ring-amber-600 shadow-xs' 
-              : 'border-stone-200 bg-white hover:bg-stone-50'
-          }`}>
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className={`w-4 h-4 shrink-0 ${paymentMethod === 'deposit' ? 'text-amber-700' : 'text-stone-400'}`} />
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <strong className="text-xs text-stone-900 font-bold">Cọc {safeDeposit.toLocaleString('vi-VN')}đ</strong>
-                  <span className="text-[9.5px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-md font-bold">
-                    + Tặng Quà Vườn
+        {/* 2. Cọc giữ đơn (Ẩn nếu tổng đơn nhỏ hơn mức cọc, hoặc khóa nếu đơn kề trước bị bom) */}
+        {!isTotalLowerThanDeposit && (
+          !isLastOrderBombed ? (
+            <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
+              paymentMethod === 'deposit' 
+                ? 'border-amber-600 bg-amber-50 ring-1 ring-amber-600 shadow-xs' 
+                : 'border-stone-200 bg-white hover:bg-stone-50'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className={`w-4 h-4 shrink-0 ${paymentMethod === 'deposit' ? 'text-amber-700' : 'text-stone-400'}`} />
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <strong className="text-xs text-stone-900 font-bold">Cọc {safeDeposit.toLocaleString('vi-VN')}đ</strong>
+                    <span className="text-[9.5px] bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-0.2 rounded-md font-bold">
+                      + Tặng Quà Vườn
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-stone-500 block leading-tight mt-0.5">
+                    Giữ đơn hái tươi sáng sớm • Số tiền còn lại gửi tài xế khi nhận thùng xốp
                   </span>
                 </div>
-                <span className="text-[10px] text-stone-500 block leading-tight mt-0.5">
-                  Giữ đơn hái tươi sáng sớm • Số tiền còn lại gửi tài xế khi nhận thùng xốp
-                </span>
               </div>
-            </div>
-            <input 
-              type="radio" 
-              name="paymentMethod" 
-              value="deposit" 
-              checked={paymentMethod === 'deposit'} 
-              onChange={() => setPaymentMethod('deposit')} 
-              className="accent-amber-600 cursor-pointer" 
-            />
-          </label>
-        ) : (
-          <div className="p-3 rounded-2xl border border-dashed border-rose-300 bg-rose-50/50 text-stone-400 flex items-center justify-between select-none">
-            <div className="flex items-center gap-2.5">
-              <Ban className="w-4 h-4 text-rose-500 shrink-0" />
-              <div>
-                <strong className="block text-xs font-bold text-stone-500 line-through">
-                  Cọc {safeDeposit.toLocaleString('vi-VN')}đ
-                </strong>
-                <span className="text-[10px] text-rose-700 block leading-tight mt-0.5">
-                  Đơn hàng gần nhất bị hủy giao (bom hàng). Vui lòng thanh toán toàn bộ qua VietQR.
-                </span>
+              <input 
+                type="radio" 
+                name="paymentMethod" 
+                value="deposit" 
+                checked={paymentMethod === 'deposit'} 
+                onChange={() => setPaymentMethod('deposit')} 
+                className="accent-amber-600 cursor-pointer" 
+              />
+            </label>
+          ) : (
+            <div className="p-3 rounded-2xl border border-dashed border-rose-300 bg-rose-50/50 text-stone-400 flex items-center justify-between select-none">
+              <div className="flex items-center gap-2.5">
+                <Ban className="w-4 h-4 text-rose-500 shrink-0" />
+                <div>
+                  <strong className="block text-xs font-bold text-stone-500 line-through">
+                    Cọc {safeDeposit.toLocaleString('vi-VN')}đ
+                  </strong>
+                  <span className="text-[10px] text-rose-700 block leading-tight mt-0.5">
+                    Đơn hàng gần nhất bị hủy giao (bom hàng). Vui lòng thanh toán toàn bộ qua VietQR.
+                  </span>
+                </div>
               </div>
+              <span className="text-[9.5px] font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md shrink-0 ml-2">
+                Bắt Buộc CK 100%
+              </span>
             </div>
-            <span className="text-[9.5px] font-bold text-rose-800 bg-rose-100 border border-rose-300 px-2 py-0.5 rounded-md shrink-0 ml-2">
-              Bắt Buộc CK 100%
-            </span>
-          </div>
+          )
         )}
 
-        {/* 3. COD (Bị khóa nếu bom đơn trước ĐÓ hoặc hủy 2 đơn liên tiếp) */}
+        {/* 3. COD (Bị khóa nếu bom đơn trước đó hoặc hủy 2 đơn liên tiếp) */}
         {!isCodBlocked ? (
           <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
             paymentMethod === 'cod' 
@@ -169,12 +183,12 @@ export default function PaymentMethodSelector({
                 <span className="text-[10px] text-amber-900 block leading-tight mt-0.5">
                   {isLastOrderBombed 
                     ? 'Không áp dụng COD do đơn kề trước từng hoàn trả.' 
-                    : '2 đơn gần nhất liên tiếp bị hủy. Vui lòng cọc giữ đơn để nhà vườn xuất hàng.'}
+                    : '2 đơn gần nhất liên tiếp bị hủy. Vui lòng thanh toán trước để nhà vườn xuất hàng.'}
                 </span>
               </div>
             </div>
             <span className="text-[9.5px] font-bold text-amber-900 bg-amber-200/80 border border-amber-300 px-2 py-0.5 rounded-md shrink-0 ml-2">
-              {isLastOrderBombed ? 'Khóa COD' : 'Cần Cọc Giữ Đơn'}
+              {isLastOrderBombed ? 'Khóa COD' : 'Cần Trả Trước'}
             </span>
           </div>
         )}

@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Check, ShoppingBag, MapPin, Gift } from 'lucide-react';
 
 export default function ProductCard({ product, onAddToCart }) {
-  // 1. Chuẩn hóa weights từ nhiều nguồn (Mảng quan hệ 3NF product_weights, chuỗi text hoặc fallback unit)
+  // 1. Chuẩn hóa weights từ nhiều nguồn (Mảng quan hệ product_weights, chuỗi text hoặc fallback unit)
   const weightsList = useMemo(() => {
     const rawWeights = product?.product_weights || product?.weights;
 
@@ -12,7 +12,7 @@ export default function ProductCard({ product, onAddToCart }) {
         id: w.id || `opt-${idx + 1}`,
         label: w.weight_label || w.label || w.unit || 'Tiêu chuẩn',
         multiplier: parseFloat(w.multiplier) || 1,
-        priceOverride: w.price_override ? Number(w.price_override) : null,
+        priceOverride: w.price_override != null && w.price_override !== '' ? Number(w.price_override) : null,
         isDefault: Boolean(w.is_default)
       }));
     }
@@ -34,7 +34,7 @@ export default function ProductCard({ product, onAddToCart }) {
       id: 'std', 
       label: product?.unit || product?.weight_label || 'Tiêu chuẩn', 
       multiplier: 1, 
-      priceOverride: null,
+      priceOverride: null, 
       isDefault: true 
     }];
   }, [product?.product_weights, product?.weights, product?.unit, product?.weight_label]);
@@ -73,7 +73,7 @@ export default function ProductCard({ product, onAddToCart }) {
     }
   }, [flavorsList]);
 
-  // Hỗ trợ song song cả camelCase (Sheet) và snake_case (Supabase)
+  // Hỗ trợ song song cả camelCase (Sheet/Local) và snake_case (Supabase)
   const isOutOfStock = product?.inStock === false || product?.in_stock === false;
   const productImage = product?.image || product?.image_url || "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
   const productDesc = product?.desc || product?.description || '';
@@ -84,10 +84,19 @@ export default function ProductCard({ product, onAddToCart }) {
   const multiplier = Number(activeWeight.multiplier) || 1;
   const priceBonus = selectedFlavor?.priceBonus || 0;
 
-  // Tính đơn giá theo quy cách
-  const currentPrice = activeWeight.priceOverride != null 
-    ? activeWeight.priceOverride + priceBonus 
-    : Math.round((base + priceBonus) * multiplier);
+  // 3. Cơ chế tính giá phòng thủ:
+  // - Nếu priceOverride >= base * 0.4: là giá độc lập trọn gói hợp lệ.
+  // - Nếu priceOverride nhỏ bất thường (< 10.000đ trong khi base >= 20.000đ): là tiền chênh lệch (priceDiff) -> cộng vào base.
+  // - Ngược lại: tính theo công thức multiplier * base.
+  const currentPrice = useMemo(() => {
+    if (activeWeight.priceOverride != null && activeWeight.priceOverride > 0) {
+      if (activeWeight.priceOverride < 10000 && base >= 20000) {
+        return base + activeWeight.priceOverride + priceBonus;
+      }
+      return activeWeight.priceOverride + priceBonus;
+    }
+    return Math.round((base + priceBonus) * multiplier);
+  }, [activeWeight.priceOverride, base, priceBonus, multiplier]);
 
   const handleAddToCartClick = () => {
     if (isOutOfStock) return;
@@ -99,14 +108,18 @@ export default function ProductCard({ product, onAddToCart }) {
     // Cart item payload chuẩn hóa
     const itemToAdd = {
       ...product,
+      id: prodId,
       productId: prodId,
       weightId: weightId,
       cartItemId: `${prodId}_${weightId}${flavorStr ? `_${flavorStr}` : ''}`,
-      name: product?.name,
+      name: product?.name || product?.title,
+      title: product?.title || product?.name,
       basePrice: base,
+      base_price: base,
       price: currentPrice,
       image: productImage,
       weightLabel: activeWeight.label,
+      weight_label: activeWeight.label,
       flavor: flavorStr,
       multiplier: multiplier,
     };
@@ -172,7 +185,7 @@ export default function ProductCard({ product, onAddToCart }) {
       <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
         <div>
           <h3 className="font-bold text-stone-900 text-sm leading-snug line-clamp-2 group-hover:text-amber-800 transition-colors">
-            {product?.name}
+            {product?.name || product?.title}
           </h3>
           {productDesc && (
             <p className="text-[11px] text-stone-500 mt-1 line-clamp-2 leading-relaxed">

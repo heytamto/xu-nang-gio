@@ -34,7 +34,7 @@ export default function PackingPage({
   const [isLoading, setIsLoading] = useState(false);
 
   const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
-  const depositConfigAmount = Number(shopConfig?.depositAmount) || 100000;
+  const configuredDeposit = Number(shopConfig?.depositAmount) || 50000;
 
   // Map tra cứu quà tặng từ catalog (Fallback nếu đơn chỉ lưu ID quà)
   const giftCatalogMap = useMemo(() => {
@@ -222,11 +222,14 @@ export default function PackingPage({
     });
   }, [warehouseOrders]);
 
-  // Tính số tiền cần thu khi giao hàng
+  // Tính số tiền cần thu khi giao hàng chuẩn xác theo deposit_paid và payment_verified
   const getCollectInfo = (order) => {
     const method = String(order.payment_method || order.paymentMethod || '').toLowerCase();
     const rawTotal = Number(order.final_total ?? order.total ?? order.totalAmount ?? 0);
+    const depositPaidFromDb = Number(order.deposit_paid ?? 0);
+    const isVerified = Boolean(order.payment_verified);
 
+    // 1. Đơn chuyển khoản 100%
     if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
         type: 'PAID_FULL',
@@ -238,20 +241,26 @@ export default function PackingPage({
       };
     }
 
+    // 2. Đơn đặt cọc (Deposit)
     if (method.includes('cọc') || method.includes('deposit')) {
-      const deposit = depositConfigAmount;
-      const remaining = Math.max(0, rawTotal - deposit);
+      const actualDeposit = depositPaidFromDb > 0 
+        ? depositPaidFromDb 
+        : (isVerified ? Math.min(configuredDeposit, rawTotal) : Math.min(configuredDeposit, rawTotal));
+      
+      const remaining = Math.max(0, rawTotal - actualDeposit);
+
       return {
         type: 'DEPOSIT_REMAINING',
         collectAmount: remaining,
-        depositAmount: deposit,
-        badgeText: `ĐÃ CỌC ${deposit.toLocaleString('vi-VN')}đ • THU: ${remaining.toLocaleString('vi-VN')}đ`,
+        depositAmount: actualDeposit,
+        badgeText: `ĐÃ CỌC ${actualDeposit.toLocaleString('vi-VN')}đ • THU: ${remaining.toLocaleString('vi-VN')}đ`,
         badgeStyle: 'text-amber-900 bg-amber-50 border-amber-300',
-        printTitle: `ĐÃ CỌC ${deposit.toLocaleString('vi-VN')} đ (THU CÒN LẠI):`,
-        printSub: `Tổng đơn: ${rawTotal.toLocaleString('vi-VN')}đ - Khách đã cọc: ${deposit.toLocaleString('vi-VN')}đ`
+        printTitle: `ĐÃ CỌC ${actualDeposit.toLocaleString('vi-VN')} đ (THU CÒN LẠI):`,
+        printSub: `Tổng đơn: ${rawTotal.toLocaleString('vi-VN')}đ - Khách đã cọc: ${actualDeposit.toLocaleString('vi-VN')}đ`
       };
     }
 
+    // 3. Đơn trả sau (COD 100%)
     return {
       type: 'COD_FULL',
       collectAmount: rawTotal,
@@ -266,7 +275,7 @@ export default function PackingPage({
   const parseOrderItems = (order) => {
     const items = [];
 
-    // 1. Mảng quan hệ 3NF order_items
+    // 1. Mảng quan hệ order_items
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
       order.order_items.forEach((oi) => {
         items.push({
@@ -791,8 +800,6 @@ export default function PackingPage({
   // GIAO DIỆN KHO ĐÓNG GÓI KHI ĐÃ ĐĂNG NHẬP
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
-      
-      {/* KHỐI HEADER ĐƯỢC FIX CỨNG BẰNG STICKY TOP-0 (ĐỒNG BỘ Y HỆT TRANG ADMIN) */}
       <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
         <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -881,7 +888,6 @@ export default function PackingPage({
         </header>
       </div>
 
-      {/* CÁC TAB NỘI DUNG NẰM LIỀN MẠCH PHÍA DƯỚI */}
       <div className="space-y-6 pt-3">
         {activeTab === 'picking' && (
           <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
@@ -1149,7 +1155,6 @@ export default function PackingPage({
           </div>
         )}
       </div>
-
     </div>
   );
 }

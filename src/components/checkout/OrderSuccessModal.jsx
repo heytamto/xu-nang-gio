@@ -1,6 +1,6 @@
 // src/components/checkout/OrderSuccessModal.jsx
 import React, { useState, useEffect } from 'react';
-import { Printer, Phone } from 'lucide-react';
+import { Printer, Phone, Truck } from 'lucide-react';
 
 // Răng cưa siêu nhuyễn 1.8px sắc nét, dùng chung cho cả 2 đầu
 function MicroSawtoothEdge({ position = 'bottom' }) {
@@ -33,12 +33,6 @@ export default function OrderSuccessModal({
   shopConfig = {}, 
   onClose 
 }) {
-  // Giai đoạn:
-  // 1: 'waiting'  (0.0s - 0.6s) : Máy in hiện bên dưới, đèn LED nhấp nháy
-  // 2: 'shaking'  (0.6s - 1.0s) : Rung nhẹ trục in
-  // 3: 'feeding'  (1.0s - 3.7s) : Nhịp 1 đùn Xứ Nắng Gió -> delay nhẹ -> Nhịp 2 trượt đều phần còn lại
-  // 4: 'tearing'  (3.7s - 4.2s) : Dao xé giật nghiêng rẹt một cái
-  // 5: 'torn'     (sau 4.2s)    : Máy in trượt mất, hóa đơn đứng yên
   const [printStep, setPrintStep] = useState('waiting');
 
   useEffect(() => {
@@ -47,8 +41,8 @@ export default function OrderSuccessModal({
 
       const t1 = setTimeout(() => setPrintStep('shaking'), 600);
       const t2 = setTimeout(() => setPrintStep('feeding'), 1000);
-      const t3 = setTimeout(() => setPrintStep('tearing'), 3700); // Kích hoạt cú xé
-      const t4 = setTimeout(() => setPrintStep('torn'), 4200);    // Hoàn tất
+      const t3 = setTimeout(() => setPrintStep('tearing'), 3700);
+      const t4 = setTimeout(() => setPrintStep('torn'), 4200);
 
       return () => {
         clearTimeout(t1);
@@ -83,18 +77,30 @@ export default function OrderSuccessModal({
   const rawTotal = orderInfo.final_total ?? orderInfo.finalTotal ?? orderInfo.total ?? 0;
   const finalTotalNum = Number(rawTotal);
   const discountNum = Number(orderInfo.discount ?? orderInfo.discountAmount ?? 0);
+  const shippingFeeNum = Number(orderInfo.shipping_fee ?? orderInfo.shippingFee ?? 0);
 
-  const getPaymentLabel = (method) => {
-    const raw = String(method || orderInfo.payment_method || orderInfo.paymentMethod || '').toLowerCase();
-    if (raw.includes('cọc') || raw === 'deposit') return 'Cọc giữ hàng (VietQR)';
-    if (raw.includes('100%') || raw === 'full_qr') return 'Chuyển khoản 100% (VietQR)';
+  const paymentMethodRaw = String(orderInfo.payment_method || orderInfo.paymentMethod || '').toLowerCase();
+  const isCod = paymentMethodRaw === 'cod';
+  const isFullQr = paymentMethodRaw.includes('100%') || paymentMethodRaw === 'full_qr';
+  const isDeposit = !isCod && !isFullQr;
+
+  const configuredDeposit = Number(shopConfig?.depositAmount) || 50000;
+  const depositPaidVal = Number(orderInfo.deposit_paid ?? 0);
+  const actualDeposit = isFullQr 
+    ? finalTotalNum 
+    : (isDeposit ? (depositPaidVal > 0 ? depositPaidVal : Math.min(configuredDeposit, finalTotalNum)) : 0);
+
+  const remainingCod = isCod ? finalTotalNum : Math.max(0, finalTotalNum - actualDeposit);
+
+  const getPaymentLabel = () => {
+    if (isDeposit) return 'Cọc giữ đơn (VietQR)';
+    if (isFullQr) return 'Chuyển khoản 100% (VietQR)';
     return 'Thanh toán khi nhận hàng (COD)';
   };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-stone-950/85 backdrop-blur-md p-4 font-mono select-none overflow-y-auto">
       <style>{`
-        /* Motor máy in bên dưới rung giật */
         @keyframes bottomPrinterVibrate {
           0%, 100% { transform: translateY(0); }
           25% { transform: translateY(1.5px); }
@@ -102,32 +108,23 @@ export default function OrderSuccessModal({
           75% { transform: translateY(1px); }
         }
 
-        /* ĐÙN 2 NHỊP:
-           - Nhịp 1 (0% -> 22%): Đùn tiêu đề XỨ NẮNG GIÓ nhô khỏi khe máy in
-           - Khựng delay (22% -> 38%): Tạm dừng nguyên vị trí
-           - Nhịp 2 (38% -> 100%): Trượt tịnh tiến mượt mà toàn bộ phần còn lại ra ngoài
-        */
         @keyframes printFeedTwoPhasesUp {
           0% {
             transform: translateY(98%);
             opacity: 0.7;
           }
-          /* Đùn XỨ NẮNG GIÓ nhô ra */
           22% {
             transform: translateY(78%);
           }
-          /* Delay khựng lại chút */
           38% {
             transform: translateY(78%);
           }
-          /* Trượt đều tịnh tiến phần còn lại lên hết */
           100% {
             transform: translateY(0);
             opacity: 1;
           }
         }
 
-        /* Động tác xé giấy giật dứt khoát */
         @keyframes paperTearActionUp {
           0% {
             transform: translateY(0) rotate(0deg);
@@ -171,13 +168,13 @@ export default function OrderSuccessModal({
                     : 'translate-y-0 shadow-[0_25px_60px_rgba(0,0,0,0.6)]'
             }`}
           >
-            {/* 1. MÉP RĂNG CƯA TRÊN CÙNG (Cùng Xứ Nắng Gió nhô ra ở nhịp 1) */}
+            {/* 1. MÉP RĂNG CƯA TRÊN CÙNG */}
             <MicroSawtoothEdge position="top" />
 
-            {/* THÂN GIẤY (Trắng ngà sáng, vuông vức nối liền răng cưa) */}
+            {/* THÂN GIẤY */}
             <div className="w-full bg-[#fffefb] text-stone-900 px-6 pt-5 pb-5 border-x border-stone-200/90 shadow-2xl space-y-3.5 text-xs">
               
-              {/* Header: NHỊP 1 ĐÙN RA ĐẦU TIÊN -> DELAY */}
+              {/* Header */}
               <div className="text-center border-b border-dashed border-stone-300 pb-2.5 space-y-0.5">
                 <h3 className="font-black text-base uppercase tracking-wider text-amber-950 font-sans">
                   XỨ NẮNG GIÓ
@@ -209,7 +206,7 @@ export default function OrderSuccessModal({
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Phương thức:</span>
                   <span className="font-semibold text-stone-800 text-[10.5px] font-sans">
-                    {getPaymentLabel(orderInfo.payment_method || orderInfo.paymentMethod)}
+                    {getPaymentLabel()}
                   </span>
                 </div>
               </div>
@@ -226,10 +223,11 @@ export default function OrderSuccessModal({
                     items.map((item, idx) => {
                       const price = Number(item.price || item.base_price || 0);
                       const qty = Number(item.quantity || 1);
+                      const spec = item.weightLabel || item.weight_label || '';
                       return (
                         <div key={item.id || idx} className="flex justify-between text-[11px] leading-snug">
                           <span className="truncate pr-2 font-sans">
-                            {item.name} <span className="text-stone-500 font-mono">x{qty}</span>
+                            {item.name} {spec ? `[${spec}]` : ''} <span className="text-stone-500 font-mono">x{qty}</span>
                           </span>
                           <span className="font-bold shrink-0 font-mono">
                             {(price * qty).toLocaleString('vi-VN')}đ
@@ -245,8 +243,20 @@ export default function OrderSuccessModal({
                 </div>
               </div>
 
-              {/* Tổng tiền */}
+              {/* Tổng tiền & Chi tiết thanh toán */}
               <div className="border-t border-dashed border-stone-300 pt-2 space-y-1.5">
+                {/* Phí vận chuyển */}
+                <div className="flex justify-between text-[11px] text-stone-600">
+                  <span className="flex items-center gap-1 font-sans">
+                    <Truck className="w-3 h-3 text-stone-400" />
+                    <span>Phí gửi xe:</span>
+                  </span>
+                  <span className="font-mono font-bold">
+                    {shippingFeeNum === 0 ? '0đ (Freeship)' : `+${shippingFeeNum.toLocaleString('vi-VN')}đ`}
+                  </span>
+                </div>
+
+                {/* Giảm giá */}
                 {discountNum > 0 && (
                   <div className="flex justify-between text-[11px] text-emerald-700 font-mono">
                     <span>Giảm ưu đãi:</span>
@@ -254,18 +264,37 @@ export default function OrderSuccessModal({
                   </div>
                 )}
 
-                <div className="flex justify-between text-xs font-black text-stone-900 pt-0.5">
+                {/* Tổng thanh toán */}
+                <div className="flex justify-between text-xs font-black text-stone-900 pt-0.5 border-t border-stone-100">
                   <span>TỔNG CỘNG:</span>
                   <span className="text-base text-amber-900 font-mono font-black">
                     {finalTotalNum.toLocaleString('vi-VN')}đ
                   </span>
                 </div>
 
+                {/* Phân tách thanh toán trước & COD */}
+                <div className="bg-stone-50 p-2 rounded-xl border border-stone-200/60 space-y-1 text-[10.5px]">
+                  <div className="flex justify-between text-stone-600">
+                    <span>Thanh toán ngay (VietQR):</span>
+                    <span className="font-mono font-bold text-emerald-700">
+                      {isCod ? '0đ' : `${actualDeposit.toLocaleString('vi-VN')}đ`}
+                    </span>
+                  </div>
+                  {remainingCod > 0 && (
+                    <div className="flex justify-between text-stone-600">
+                      <span>Gửi nhà xe khi nhận:</span>
+                      <span className="font-mono font-bold text-stone-800">
+                        {remainingCod.toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {/* Nút hành động */}
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full mt-3 py-3 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
+                  className="w-full mt-2 py-3 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
                 >
                   Tiếp Tục Xem Vườn
                 </button>
@@ -282,7 +311,7 @@ export default function OrderSuccessModal({
               </div>
             </div>
 
-            {/* 2. MÉP RĂNG CƯA DƯỚI CÙNG (Nơi lưỡi dao máy in cắt) */}
+            {/* 2. MÉP RĂNG CƯA DƯỚI CÙNG */}
             <MicroSawtoothEdge position="bottom" />
 
           </div>

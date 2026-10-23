@@ -1,13 +1,32 @@
 // src/components/admin/ConfigVoucherTab.jsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  QrCode, Tag, Layers, Plus, Trash2, Check, Pencil, X, ShieldCheck,
-  Mail, Send, Sparkles, Loader2, ChevronDown, ChevronUp, MapPin,
-  Megaphone, PlusCircle, Building2, Percent
-} from 'lucide-react';
-import { VIETQR_BANKS } from '../../config/shopConfig';
-import { supabase } from '../../supabaseClient';
-import ConfirmModal from './ConfirmModal';
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  QrCode,
+  Tag,
+  Layers,
+  Plus,
+  Trash2,
+  Check,
+  Pencil,
+  X,
+  ShieldCheck,
+  Mail,
+  Send,
+  Sparkles,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Megaphone,
+  PlusCircle,
+  Building2,
+  Percent,
+  Truck,
+  Gift,
+} from "lucide-react";
+import { VIETQR_BANKS } from "../../config/shopConfig";
+import { supabase } from "../../supabaseClient";
+import ConfirmModal from "./ConfirmModal";
 
 // COMPONENT DROPDOWN TỰ VIẾT ĐỒNG BỘ THEO FORM MẪU THƯ
 function CustomDropdown({
@@ -18,7 +37,7 @@ function CustomDropdown({
   onChange,
   renderSelected,
   renderOption,
-  icon: Icon
+  icon: Icon,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -29,35 +48,44 @@ function CustomDropdown({
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedOpt = options.find((opt) => opt.value === value || opt.id === value || opt.bin === value) || options[0];
+  const selectedOpt =
+    options.find(
+      (opt) => opt.value === value || opt.id === value || opt.bin === value,
+    ) || options[0];
 
   return (
     <div className="relative w-full" ref={containerRef}>
-      {label && <label className="font-semibold text-stone-600 block mb-1 text-xs">{label}</label>}
+      {label && (
+        <label className="font-semibold text-stone-600 block mb-1 text-xs">
+          {label}
+        </label>
+      )}
 
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
           isOpen
-            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
-            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs'
+            ? "bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs"
+            : "bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs"
         }`}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           {Icon && <Icon className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
           <div className="truncate font-bold text-stone-900">
-            {renderSelected ? renderSelected(selectedOpt) : selectedOpt?.label || selectedOpt?.name}
+            {renderSelected
+              ? renderSelected(selectedOpt)
+              : selectedOpt?.label || selectedOpt?.name}
           </div>
         </div>
 
         <ChevronDown
           className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
-            isOpen ? 'rotate-180 text-amber-700' : ''
+            isOpen ? "rotate-180 text-amber-700" : ""
           }`}
         />
       </button>
@@ -72,7 +100,12 @@ function CustomDropdown({
 
           <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {options.map((opt) => {
-              const optVal = opt.value !== undefined ? opt.value : (opt.bin !== undefined ? opt.bin : opt.id);
+              const optVal =
+                opt.value !== undefined
+                  ? opt.value
+                  : opt.bin !== undefined
+                    ? opt.bin
+                    : opt.id;
               const isSelected = optVal === value;
 
               return (
@@ -84,8 +117,8 @@ function CustomDropdown({
                   }}
                   className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
                     isSelected
-                      ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs'
-                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                      ? "bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs"
+                      : "hover:bg-amber-50/70 text-stone-700 font-medium"
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -111,29 +144,44 @@ function CustomDropdown({
 
 // CÁC LỰA CHỌN LOẠI GIẢM VOUCHER
 const VOUCHER_TYPE_OPTIONS = [
-  { value: 'percent', label: 'Giảm theo phần trăm (%)', subLabel: 'Áp dụng tỷ lệ % trên tổng giá trị đơn' },
-  { value: 'fixed', label: 'Giảm số tiền cố định (VNĐ)', subLabel: 'Trừ trực tiếp số tiền cụ thể vào đơn' }
+  {
+    value: "percent",
+    label: "Giảm theo phần trăm (%)",
+    subLabel: "Áp dụng tỷ lệ % trên tổng giá trị đơn",
+  },
+  {
+    value: "fixed",
+    label: "Giảm số tiền cố định (VNĐ)",
+    subLabel: "Trừ trực tiếp số tiền cụ thể vào đơn",
+  },
 ];
 
 export default function ConfigVoucherTab({
   config = {},
   onSaveConfig,
-  onShowAlert
+  onShowAlert,
 }) {
   const [cfg, setCfg] = useState(() => ({
-    bankBin: config.bankBin || '970422',
-    bankName: config.bankName || 'MBBank',
-    accountNo: config.accountNo || '0848957345',
-    accountName: config.accountName || 'TO THANH TAM',
-    depositAmount: config.depositAmount || 50000,
-    hotline: config.hotline || '0848.957.345',
-    zaloPhone: config.zaloPhone || config.hotline || '0848957345',
-    warehousePin: config.warehousePin || '1234',
-    address: config.address || 'Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận',
-    announcement: config.announcement || 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
-    loyaltyDiscountPercent: config.loyaltyDiscountPercent || 10,
-    loyaltyMaxDiscount: config.loyaltyMaxDiscount || 50000,
-    autoSendEmail: config.autoSendEmail !== false && String(config.autoSendEmail).toUpperCase() !== 'FALSE',
+    bankBin: config.bankBin || "970422",
+    bankName: config.bankName || "MBBank",
+    accountNo: config.accountNo || "0848957345",
+    accountName: config.accountName || "TO THANH TAM",
+    depositAmount: config.depositAmount ?? 50000,
+    shippingFee: config.shippingFee ?? 30000,
+    freeShippingThreshold: config.freeShippingThreshold ?? 300000,
+    hotline: config.hotline || "0848.957.345",
+    zaloPhone: config.zaloPhone || config.hotline || "0848957345",
+    warehousePin: config.warehousePin || "1234",
+    address:
+      config.address || "Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận",
+    announcement:
+      config.announcement ||
+      "Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM",
+    loyaltyDiscountPercent: config.loyaltyDiscountPercent ?? 10,
+    loyaltyMaxDiscount: config.loyaltyMaxDiscount ?? 50000,
+    autoSendEmail:
+      config.autoSendEmail !== false &&
+      String(config.autoSendEmail).toUpperCase() !== "FALSE",
   }));
 
   const [vouchers, setVouchers] = useState([]);
@@ -141,17 +189,20 @@ export default function ConfigVoucherTab({
 
   const [templates, setTemplates] = useState([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   const [isNewTemplateModalOpen, setIsNewTemplateModalOpen] = useState(false);
-  const [newTemplateForm, setNewTemplateForm] = useState({ name: '', subject: '' });
+  const [newTemplateForm, setNewTemplateForm] = useState({
+    name: "",
+    subject: "",
+  });
   const [isCreatingTpl, setIsCreatingTpl] = useState(false);
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
 
   const [editingVoucher, setEditingVoucher] = useState(null);
-  const [testEmailInput, setTestEmailInput] = useState('');
+  const [testEmailInput, setTestEmailInput] = useState("");
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -161,17 +212,17 @@ export default function ConfigVoucherTab({
         setIsDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
       const { data, error } = await supabase
-        .from('email_templates')
-        .select('*')
-        .order('id', { ascending: true });
+        .from("email_templates")
+        .select("*")
+        .order("id", { ascending: true });
 
       if (error) throw error;
       if (Array.isArray(data) && data.length > 0) {
@@ -179,75 +230,83 @@ export default function ConfigVoucherTab({
         setSelectedTemplateId((prev) => prev || data[0].id);
       }
     } catch (err) {
-      console.error('Lỗi tải email templates:', err);
+      console.error("Lỗi tải email templates:", err);
     } finally {
       setIsLoadingTemplates(false);
-    }
-  }, []);
-
-  const loadVouchersFromDb = useCallback(async () => {
-    setIsLoadingVouchers(true);
-    try {
-      const { data, error } = await supabase
-        .from('vouchers')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        const { data: fallbackData, error: err2 } = await supabase
-          .from('vouchers')
-          .select('*');
-        if (err2) throw err2;
-        mapAndSetVouchers(fallbackData || []);
-      } else {
-        mapAndSetVouchers(data || []);
-      }
-    } catch (err) {
-      console.error('Lỗi tải danh sách vouchers:', err);
-    } finally {
-      setIsLoadingVouchers(false);
     }
   }, []);
 
   const mapAndSetVouchers = (rows) => {
     const formatted = rows.map((v) => ({
       code: v.code,
-      type: v.type || 'percent',
+      type: v.type || "percent",
       value: Number(v.value) || 0,
       maxDiscount: Number(v.max_discount ?? v.maxDiscount ?? 0),
       minOrder: Number(v.min_order ?? v.minOrder ?? 0),
       canStack: v.can_stack ?? v.canStack ?? true,
       usageLimit: Number(v.usage_limit ?? v.usageLimit ?? 0),
       usedCount: Number(v.used_count ?? v.usedCount ?? 0),
-      desc: v.description || v.desc || `Ưu đãi mã ${v.code}`
+      desc: v.description || v.desc || `Ưu đãi mã ${v.code}`,
     }));
     setVouchers(formatted);
   };
 
-  const loadShopConfigsFromDb = useCallback(async () => {
+  const loadVouchersFromDb = useCallback(async () => {
+    setIsLoadingVouchers(true);
     try {
       const { data, error } = await supabase
-        .from('shop_configs')
-        .select('*');
+        .from("vouchers")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        const { data: fallbackData, error: err2 } = await supabase
+          .from("vouchers")
+          .select("*");
+        if (err2) throw err2;
+        mapAndSetVouchers(fallbackData || []);
+      } else {
+        mapAndSetVouchers(data || []);
+      }
+    } catch (err) {
+      console.error("Lỗi tải danh sách vouchers:", err);
+    } finally {
+      setIsLoadingVouchers(false);
+    }
+  }, []);
+
+  const loadShopConfigsFromDb = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("shop_configs").select("*");
 
       if (error) throw error;
       if (Array.isArray(data) && data.length > 0) {
         let merged = {};
         data.forEach((row) => {
           let val = row.value;
-          if (typeof val === 'string') {
-            try { val = JSON.parse(val); } catch { val = {}; }
+          if (typeof val === "string") {
+            try {
+              val = JSON.parse(val);
+            } catch {
+              val = {};
+            }
           }
-          if (val && typeof val === 'object') {
-            if (row.key === 'general' || row.key === 'general_config') {
+          if (val && typeof val === "object") {
+            if (row.key === "general" || row.key === "general_config") {
               merged = { ...merged, ...val };
-            } else if (row.key === 'payment' || row.key === 'payment_config') {
+            } else if (row.key === "payment" || row.key === "payment_config") {
               merged = { ...merged, ...val };
-            } else if (row.key === 'loyalty') {
+            } else if (row.key === "loyalty") {
               merged.loyaltyDiscountPercent = val?.percent ?? 10;
               merged.loyaltyMaxDiscount = val?.maxDiscount ?? 50000;
-            } else if (row.key === 'announcement') {
-              merged.announcement = val?.text || '';
+            } else if (row.key === "announcement") {
+              merged.announcement = val?.text || "";
+            } else if (row.key === "shipping") {
+              merged.shippingFee =
+                val?.standardFee ?? val?.shippingFee ?? 30000;
+              merged.freeShippingThreshold =
+                val?.freeShippingMin ?? val?.freeShippingThreshold ?? 500000;
+              merged.carrier = val?.carrier || "";
             }
           }
         });
@@ -258,19 +317,36 @@ export default function ConfigVoucherTab({
           bankName: merged.bankName || prev.bankName,
           accountNo: merged.accountNo || prev.accountNo,
           accountName: merged.accountName || prev.accountName,
-          depositAmount: merged.depositAmount !== undefined ? Number(merged.depositAmount) : prev.depositAmount,
+          depositAmount:
+            merged.depositAmount !== undefined
+              ? Number(merged.depositAmount)
+              : prev.depositAmount,
+          shippingFee:
+            merged.shippingFee !== undefined
+              ? Number(merged.shippingFee)
+              : prev.shippingFee,
+          freeShippingThreshold:
+            merged.freeShippingThreshold !== undefined
+              ? Number(merged.freeShippingThreshold)
+              : prev.freeShippingThreshold,
           hotline: merged.hotline || prev.hotline,
           zaloPhone: merged.zaloPhone || merged.hotline || prev.zaloPhone,
           warehousePin: merged.warehousePin || prev.warehousePin,
           address: merged.address || prev.address,
           announcement: merged.announcement || prev.announcement,
-          loyaltyDiscountPercent: merged.loyaltyDiscountPercent ?? prev.loyaltyDiscountPercent,
-          loyaltyMaxDiscount: merged.loyaltyMaxDiscount ?? prev.loyaltyMaxDiscount,
-          autoSendEmail: merged.autoSendEmail !== undefined ? merged.autoSendEmail : prev.autoSendEmail,
+          loyaltyDiscountPercent:
+            merged.loyaltyDiscountPercent ?? prev.loyaltyDiscountPercent,
+          loyaltyMaxDiscount:
+            merged.loyaltyMaxDiscount ?? prev.loyaltyMaxDiscount,
+          autoSendEmail:
+            merged.autoSendEmail !== undefined
+              ? merged.autoSendEmail
+              : prev.autoSendEmail,
+          carrier: merged.carrier || prev.carrier,
         }));
       }
     } catch (err) {
-      console.error('Lỗi load shop_configs:', err);
+      console.error("Lỗi load shop_configs:", err);
     }
   }, []);
 
@@ -280,16 +356,19 @@ export default function ConfigVoucherTab({
     loadShopConfigsFromDb();
   }, [loadTemplatesFromDb, loadVouchersFromDb, loadShopConfigsFromDb]);
 
-  const activeTemplate = templates.find((t) => t.id === selectedTemplateId) || templates[0] || {
-    id: 'empty',
-    name: 'Chưa có mẫu nào',
-    subject: '',
-    body: ''
-  };
+  const activeTemplate = templates.find((t) => t.id === selectedTemplateId) ||
+    templates[0] || {
+      id: "empty",
+      name: "Chưa có mẫu nào",
+      subject: "",
+      body: "",
+    };
 
   const handleUpdateActiveTemplate = (field, value) => {
     setTemplates((prev) =>
-      prev.map((t) => (t.id === activeTemplate.id ? { ...t, [field]: value } : t))
+      prev.map((t) =>
+        t.id === activeTemplate.id ? { ...t, [field]: value } : t,
+      ),
     );
   };
 
@@ -314,14 +393,16 @@ export default function ConfigVoucherTab({
 </div>`;
 
       const { data, error } = await supabase
-        .from('email_templates')
+        .from("email_templates")
         .insert([
           {
             name: tplName,
-            subject: newTemplateForm.subject.trim() || `[Xứ Nắng Gió] Thông báo đơn hàng {{ORDER_CODE}}`,
+            subject:
+              newTemplateForm.subject.trim() ||
+              `[Xứ Nắng Gió] Thông báo đơn hàng {{ORDER_CODE}}`,
             body: defaultBody,
-            is_active: true
-          }
+            is_active: true,
+          },
         ])
         .select()
         .single();
@@ -332,12 +413,12 @@ export default function ConfigVoucherTab({
         setTemplates((prev) => [...prev, data]);
         setSelectedTemplateId(data.id);
         setIsNewTemplateModalOpen(false);
-        setNewTemplateForm({ name: '', subject: '' });
+        setNewTemplateForm({ name: "", subject: "" });
         onShowAlert?.(`Đã tạo thành công mẫu "${data.name}"!`);
       }
     } catch (err) {
-      console.error('Lỗi tạo template mới:', err);
-      onShowAlert?.('Lỗi tạo mẫu email: ' + err.message);
+      console.error("Lỗi tạo template mới:", err);
+      onShowAlert?.("Lỗi tạo mẫu email: " + err.message);
     } finally {
       setIsCreatingTpl(false);
     }
@@ -347,35 +428,36 @@ export default function ConfigVoucherTab({
     if (templates.length <= 1) {
       setConfirmModalConfig({
         isAlert: true,
-        title: 'Không Thể Xóa',
-        message: 'Hệ thống phải có ít nhất 1 mẫu email để gửi thông báo cho khách hàng!'
+        title: "Không Thể Xóa",
+        message:
+          "Hệ thống phải có ít nhất 1 mẫu email để gửi thông báo cho khách hàng!",
       });
       return;
     }
 
     setConfirmModalConfig({
       isAlert: false,
-      title: 'Xóa Mẫu Email',
+      title: "Xóa Mẫu Email",
       message: `Bạn có chắc chắn muốn xóa vĩnh viễn mẫu thư "${activeTemplate.name}"?`,
-      confirmLabel: 'Xác nhận xóa',
+      confirmLabel: "Xác nhận xóa",
       onConfirm: async () => {
         try {
           const { error } = await supabase
-            .from('email_templates')
+            .from("email_templates")
             .delete()
-            .eq('id', activeTemplate.id);
+            .eq("id", activeTemplate.id);
 
           if (error) throw error;
 
           const remaining = templates.filter((t) => t.id !== activeTemplate.id);
           setTemplates(remaining);
           setSelectedTemplateId(remaining[0].id);
-          onShowAlert?.('Đã xóa mẫu email thành công!');
+          onShowAlert?.("Đã xóa mẫu email thành công!");
         } catch (err) {
-          console.error('Lỗi xóa template:', err);
-          onShowAlert?.('Không thể xóa template: ' + err.message);
+          console.error("Lỗi xóa template:", err);
+          onShowAlert?.("Không thể xóa template: " + err.message);
         }
-      }
+      },
     });
   };
 
@@ -383,19 +465,19 @@ export default function ConfigVoucherTab({
     setCfg((prev) => ({
       ...prev,
       bankBin: bin,
-      bankName: bankObj?.shortName || prev.bankName
+      bankName: bankObj?.shortName || prev.bankName,
     }));
   };
 
   const [newVoucher, setNewVoucher] = useState({
-    code: '',
-    type: 'percent',
+    code: "",
+    type: "percent",
     value: 10,
     maxDiscount: 50000,
     minOrder: 0,
     canStack: true,
     usageLimit: 0,
-    desc: ''
+    desc: "",
   });
 
   const handleAddVoucher = async (e) => {
@@ -404,7 +486,7 @@ export default function ConfigVoucherTab({
     const formattedCode = newVoucher.code.trim().toUpperCase();
 
     if (vouchers.some((v) => v.code === formattedCode)) {
-      onShowAlert?.('Mã voucher này đã có trong danh sách.');
+      onShowAlert?.("Mã voucher này đã có trong danh sách.");
       return;
     }
 
@@ -412,17 +494,16 @@ export default function ConfigVoucherTab({
       code: formattedCode,
       type: newVoucher.type,
       value: Number(newVoucher.value) || 0,
-      max_discount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
+      max_discount:
+        newVoucher.type === "percent" ? Number(newVoucher.maxDiscount) || 0 : 0,
       min_order: Number(newVoucher.minOrder) || 0,
       can_stack: Boolean(newVoucher.canStack),
       usage_limit: Number(newVoucher.usageLimit) || 0,
-      used_count: 0
+      used_count: 0,
     };
 
     try {
-      const { error } = await supabase
-        .from('vouchers')
-        .insert([payload]);
+      const { error } = await supabase.from("vouchers").insert([payload]);
 
       if (error) throw error;
 
@@ -431,31 +512,34 @@ export default function ConfigVoucherTab({
           ...newVoucher,
           code: formattedCode,
           value: Number(newVoucher.value) || 0,
-          maxDiscount: newVoucher.type === 'percent' ? Number(newVoucher.maxDiscount) || 0 : 0,
+          maxDiscount:
+            newVoucher.type === "percent"
+              ? Number(newVoucher.maxDiscount) || 0
+              : 0,
           minOrder: Number(newVoucher.minOrder) || 0,
           usageLimit: Number(newVoucher.usageLimit) || 0,
           usedCount: 0,
           canStack: Boolean(newVoucher.canStack),
-          desc: newVoucher.desc.trim() || `Ưu đãi mã ${formattedCode}`
+          desc: newVoucher.desc.trim() || `Ưu đãi mã ${formattedCode}`,
         },
-        ...prev
+        ...prev,
       ]);
 
       setNewVoucher({
-        code: '',
-        type: 'percent',
+        code: "",
+        type: "percent",
         value: 10,
         maxDiscount: 50000,
         minOrder: 0,
         canStack: true,
         usageLimit: 0,
-        desc: ''
+        desc: "",
       });
 
       onShowAlert?.(`Đã tạo và kích hoạt mã ${formattedCode} thành công!`);
     } catch (err) {
-      console.error('Lỗi thêm voucher:', err);
-      onShowAlert?.('Không thể thêm voucher: ' + err.message);
+      console.error("Lỗi thêm voucher:", err);
+      onShowAlert?.("Không thể thêm voucher: " + err.message);
     }
   };
 
@@ -466,43 +550,43 @@ export default function ConfigVoucherTab({
 
     try {
       const { error } = await supabase
-        .from('vouchers')
+        .from("vouchers")
         .update({ can_stack: nextVal })
-        .eq('code', code);
+        .eq("code", code);
 
       if (error) throw error;
 
       setVouchers((prev) =>
-        prev.map((v) => (v.code === code ? { ...v, canStack: nextVal } : v))
+        prev.map((v) => (v.code === code ? { ...v, canStack: nextVal } : v)),
       );
     } catch (err) {
-      console.error('Lỗi cập nhật gộp mã:', err);
-      onShowAlert?.('Lỗi cập nhật voucher: ' + err.message);
+      console.error("Lỗi cập nhật gộp mã:", err);
+      onShowAlert?.("Lỗi cập nhật voucher: " + err.message);
     }
   };
 
   const handleRemoveVoucher = (code) => {
     setConfirmModalConfig({
       isAlert: false,
-      title: 'Xóa Voucher',
+      title: "Xóa Voucher",
       message: `Bạn có chắc chắn muốn gỡ vĩnh viễn voucher "${code}" khỏi cơ sở dữ liệu?`,
-      confirmLabel: 'Xác nhận xóa',
+      confirmLabel: "Xác nhận xóa",
       onConfirm: async () => {
         try {
           const { error } = await supabase
-            .from('vouchers')
+            .from("vouchers")
             .delete()
-            .eq('code', code);
+            .eq("code", code);
 
           if (error) throw error;
 
           setVouchers((prev) => prev.filter((v) => v.code !== code));
           onShowAlert?.(`Đã xóa mã ${code} thành công!`);
         } catch (err) {
-          console.error('Lỗi xóa voucher:', err);
-          onShowAlert?.('Lỗi khi xóa voucher: ' + err.message);
+          console.error("Lỗi xóa voucher:", err);
+          onShowAlert?.("Lỗi khi xóa voucher: " + err.message);
         }
-      }
+      },
     });
   };
 
@@ -513,17 +597,20 @@ export default function ConfigVoucherTab({
     const payload = {
       type: editingVoucher.type,
       value: Number(editingVoucher.value) || 0,
-      max_discount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
+      max_discount:
+        editingVoucher.type === "percent"
+          ? Number(editingVoucher.maxDiscount) || 0
+          : 0,
       min_order: Number(editingVoucher.minOrder) || 0,
       usage_limit: Number(editingVoucher.usageLimit) || 0,
-      can_stack: Boolean(editingVoucher.canStack)
+      can_stack: Boolean(editingVoucher.canStack),
     };
 
     try {
       const { error } = await supabase
-        .from('vouchers')
+        .from("vouchers")
         .update(payload)
-        .eq('code', editingVoucher.code);
+        .eq("code", editingVoucher.code);
 
       if (error) throw error;
 
@@ -533,61 +620,71 @@ export default function ConfigVoucherTab({
             ? {
                 ...editingVoucher,
                 value: Number(editingVoucher.value) || 0,
-                maxDiscount: editingVoucher.type === 'percent' ? Number(editingVoucher.maxDiscount) || 0 : 0,
+                maxDiscount:
+                  editingVoucher.type === "percent"
+                    ? Number(editingVoucher.maxDiscount) || 0
+                    : 0,
                 minOrder: Number(editingVoucher.minOrder) || 0,
                 usageLimit: Number(editingVoucher.usageLimit) || 0,
                 canStack: Boolean(editingVoucher.canStack),
-                desc: (editingVoucher.desc || '').trim()
+                desc: (editingVoucher.desc || "").trim(),
               }
-            : v
-        )
+            : v,
+        ),
       );
 
       setEditingVoucher(null);
       onShowAlert?.(`Đã cập nhật voucher ${editingVoucher.code}!`);
     } catch (err) {
-      console.error('Lỗi cập nhật voucher:', err);
-      onShowAlert?.('Lỗi cập nhật: ' + err.message);
+      console.error("Lỗi cập nhật voucher:", err);
+      onShowAlert?.("Lỗi cập nhật: " + err.message);
     }
   };
 
   const handleSendTestEmail = async () => {
     const targetEmail = testEmailInput.trim();
-    if (!targetEmail || !targetEmail.includes('@')) {
-      onShowAlert?.('Vui lòng nhập địa chỉ email hợp lệ!');
+    if (!targetEmail || !targetEmail.includes("@")) {
+      onShowAlert?.("Vui lòng nhập địa chỉ email hợp lệ!");
       return;
     }
 
     setIsSendingTest(true);
     try {
       const sampleHtml = activeTemplate.body
-        .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
-        .replace(/{{ORDER_CODE}}/g, 'XNG-TEST')
-        .replace(/{{TOTAL}}/g, '250.000')
-        .replace(/{{ITEMS_SUMMARY}}/g, '• 2kg Táo Gió Ninh Thuận x1<br/>• 1 Chai Mật Nho x1')
-        .replace(/{{PAYMENT_METHOD}}/g, 'Chuyển khoản VietQR')
-        .replace(/{{ADDRESS}}/g, 'TP. Thủ Đức, TP. Hồ Chí Minh')
-        .replace(/{{VOUCHER_CODE}}/g, 'LAMQUEN')
-        .replace(/{{VOUCHER_DESC}}/g, 'Giảm 15.000đ');
+        .replace(/{{CUSTOMER_NAME}}/g, "Khách Quý")
+        .replace(/{{ORDER_CODE}}/g, "XNG-TEST")
+        .replace(/{{TOTAL}}/g, "250.000")
+        .replace(
+          /{{ITEMS_SUMMARY}}/g,
+          "• 2kg Táo Gió Ninh Thuận x1<br/>• 1 Chai Mật Nho x1",
+        )
+        .replace(/{{PAYMENT_METHOD}}/g, "Chuyển khoản VietQR")
+        .replace(/{{ADDRESS}}/g, "TP. Thủ Đức, TP. Hồ Chí Minh")
+        .replace(/{{VOUCHER_CODE}}/g, "LAMQUEN")
+        .replace(/{{VOUCHER_DESC}}/g, "Giảm 15.000đ");
 
       const sampleSubject = activeTemplate.subject
-        .replace(/{{CUSTOMER_NAME}}/g, 'Khách Quý')
-        .replace(/{{ORDER_CODE}}/g, 'XNG-TEST');
+        .replace(/{{CUSTOMER_NAME}}/g, "Khách Quý")
+        .replace(/{{ORDER_CODE}}/g, "XNG-TEST");
 
-      const { error } = await supabase.functions.invoke('send-order-email', {
+      const { error } = await supabase.functions.invoke("send-order-email", {
         body: {
           is_test: true,
           to: targetEmail,
           subject: sampleSubject,
-          html: sampleHtml
-        }
+          html: sampleHtml,
+        },
       });
 
       if (error) throw error;
-      onShowAlert?.(`Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`);
+      onShowAlert?.(
+        `Đã gửi mẫu "${activeTemplate.name}" thử nghiệm tới: ${targetEmail}`,
+      );
     } catch (err) {
-      console.error('Lỗi test email:', err);
-      onShowAlert?.(`Lỗi gửi mail: ${err.message || 'Không thể kết nối Edge Function'}`);
+      console.error("Lỗi test email:", err);
+      onShowAlert?.(
+        `Lỗi gửi mail: ${err.message || "Không thể kết nối Edge Function"}`,
+      );
     } finally {
       setIsSendingTest(false);
     }
@@ -604,54 +701,73 @@ export default function ConfigVoucherTab({
 
       const configsToUpsert = [
         {
-          key: 'general',
+          key: "general",
           value: {
             address: cfg.address,
             hotline: cfg.hotline,
             zaloPhone: cfg.zaloPhone,
-            brandName: 'Xứ Nắng Gió',
-            shopName: 'Xứ Nắng Gió',
-            tagline: 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
+            brandName: "Xứ Nắng Gió",
+            shopName: "Xứ Nắng Gió",
+            tagline:
+              "Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM",
             warehousePin: cfg.warehousePin,
-            autoSendEmail: cfg.autoSendEmail
+            autoSendEmail: cfg.autoSendEmail,
+            shippingFee: cfg.shippingFee,
+            freeShippingThreshold: cfg.freeShippingThreshold,
           },
-          description: 'Thông tin liên hệ chung và cấu hình vận hành',
-          updated_at: nowIso
+          description:
+            "Thông tin liên hệ chung, phí vận chuyển và cấu hình vận hành",
+          updated_at: nowIso,
         },
         {
-          key: 'payment',
+          key: "payment",
           value: {
             bankBin: cfg.bankBin,
             bankName: cfg.bankName,
             accountNo: cfg.accountNo,
             accountName: cfg.accountName,
-            depositAmount: cfg.depositAmount
+            depositAmount: cfg.depositAmount,
+            shippingFee: cfg.shippingFee,
+            freeShippingThreshold: cfg.freeShippingThreshold,
           },
-          description: 'Thông tin tài khoản VietQR và tiền cọc',
-          updated_at: nowIso
+          description:
+            "Thông tin tài khoản VietQR, tiền cọc và cước vận chuyển",
+          updated_at: nowIso,
         },
         {
-          key: 'loyalty',
+          key: "loyalty",
           value: {
             percent: cfg.loyaltyDiscountPercent,
-            maxDiscount: cfg.loyaltyMaxDiscount
+            maxDiscount: cfg.loyaltyMaxDiscount,
           },
-          description: 'Chính sách chiết khấu tri ân khách quen',
-          updated_at: nowIso
+          description: "Chính sách chiết khấu tri ân khách quen",
+          updated_at: nowIso,
         },
         {
-          key: 'announcement',
+          key: "announcement",
           value: {
-            text: cfg.announcement
+            text: cfg.announcement,
           },
-          description: 'Thông báo chạy chữ chân trang',
-          updated_at: nowIso
-        }
+          description: "Thông báo chạy chữ chân trang",
+          updated_at: nowIso,
+        },
+        {
+          key: "shipping",
+          value: {
+            carrier:
+              cfg.carrier ||
+              "Gửi xe khách liên tỉnh & Chuyển phát nhanh đóng thùng xốp",
+            standardFee: Number(cfg.shippingFee) || 30000,
+            freeShippingMin: Number(cfg.freeShippingThreshold) || 500000,
+          },
+          description: "Cấu hình đơn vị vận chuyển, phí ship và mốc freeship",
+          updated_at: nowIso,
+        },
       ];
 
       const { error: cfgErr } = await supabase
-        .from('shop_configs')
-        .upsert(configsToUpsert, { onConflict: 'key' });
+        .from("shop_configs")
+        .upsert(configsToUpsert, { onConflict: "key" });
 
       if (cfgErr) throw cfgErr;
 
@@ -662,20 +778,22 @@ export default function ConfigVoucherTab({
           subject: t.subject,
           body: t.body,
           is_active: t.is_active ?? true,
-          updated_at: nowIso
+          updated_at: nowIso,
         }));
 
         const { error: tplErr } = await supabase
-          .from('email_templates')
-          .upsert(payloadTemplates, { onConflict: 'id' });
+          .from("email_templates")
+          .upsert(payloadTemplates, { onConflict: "id" });
 
         if (tplErr) throw tplErr;
       }
 
-      onShowAlert?.('Đã lưu thành công cấu hình vận hành & Email templates!');
+      onShowAlert?.(
+        "Đã lưu thành công cấu hình vận hành, phí ship & Email templates!",
+      );
     } catch (err) {
-      console.error('Lỗi lưu cấu hình:', err);
-      onShowAlert?.('Lỗi kết nối khi lưu: ' + err.message);
+      console.error("Lỗi lưu cấu hình:", err);
+      onShowAlert?.("Lỗi kết nối khi lưu: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -683,16 +801,16 @@ export default function ConfigVoucherTab({
 
   return (
     <div className="space-y-6 font-sans animate-fadeIn">
-      
-      {/* 1. CẤU HÌNH THANH TOÁN, ĐỊA CHỈ & VẬN HÀNH */}
+      {/* 1. CẤU HÌNH THANH TOÁN, VIETQR, VẬN CHUYỂN & VẬN HÀNH */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
         <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
           <QrCode className="w-4 h-4 text-amber-600" />
-          <span>Cấu Hình Thanh Toán, VietQR, Địa Chỉ & Ưu Đãi Khách Quen</span>
+          <span>
+            Cấu Hình Thanh Toán, VietQR, Vận Chuyển & Ưu Đãi Khách Quen
+          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
-          
           {/* CUSTOM DROPDOWN CHỌN NGÂN HÀNG VIETQR */}
           <div className="sm:col-span-2">
             <CustomDropdown
@@ -704,8 +822,12 @@ export default function ConfigVoucherTab({
               onChange={handleSelectBankBin}
               renderSelected={(opt) => (
                 <div className="flex items-center gap-2 truncate">
-                  <span className="font-bold text-stone-900">{opt?.shortName}</span>
-                  <span className="text-[11px] font-normal text-stone-500 truncate">({opt?.name})</span>
+                  <span className="font-bold text-stone-900">
+                    {opt?.shortName}
+                  </span>
+                  <span className="text-[11px] font-normal text-stone-500 truncate">
+                    ({opt?.name})
+                  </span>
                 </div>
               )}
               renderOption={(opt, isSelected) => (
@@ -716,7 +838,9 @@ export default function ConfigVoucherTab({
                       {opt.name}
                     </span>
                   </div>
-                  <span className={`text-[10.5px] font-mono shrink-0 ${isSelected ? 'text-amber-800' : 'text-stone-400'}`}>
+                  <span
+                    className={`text-[10.5px] font-mono shrink-0 ${isSelected ? "text-amber-800" : "text-stone-400"}`}
+                  >
                     BIN: {opt.bin}
                   </span>
                 </div>
@@ -725,7 +849,9 @@ export default function ConfigVoucherTab({
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Số Tài Khoản:</label>
+            <label className="font-semibold text-stone-600 block mb-1">
+              Số Tài Khoản:
+            </label>
             <input
               type="text"
               value={cfg.accountNo}
@@ -735,32 +861,86 @@ export default function ConfigVoucherTab({
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Tên Chủ Tài Khoản:</label>
+            <label className="font-semibold text-stone-600 block mb-1">
+              Tên Chủ Tài Khoản:
+            </label>
             <input
               type="text"
               value={cfg.accountName}
-              onChange={(e) => setCfg({ ...cfg, accountName: e.target.value.toUpperCase() })}
+              onChange={(e) =>
+                setCfg({ ...cfg, accountName: e.target.value.toUpperCase() })
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono uppercase font-bold focus:outline-none focus:border-amber-600"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Tiền Cọc Giữ Đơn (VNĐ):</label>
+            <label className="font-semibold text-stone-600 block mb-1">
+              Tiền Cọc Giữ Đơn (VNĐ):
+            </label>
             <input
               type="number"
+              step="5000"
               value={cfg.depositAmount}
-              onChange={(e) => setCfg({ ...cfg, depositAmount: Number(e.target.value) || 0 })}
+              onChange={(e) =>
+                setCfg({ ...cfg, depositAmount: Number(e.target.value) || 0 })
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
+          {/* CẤU HÌNH PHÍ SHIP MẶC ĐỊNH */}
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Hotline / Zalo hỗ trợ:</label>
+            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
+              <Truck className="w-3.5 h-3.5 text-amber-700" />
+              <span>Phí Vận Chuyển Mặc Định:</span>
+            </label>
+            <input
+              type="number"
+              step="1000"
+              value={cfg.shippingFee}
+              onChange={(e) =>
+                setCfg({ ...cfg, shippingFee: Number(e.target.value) || 0 })
+              }
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+            />
+          </div>
+
+          {/* CẤU HÌNH MỐC MIỄN PHÍ VẬN CHUYỂN */}
+          <div>
+            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
+              <Truck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Mốc Miễn Phí Vận Chuyển:</span>
+            </label>
+            <input
+              type="number"
+              step="10000"
+              value={cfg.freeShippingThreshold}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  freeShippingThreshold: Number(e.target.value) || 0,
+                })
+              }
+              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
+            />
+          </div>
+
+          <div>
+            <label className="font-semibold text-stone-600 block mb-1">
+              Hotline / Zalo hỗ trợ:
+            </label>
             <input
               type="text"
               placeholder="VD: 0848.957.345"
               value={cfg.hotline}
-              onChange={(e) => setCfg({ ...cfg, hotline: e.target.value, zaloPhone: e.target.value.replace(/[^0-9]/g, '') })}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  hotline: e.target.value,
+                  zaloPhone: e.target.value.replace(/[^0-9]/g, ""),
+                })
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-stone-800 focus:outline-none focus:border-amber-600"
             />
           </div>
@@ -780,33 +960,47 @@ export default function ConfigVoucherTab({
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">% Giảm Khách Cũ (Loyalty):</label>
+            <label className="font-semibold text-stone-600 block mb-1">
+              % Giảm Khách Cũ (Loyalty):
+            </label>
             <input
               type="number"
               value={cfg.loyaltyDiscountPercent}
-              onChange={(e) => setCfg({ ...cfg, loyaltyDiscountPercent: Number(e.target.value) || 0 })}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  loyaltyDiscountPercent: Number(e.target.value) || 0,
+                })
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Trần Giảm Khách Cũ (VNĐ):</label>
+            <label className="font-semibold text-stone-600 block mb-1">
+              Trần Giảm Khách Cũ (VNĐ):
+            </label>
             <input
               type="number"
               value={cfg.loyaltyMaxDiscount}
-              onChange={(e) => setCfg({ ...cfg, loyaltyMaxDiscount: Number(e.target.value) || 0 })}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  loyaltyMaxDiscount: Number(e.target.value) || 0,
+                })
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
             />
           </div>
 
-          <div className="sm:col-span-2 lg:col-span-3">
+          <div className="sm:col-span-2 lg:col-span-2">
             <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-amber-700" />
               <span>Địa Chỉ Vườn Chính / Điểm Gửi Xe:</span>
             </label>
             <input
               type="text"
-              value={cfg.address || ''}
+              value={cfg.address || ""}
               onChange={(e) => setCfg({ ...cfg, address: e.target.value })}
               placeholder="VD: Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
@@ -820,13 +1014,12 @@ export default function ConfigVoucherTab({
             </label>
             <input
               type="text"
-              value={cfg.announcement || ''}
+              value={cfg.announcement || ""}
               onChange={(e) => setCfg({ ...cfg, announcement: e.target.value })}
               placeholder="VD: Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM..."
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
             />
           </div>
-
         </div>
       </div>
 
@@ -849,27 +1042,32 @@ export default function ConfigVoucherTab({
           </div>
         ) : vouchers.length === 0 ? (
           <div className="p-6 text-center text-xs text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-            Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu tiên bên dưới!
+            Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu
+            tiên bên dưới!
           </div>
         ) : (
           <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
             {vouchers.map((v) => {
               const limit = Number(v.usageLimit) || 0;
               const used = Number(v.usedCount) || 0;
-              const remaining = limit > 0 ? Math.max(0, limit - used) : 'Vô hạn';
+              const remaining =
+                limit > 0 ? Math.max(0, limit - used) : "Vô hạn";
               const isOutOfStock = limit > 0 && remaining === 0;
 
               return (
-                <div key={v.code} className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs bg-white">
+                <div
+                  key={v.code}
+                  className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs bg-white"
+                >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
                         {v.code}
                       </span>
                       <span className="font-bold text-stone-800">
-                        {v.type === 'percent'
-                          ? `Giảm ${v.value}%${v.maxDiscount ? ` (Tối đa ${Number(v.maxDiscount).toLocaleString('vi-VN')}đ)` : ''}`
-                          : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
+                        {v.type === "percent"
+                          ? `Giảm ${v.value}%${v.maxDiscount ? ` (Tối đa ${Number(v.maxDiscount).toLocaleString("vi-VN")}đ)` : ""}`
+                          : `Giảm ${Number(v.value).toLocaleString("vi-VN")}đ`}
                       </span>
 
                       {v.canStack ? (
@@ -889,12 +1087,21 @@ export default function ConfigVoucherTab({
                         </span>
                       ) : (
                         <span className="bg-stone-100 text-stone-600 font-semibold px-2 py-0.5 rounded-md text-[10px]">
-                          Còn lại: <strong className="font-mono text-amber-900">{remaining}</strong> {limit > 0 ? `(${used}/${limit} đã dùng)` : ''}
+                          Còn lại:{" "}
+                          <strong className="font-mono text-amber-900">
+                            {remaining}
+                          </strong>{" "}
+                          {limit > 0 ? `(${used}/${limit} đã dùng)` : ""}
                         </span>
                       )}
                     </div>
                     <p className="text-stone-500 text-[11px]">
-                      {v.desc ? `${v.desc} • ` : ''}Đơn tối thiểu: <strong className="text-stone-700 font-mono">{v.minOrder ? `${Number(v.minOrder).toLocaleString('vi-VN')}đ` : '0đ'}</strong>
+                      {v.desc ? `${v.desc} • ` : ""}Đơn tối thiểu:{" "}
+                      <strong className="text-stone-700 font-mono">
+                        {v.minOrder
+                          ? `${Number(v.minOrder).toLocaleString("vi-VN")}đ`
+                          : "0đ"}
+                      </strong>
                     </p>
                   </div>
 
@@ -904,11 +1111,11 @@ export default function ConfigVoucherTab({
                       onClick={() => handleToggleVoucherStack(v.code)}
                       className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
                         v.canStack
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                          : 'bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200'
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
+                          : "bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200"
                       }`}
                     >
-                      {v.canStack ? 'Cho phép gộp' : 'Không cho gộp'}
+                      {v.canStack ? "Cho phép gộp" : "Không cho gộp"}
                     </button>
 
                     <button
@@ -936,18 +1143,30 @@ export default function ConfigVoucherTab({
         )}
 
         {/* Form thêm voucher mới */}
-        <form onSubmit={handleAddVoucher} className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3">
-          <span className="font-bold text-xs text-stone-800 block">Tạo voucher mới vào cơ sở dữ liệu:</span>
+        <form
+          onSubmit={handleAddVoucher}
+          className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3"
+        >
+          <span className="font-bold text-xs text-stone-800 block">
+            Tạo voucher mới vào cơ sở dữ liệu:
+          </span>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mã CODE *</label>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                Mã CODE *
+              </label>
               <input
                 type="text"
                 required
                 placeholder="VD: FREESHIP"
                 value={newVoucher.code}
-                onChange={(e) => setNewVoucher({ ...newVoucher, code: e.target.value.toUpperCase() })}
+                onChange={(e) =>
+                  setNewVoucher({
+                    ...newVoucher,
+                    code: e.target.value.toUpperCase(),
+                  })
+                }
                 className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900 focus:outline-none focus:border-amber-600"
               />
             </div>
@@ -965,7 +1184,9 @@ export default function ConfigVoucherTab({
                 renderOption={(opt) => (
                   <div className="space-y-0.5">
                     <span className="font-bold block">{opt.label}</span>
-                    <span className="text-[10px] text-stone-400 block font-light">{opt.subLabel}</span>
+                    <span className="text-[10px] text-stone-400 block font-light">
+                      {opt.subLabel}
+                    </span>
                   </div>
                 )}
               />
@@ -973,60 +1194,83 @@ export default function ConfigVoucherTab({
 
             <div>
               <label className="text-[10px] text-stone-500 font-semibold block mb-1">
-                {newVoucher.type === 'percent' ? 'Mức giảm (%) *' : 'Mức giảm (VNĐ) *'}
+                {newVoucher.type === "percent"
+                  ? "Mức giảm (%) *"
+                  : "Mức giảm (VNĐ) *"}
               </label>
               <input
                 type="number"
                 required
                 min="0"
                 value={newVoucher.value}
-                onChange={(e) => setNewVoucher({ ...newVoucher, value: e.target.value })}
+                onChange={(e) =>
+                  setNewVoucher({ ...newVoucher, value: e.target.value })
+                }
                 className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
               />
             </div>
 
-            {newVoucher.type === 'percent' && (
+            {newVoucher.type === "percent" && (
               <div>
-                <label className="text-[10px] text-stone-500 font-semibold block mb-1">Giảm tối đa (VNĐ)</label>
+                <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  Giảm tối đa (VNĐ)
+                </label>
                 <input
                   type="number"
                   placeholder="0 = Không giới hạn"
                   value={newVoucher.maxDiscount}
-                  onChange={(e) => setNewVoucher({ ...newVoucher, maxDiscount: e.target.value })}
+                  onChange={(e) =>
+                    setNewVoucher({
+                      ...newVoucher,
+                      maxDiscount: e.target.value,
+                    })
+                  }
                   className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
                 />
               </div>
             )}
 
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Đơn tối thiểu (VNĐ)</label>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                Đơn tối thiểu (VNĐ)
+              </label>
               <input
                 type="number"
                 value={newVoucher.minOrder}
-                onChange={(e) => setNewVoucher({ ...newVoucher, minOrder: e.target.value })}
+                onChange={(e) =>
+                  setNewVoucher({ ...newVoucher, minOrder: e.target.value })
+                }
                 placeholder="0"
                 className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
               />
             </div>
 
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">SL Giới Hạn (Lượt)</label>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                SL Giới Hạn (Lượt)
+              </label>
               <input
                 type="number"
                 value={newVoucher.usageLimit}
-                onChange={(e) => setNewVoucher({ ...newVoucher, usageLimit: e.target.value })}
+                onChange={(e) =>
+                  setNewVoucher({ ...newVoucher, usageLimit: e.target.value })
+                }
                 placeholder="0 = Vô hạn"
                 className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
               />
             </div>
 
             <div className="lg:col-span-6">
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mô tả hiển thị</label>
+              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                Mô tả hiển thị
+              </label>
               <input
                 type="text"
                 placeholder="VD: Miễn phí vận chuyển cho đơn từ 300k"
                 value={newVoucher.desc}
-                onChange={(e) => setNewVoucher({ ...newVoucher, desc: e.target.value })}
+                onChange={(e) =>
+                  setNewVoucher({ ...newVoucher, desc: e.target.value })
+                }
                 className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
               />
             </div>
@@ -1037,7 +1281,9 @@ export default function ConfigVoucherTab({
               <input
                 type="checkbox"
                 checked={newVoucher.canStack}
-                onChange={(e) => setNewVoucher({ ...newVoucher, canStack: e.target.checked })}
+                onChange={(e) =>
+                  setNewVoucher({ ...newVoucher, canStack: e.target.checked })
+                }
                 className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
               />
               <span>Cho phép gộp với các voucher khác (canStack)</span>
@@ -1063,7 +1309,9 @@ export default function ConfigVoucherTab({
             </div>
             <div>
               <span>Mẫu Email Hệ Thống ({templates.length} mẫu)</span>
-              <p className="text-[11px] font-normal text-stone-500">Được đồng bộ trực tiếp từ bảng email_templates</p>
+              <p className="text-[11px] font-normal text-stone-500">
+                Được đồng bộ trực tiếp từ bảng email_templates
+              </p>
             </div>
           </div>
 
@@ -1081,7 +1329,9 @@ export default function ConfigVoucherTab({
               <input
                 type="checkbox"
                 checked={cfg.autoSendEmail}
-                onChange={(e) => setCfg({ ...cfg, autoSendEmail: e.target.checked })}
+                onChange={(e) =>
+                  setCfg({ ...cfg, autoSendEmail: e.target.checked })
+                }
                 className="w-4 h-4 rounded-md accent-amber-600 cursor-pointer"
               />
               <span>Tự động gửi khi có đơn</span>
@@ -1117,8 +1367,12 @@ export default function ConfigVoucherTab({
               className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-stone-200 hover:border-amber-400 rounded-2xl text-stone-800 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             >
               <div className="flex items-center gap-2 truncate">
-                <span className="text-amber-800 font-bold">{activeTemplate.name}</span>
-                <span className="text-[11px] font-mono text-stone-400 font-normal">({activeTemplate.id})</span>
+                <span className="text-amber-800 font-bold">
+                  {activeTemplate.name}
+                </span>
+                <span className="text-[11px] font-mono text-stone-400 font-normal">
+                  ({activeTemplate.id})
+                </span>
               </div>
               {isDropdownOpen ? (
                 <ChevronUp className="w-4 h-4 text-stone-500 shrink-0" />
@@ -1146,13 +1400,15 @@ export default function ConfigVoucherTab({
                         }}
                         className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-colors cursor-pointer text-left ${
                           isSelected
-                            ? 'bg-[#fffbeb] text-amber-950 font-black'
-                            : 'text-stone-700 hover:bg-stone-50 font-medium'
+                            ? "bg-[#fffbeb] text-amber-950 font-black"
+                            : "text-stone-700 hover:bg-stone-50 font-medium"
                         }`}
                       >
                         <div className="flex flex-col">
                           <span>{tpl.name}</span>
-                          <span className="text-[10px] font-mono text-stone-400 font-normal">{tpl.id}</span>
+                          <span className="text-[10px] font-mono text-stone-400 font-normal">
+                            {tpl.id}
+                          </span>
                         </div>
                         {isSelected && (
                           <Check className="w-4 h-4 text-amber-800 stroke-[2.5]" />
@@ -1171,8 +1427,10 @@ export default function ConfigVoucherTab({
             </label>
             <input
               type="text"
-              value={activeTemplate.name || ''}
-              onChange={(e) => handleUpdateActiveTemplate('name', e.target.value)}
+              value={activeTemplate.name || ""}
+              onChange={(e) =>
+                handleUpdateActiveTemplate("name", e.target.value)
+              }
               className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-800 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
             />
           </div>
@@ -1185,8 +1443,20 @@ export default function ConfigVoucherTab({
             <span>Các biến tự động chèn dữ liệu vào mẫu:</span>
           </div>
           <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
-            {['{{CUSTOMER_NAME}}', '{{ORDER_CODE}}', '{{TOTAL}}', '{{ITEMS_SUMMARY}}', '{{PAYMENT_METHOD}}', '{{ADDRESS}}', '{{VOUCHER_CODE}}', '{{VOUCHER_DESC}}'].map((tag) => (
-              <span key={tag} className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold">
+            {[
+              "{{CUSTOMER_NAME}}",
+              "{{ORDER_CODE}}",
+              "{{TOTAL}}",
+              "{{ITEMS_SUMMARY}}",
+              "{{PAYMENT_METHOD}}",
+              "{{ADDRESS}}",
+              "{{VOUCHER_CODE}}",
+              "{{VOUCHER_DESC}}",
+            ].map((tag) => (
+              <span
+                key={tag}
+                className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold"
+              >
                 {tag}
               </span>
             ))}
@@ -1195,11 +1465,15 @@ export default function ConfigVoucherTab({
 
         <div className="space-y-3 text-xs">
           <div>
-            <label className="font-bold text-stone-700 block mb-1">Tiêu đề thư gửi khách:</label>
+            <label className="font-bold text-stone-700 block mb-1">
+              Tiêu đề thư gửi khách:
+            </label>
             <input
               type="text"
-              value={activeTemplate.subject || ''}
-              onChange={(e) => handleUpdateActiveTemplate('subject', e.target.value)}
+              value={activeTemplate.subject || ""}
+              onChange={(e) =>
+                handleUpdateActiveTemplate("subject", e.target.value)
+              }
               className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 transition-colors"
             />
           </div>
@@ -1210,8 +1484,10 @@ export default function ConfigVoucherTab({
             </label>
             <textarea
               rows={12}
-              value={activeTemplate.body || ''}
-              onChange={(e) => handleUpdateActiveTemplate('body', e.target.value)}
+              value={activeTemplate.body || ""}
+              onChange={(e) =>
+                handleUpdateActiveTemplate("body", e.target.value)
+              }
               className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-xs text-stone-800 focus:outline-none focus:border-amber-600 transition-colors leading-relaxed"
             />
           </div>
@@ -1234,8 +1510,12 @@ export default function ConfigVoucherTab({
                 disabled={isSendingTest}
                 className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
               >
-                {isSendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" /> : <Send className="w-3.5 h-3.5 text-amber-700" />}
-                <span>{isSendingTest ? 'Đang gửi...' : 'Gửi Test'}</span>
+                {isSendingTest ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                ) : (
+                  <Send className="w-3.5 h-3.5 text-amber-700" />
+                )}
+                <span>{isSendingTest ? "Đang gửi..." : "Gửi Test"}</span>
               </button>
             </div>
           </div>
@@ -1250,8 +1530,16 @@ export default function ConfigVoucherTab({
           onClick={handleSaveAll}
           className="px-6 py-3 bg-amber-800 hover:bg-amber-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
         >
-          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          <span>{isSaving ? 'Đang lưu hệ thống...' : 'Lưu Toàn Bộ Cấu Hình & Templates'}</span>
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Check className="w-4 h-4" />
+          )}
+          <span>
+            {isSaving
+              ? "Đang lưu hệ thống..."
+              : "Lưu Toàn Bộ Cấu Hình & Templates"}
+          </span>
         </button>
       </div>
 
@@ -1273,7 +1561,10 @@ export default function ConfigVoucherTab({
               </button>
             </div>
 
-            <form onSubmit={handleCreateNewTemplate} className="space-y-3.5 text-xs">
+            <form
+              onSubmit={handleCreateNewTemplate}
+              className="space-y-3.5 text-xs"
+            >
               <div>
                 <label className="text-[11px] text-stone-700 font-bold block mb-1">
                   Tên gợi nhớ của mẫu *:
@@ -1283,7 +1574,12 @@ export default function ConfigVoucherTab({
                   required
                   placeholder="VD: Thông báo xe đã xuất bến"
                   value={newTemplateForm.name}
-                  onChange={(e) => setNewTemplateForm({ ...newTemplateForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setNewTemplateForm({
+                      ...newTemplateForm,
+                      name: e.target.value,
+                    })
+                  }
                   className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
                 />
               </div>
@@ -1296,7 +1592,12 @@ export default function ConfigVoucherTab({
                   type="text"
                   placeholder="VD: [Xứ Nắng Gió] Thùng hàng {{ORDER_CODE}} đang trên đường tới bạn"
                   value={newTemplateForm.subject}
-                  onChange={(e) => setNewTemplateForm({ ...newTemplateForm, subject: e.target.value })}
+                  onChange={(e) =>
+                    setNewTemplateForm({
+                      ...newTemplateForm,
+                      subject: e.target.value,
+                    })
+                  }
                   className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
                 />
               </div>
@@ -1352,7 +1653,10 @@ export default function ConfigVoucherTab({
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditedVoucher} className="space-y-3.5 text-xs">
+            <form
+              onSubmit={handleSaveEditedVoucher}
+              className="space-y-3.5 text-xs"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* CUSTOM DROPDOWN CHỌN LOẠI GIẢM TRONG MODAL EDIT */}
                 <div>
@@ -1360,34 +1664,56 @@ export default function ConfigVoucherTab({
                     label="Loại giảm"
                     options={VOUCHER_TYPE_OPTIONS}
                     value={editingVoucher.type}
-                    onChange={(val) => setEditingVoucher({ ...editingVoucher, type: val })}
-                    renderSelected={(opt) => <span>{opt?.value === 'percent' ? 'Giảm theo %' : 'Giảm tiền (VNĐ)'}</span>}
+                    onChange={(val) =>
+                      setEditingVoucher({ ...editingVoucher, type: val })
+                    }
+                    renderSelected={(opt) => (
+                      <span>
+                        {opt?.value === "percent"
+                          ? "Giảm theo %"
+                          : "Giảm tiền (VNĐ)"}
+                      </span>
+                    )}
                   />
                 </div>
 
                 <div>
                   <label className="text-[10px] text-stone-500 font-semibold block mb-1">
-                    {editingVoucher.type === 'percent' ? 'Mức giảm (%) *' : 'Mức giảm (VNĐ) *'}
+                    {editingVoucher.type === "percent"
+                      ? "Mức giảm (%) *"
+                      : "Mức giảm (VNĐ) *"}
                   </label>
                   <input
                     type="number"
                     required
                     min="0"
                     value={editingVoucher.value}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, value: e.target.value })}
+                    onChange={(e) =>
+                      setEditingVoucher({
+                        ...editingVoucher,
+                        value: e.target.value,
+                      })
+                    }
                     className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
                   />
                 </div>
               </div>
 
-              {editingVoucher.type === 'percent' && (
+              {editingVoucher.type === "percent" && (
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">Giảm tối đa (VNĐ)</label>
+                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                    Giảm tối đa (VNĐ)
+                  </label>
                   <input
                     type="number"
                     placeholder="0 = Không giới hạn"
                     value={editingVoucher.maxDiscount}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, maxDiscount: e.target.value })}
+                    onChange={(e) =>
+                      setEditingVoucher({
+                        ...editingVoucher,
+                        maxDiscount: e.target.value,
+                      })
+                    }
                     className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
                   />
                 </div>
@@ -1395,32 +1721,53 @@ export default function ConfigVoucherTab({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">Đơn tối thiểu (VNĐ)</label>
+                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                    Đơn tối thiểu (VNĐ)
+                  </label>
                   <input
                     type="number"
                     value={editingVoucher.minOrder}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, minOrder: e.target.value })}
+                    onChange={(e) =>
+                      setEditingVoucher({
+                        ...editingVoucher,
+                        minOrder: e.target.value,
+                      })
+                    }
                     className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">SL Giới hạn (0 = Vô hạn)</label>
+                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                    SL Giới hạn (0 = Vô hạn)
+                  </label>
                   <input
                     type="number"
                     value={editingVoucher.usageLimit}
-                    onChange={(e) => setEditingVoucher({ ...editingVoucher, usageLimit: e.target.value })}
+                    onChange={(e) =>
+                      setEditingVoucher({
+                        ...editingVoucher,
+                        usageLimit: e.target.value,
+                      })
+                    }
                     className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] text-stone-500 font-semibold block mb-1">Mô tả hiển thị</label>
+                <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  Mô tả hiển thị
+                </label>
                 <input
                   type="text"
-                  value={editingVoucher.desc || ''}
-                  onChange={(e) => setEditingVoucher({ ...editingVoucher, desc: e.target.value })}
+                  value={editingVoucher.desc || ""}
+                  onChange={(e) =>
+                    setEditingVoucher({
+                      ...editingVoucher,
+                      desc: e.target.value,
+                    })
+                  }
                   className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
                 />
               </div>
@@ -1429,7 +1776,12 @@ export default function ConfigVoucherTab({
                 <input
                   type="checkbox"
                   checked={editingVoucher.canStack}
-                  onChange={(e) => setEditingVoucher({ ...editingVoucher, canStack: e.target.checked })}
+                  onChange={(e) =>
+                    setEditingVoucher({
+                      ...editingVoucher,
+                      canStack: e.target.checked,
+                    })
+                  }
                   className="w-4 h-4 rounded-md accent-amber-600"
                 />
                 <span>Cho phép gộp với các voucher khác (canStack)</span>
@@ -1461,7 +1813,6 @@ export default function ConfigVoucherTab({
         modalConfig={confirmModalConfig}
         onClose={() => setConfirmModalConfig(null)}
       />
-
     </div>
   );
 }

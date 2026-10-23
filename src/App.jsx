@@ -113,6 +113,74 @@ export default function App() {
   const [initialLookupCode, setInitialLookupCode] = useState('');
 
   // -------------------------------------------------------------
+  // ĐỒNG BỘ GIÁ VÀ QUY CÁCH GIỎ HÀNG VỚI MASTER DATA MỚI NHẤT
+  // -------------------------------------------------------------
+  const syncCartWithMasterData = useCallback((latestProducts) => {
+    if (!Array.isArray(latestProducts) || latestProducts.length === 0) return;
+
+    setCart((prevCart) => {
+      if (!Array.isArray(prevCart) || prevCart.length === 0) return prevCart;
+
+      const productMap = new Map(latestProducts.map((p) => [String(p.id), p]));
+      let hasCartChanged = false;
+
+      const updatedCart = prevCart.map((item) => {
+        const prodId = String(item.productId || item.id);
+        const freshProd = productMap.get(prodId);
+        if (!freshProd) return item;
+
+        const base = Number(freshProd.basePrice ?? freshProd.base_price ?? freshProd.price ?? 0);
+        let finalUnitPrice = base;
+
+        // Xử lý giá theo quy cách
+        const rawWeights = freshProd.product_weights || freshProd.weights;
+        if (Array.isArray(rawWeights) && rawWeights.length > 0) {
+          const matchedWeight = rawWeights.find(
+            (w) => String(w.id) === String(item.weightId) || (w.weight_label || w.label) === item.weightLabel
+          );
+          if (matchedWeight) {
+            const override = matchedWeight.price_override != null && matchedWeight.price_override !== ''
+              ? Number(matchedWeight.price_override)
+              : null;
+            const mult = parseFloat(matchedWeight.multiplier) || 1;
+
+            if (override != null && override > 0) {
+              finalUnitPrice = override < 10000 && base >= 20000 ? base + override : override;
+            } else {
+              finalUnitPrice = Math.round(base * mult);
+            }
+          }
+        }
+
+        if (finalUnitPrice !== Number(item.price)) {
+          hasCartChanged = true;
+          return {
+            ...item,
+            name: freshProd.name || freshProd.title || item.name,
+            basePrice: base,
+            base_price: base,
+            price: finalUnitPrice,
+            inStock: freshProd.in_stock ?? freshProd.inStock ?? true
+          };
+        }
+
+        return item;
+      });
+
+      if (hasCartChanged) {
+        try {
+          localStorage.setItem('shop_cart', JSON.stringify(updatedCart));
+        } catch (e) {
+          console.error('Lỗi lưu giỏ hàng sau khi sync:', e);
+        }
+        return updatedCart;
+      }
+
+      return prevCart;
+    });
+  }, []);
+
+  // -------------------------------------------------------------
   // 1. XỬ LÝ URL PARAMS & TỰ ĐỘNG BẬT MODAL KHI CÓ LINK TỪ EMAIL
   // -------------------------------------------------------------
   useEffect(() => {
@@ -179,6 +247,7 @@ export default function App() {
         if (Array.isArray(masterData.products) && masterData.products.length > 0) {
           setProducts(masterData.products);
           localStorage.setItem('shop_products', JSON.stringify(masterData.products));
+          syncCartWithMasterData(masterData.products);
         }
 
         if (Array.isArray(masterData.posts)) {
@@ -217,7 +286,7 @@ export default function App() {
     } finally {
       setIsLoadingMasterData(false);
     }
-  }, []);
+  }, [syncCartWithMasterData]);
 
   useEffect(() => {
     loadSupabaseData();
@@ -230,7 +299,41 @@ export default function App() {
   }, [loadSupabaseData]);
 
   // -------------------------------------------------------------
-  // 3. REALTIME: LẮNG NGHE SỰ KIỆN CẬP NHẬT ĐƠN HÀNG TỪ SUPABASE
+  // 3. REALTIME: LẮNG NGHE SỰ KIỆN SẢN PHẨM & QUY CÁCH
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const productRealtimeChannel = supabase
+      .channel('app:products-and-weights-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          loadSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'product_weights' },
+        () => {
+          loadSupabaseData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shop_configs' },
+        () => {
+          loadSupabaseData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(productRealtimeChannel);
+    };
+  }, [loadSupabaseData]);
+
+  // -------------------------------------------------------------
+  // 4. REALTIME: LẮNG NGHE SỰ KIỆN CẬP NHẬT ĐƠN HÀNG TỪ SUPABASE
   // -------------------------------------------------------------
   useEffect(() => {
     const channel = supabase
@@ -312,8 +415,15 @@ export default function App() {
 
     const multiplier = weightObj?.multiplier || 1;
     const bonus = weightObj?.priceBonus || 0;
-    const base = Number(product.basePrice || product.price || 0);
-    const unitPrice = weightObj?.priceOverride != null ? weightObj.priceOverride + bonus : Math.round((base + bonus) * multiplier);
+    const base = Number(product.basePrice || product.base_price || product.price || 0);
+    
+    let unitPrice = Math.round((base + bonus) * multiplier);
+    if (weightObj?.priceOverride != null && weightObj.priceOverride > 0) {
+      unitPrice = weightObj.priceOverride < 10000 && base >= 20000
+        ? base + weightObj.priceOverride + bonus
+        : weightObj.priceOverride + bonus;
+    }
+
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
     const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
 
@@ -337,7 +447,7 @@ export default function App() {
       if (existing) {
         return prevCart.map((item) =>
           (item.id === cartItemId || item.cartItemId === cartItemId)
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: item.quantity + quantity, price: unitPrice }
             : item
         );
       }
@@ -412,6 +522,9 @@ export default function App() {
     );
   };
 
+  // -------------------------------------------------------------
+  // XỬ LÝ ĐẶT HÀNG & PHÂN LUỒNG GỬI EMAIL CHUẨN XÁC
+  // -------------------------------------------------------------
   const handleProcessOrder = async (orderData) => {
     const orderCode = orderData.code || ('XNG' + Math.floor(100000 + Math.random() * 900000));
     const sourceCart = Array.isArray(orderData.cart) && orderData.cart.length > 0 ? orderData.cart : cart;
@@ -464,6 +577,7 @@ export default function App() {
       paymentGift: orderData.giftTitle || orderData.paymentGift || '',
       campaignGifts: campaignGiftsList || '',
       subtotal: subtotalAmount,
+      shipping_fee: Number(orderData.shipping_fee || orderData.shippingFee || 0),
       discount: Number(orderData.discount) || 0,
       discountAmount: Number(orderData.discount) || 0,
       finalTotal: finalTotalAmount,
@@ -495,6 +609,7 @@ export default function App() {
     } catch (e) { console.error(e); }
 
     try {
+      // 1. Ghi đơn hàng vào Database Supabase ngầm
       submitOrderToSupabase(orderPayload)
         .then((res) => {
           if (!res?.success) {
@@ -505,27 +620,13 @@ export default function App() {
           console.error('Lỗi network khi gửi đơn ngầm:', err);
         });
 
-      if (recipientEmail && recipientEmail.includes('@')) {
-        const depositAmt = Number(shopConfig?.depositAmount) || 50000;
-        const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
+      // 2. PHÂN LUỒNG GỬI EMAIL: CHỈ GỬI NGAY NẾU LÀ ĐƠN COD
+      // Đối với đơn Cọc hoặc Chuyển khoản QR, hệ thống chờ Admin đối soát tiền về MB Bank trong AdminPage mới gửi mail
+      const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
+      const isCodOrder = currentMethod === 'cod';
+      const isAutoPrepaidVerified = Boolean(orderData.isPaymentVerified || orderPayload.payment_verified);
 
-        const isDepositOrder = currentMethod === 'deposit' || currentMethod.includes('cọc');
-        const isFullPrepaid = currentMethod === 'full_qr' || currentMethod.includes('100%');
-        const isCodOrder = currentMethod === 'cod';
-
-        const finalDepositPaid = isDepositOrder
-          ? Math.min(depositAmt, finalTotalAmount)
-          : (isFullPrepaid ? finalTotalAmount : 0);
-
-        const finalRemainingCod = isDepositOrder
-          ? Math.max(0, finalTotalAmount - finalDepositPaid)
-          : (isCodOrder ? finalTotalAmount : 0);
-
-        const paymentMethodLabel = 
-          isFullPrepaid ? 'Chuyển khoản 100% (VietQR)' :
-          isDepositOrder ? `Cọc giữ đơn (${depositAmt.toLocaleString('vi-VN')}đ)` : 
-          'Thanh toán khi nhận hàng (COD)';
-
+      if (recipientEmail && recipientEmail.includes('@') && (isCodOrder || isAutoPrepaidVerified)) {
         const itemsSummaryHtml = orderPayload.cart.length > 0
           ? orderPayload.cart.map((it) => {
               const qty = Number(it.quantity) || 1;
@@ -553,28 +654,31 @@ export default function App() {
             customer_email: recipientEmail,
             recipient_email: recipientEmail,
             template_id: 'tpl0001',
+            event_type: isCodOrder ? 'ORDER_COD_CREATED' : 'PAYMENT_CONFIRMED',
             customer_name: recipientName,
             order_code: orderCode,
             cart: orderPayload.cart,
-            payment_method: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
-            paymentMethod: isDepositOrder ? 'deposit' : (isFullPrepaid ? 'full_qr' : 'cod'),
-            deposit_paid: finalDepositPaid,
-            remaining_cod: finalRemainingCod,
+            payment_method: isCodOrder ? 'cod' : currentMethod,
+            paymentMethod: isCodOrder ? 'cod' : currentMethod,
+            deposit_paid: isCodOrder ? 0 : finalTotalAmount,
+            remaining_cod: isCodOrder ? finalTotalAmount : 0,
             final_total: finalTotalAmount,
             data: {
               CUSTOMER_NAME: recipientName,
               ORDER_CODE: orderCode,
               FINAL_TOTAL: `${finalTotalAmount.toLocaleString('vi-VN')}đ`,
               TOTAL: finalTotalAmount.toLocaleString('vi-VN') + 'đ',
-              PAYMENT_METHOD: paymentMethodLabel,
-              DEPOSIT_PAID: finalDepositPaid.toLocaleString('vi-VN') + 'đ',
-              REMAINING_COD: finalRemainingCod.toLocaleString('vi-VN') + 'đ',
+              PAYMENT_METHOD: isCodOrder ? 'Thanh toán khi nhận hàng (COD)' : 'Chuyển khoản 100% (VietQR)',
+              DEPOSIT_PAID: '0đ',
+              REMAINING_COD: `${finalTotalAmount.toLocaleString('vi-VN')}đ`,
               SHIPPING_ADDRESS: recipientAddress,
               ADDRESS: recipientAddress,
               GIFT_TITLE: orderPayload.paymentGift || 'Nông sản biếu tặng',
               ITEMS_SUMMARY: itemsSummaryHtml
             }
           }
+        }).catch((mailErr) => {
+          console.warn('Lỗi gọi Edge Function gửi mail COD:', mailErr);
         });
       }
     } catch (err) {
@@ -632,7 +736,6 @@ export default function App() {
   }
 
   return (
-    /* THAY overflow-x-hidden THÀNH [overflow-x:clip] ĐỂ CHO PHÉP STICKY HOẠT ĐỘNG */
     <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
       {currentPage !== 'admin' && currentPage !== 'packing' && (
         <Navbar
@@ -652,7 +755,6 @@ export default function App() {
         />
       )}
 
-      {/* Trang admin không dùng padding-top (pt-16) của navbar vì admin có header riêng */}
       <main className={`flex-1 w-full max-w-full ${currentPage !== 'admin' && currentPage !== 'packing' ? 'pt-16' : ''}`}>
         {currentPage === 'home' && (
           <HomePage
@@ -716,6 +818,7 @@ export default function App() {
               onSaveProducts={(newList) => {
                 setProducts(newList);
                 localStorage.setItem('shop_products', JSON.stringify(newList));
+                syncCartWithMasterData(newList);
               }}
               onResetProducts={loadSupabaseData}
               posts={posts}
@@ -756,7 +859,6 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL HÓA ĐƠN ĐẶT HÀNG THÀNH CÔNG */}
       <OrderSuccessModal
         isOpen={isSuccessModalOpen}
         orderInfo={successOrderInfo}
@@ -767,7 +869,6 @@ export default function App() {
         shopConfig={shopConfig}
       />
 
-      {/* MODAL TRA CỨU ĐƠN HÀNG (TỰ ĐỘNG BẬT KHI CÓ LINK TỪ EMAIL) */}
       <OrderLookupModal
         isOpen={isLookupModalOpen}
         initialCode={initialLookupCode}
@@ -791,7 +892,6 @@ export default function App() {
         />
       )}
 
-      {/* HIỆU ỨNG NẢY SẢN PHẨM VÀO GIỎ */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 

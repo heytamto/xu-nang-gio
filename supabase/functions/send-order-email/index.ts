@@ -35,7 +35,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 function formatPaymentMethodLabel(method: string | undefined): string {
   const normalized = String(method || "").trim().toLowerCase();
   const paymentMap: Record<string, string> = {
-    deposit: "Chuyển khoản đặt cọc",
+    deposit: "Chuyển khoản đặt cọc (VietQR)",
     full_qr: "Chuyển khoản đủ 100% (Mã VietQR)",
     cod: "Thanh toán khi nhận hàng (COD)",
     bank_transfer: "Chuyển khoản ngân hàng",
@@ -81,7 +81,7 @@ function parseShopConfig(
 
   return {
     shopName: getString(generalData.brandName, getString(generalData.shop_name, "Xứ Nắng Gió")),
-    shopAddress: getString(generalData.address, "Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"),
+    shopAddress: getString(generalData.address, "Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận"),
     shopHotline: getString(generalData.hotline, getString(generalData.zaloPhone, "0848.957.345")),
     shopWebsite: getString(generalData.website, "https://xunanggio.com").replace(/\/+$/, ""),
     depositAmount: Number(paymentData.depositAmount ?? 50000),
@@ -96,7 +96,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body = await req.json();
 
-    // 1. Nhánh gửi trực tiếp HTML
+    // 1. Nhánh gửi trực tiếp HTML (Test hoặc thông báo đơn giản)
     if ((body.is_test || body.html) && (body.to || body.email)) {
       const recipientEmail = body.to || body.email;
       let finalHtml = body.html || "<p>Nội dung thông báo</p>";
@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 2. Nhánh gửi theo Template
+    // 2. Nhánh gửi theo Template chuẩn hóa
     const targetCode =
       body.record?.code ||
       body.order_code ||
@@ -166,6 +166,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const requestedTemplateId = body.template_id || "tpl0001";
+    const eventType = body.event_type || (body.template === "payment_success" ? "PAYMENT_CONFIRMED" : null);
 
     const [orderRes, itemsRes, templateRes, configRes] = await Promise.all([
       targetCode
@@ -188,9 +189,9 @@ Deno.serve(async (req: Request) => {
       payment_method: dbOrder?.payment_method || body.payment_method || body.data?.PAYMENT_METHOD || "deposit",
       payment_gift: dbOrder?.gift_title || dbOrder?.payment_gift || body.data?.GIFT_TITLE || "",
       campaign_gifts: dbOrder?.campaign_gifts || body.data?.CAMPAIGN_GIFTS || "",
-      final_total: dbOrder?.final_total || body.final_total || body.data?.FINAL_TOTAL || body.data?.TOTAL || 0,
-      subtotal: dbOrder?.subtotal || body.subtotal || body.data?.SUBTOTAL || 0,
-      discount: dbOrder?.discount || body.discount || body.data?.DISCOUNT || 0,
+      final_total: dbOrder?.final_total ?? body.final_total ?? body.data?.FINAL_TOTAL ?? body.data?.TOTAL ?? 0,
+      subtotal: dbOrder?.subtotal ?? body.subtotal ?? body.data?.SUBTOTAL ?? 0,
+      discount: dbOrder?.discount ?? body.discount ?? body.data?.DISCOUNT ?? 0,
     };
 
     if (!order.email || typeof order.email !== "string" || !order.email.includes("@")) {
@@ -201,100 +202,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const shop = parseShopConfig(configRes.data);
-
-    // 👉 TẠO LINK TRA CỨU ĐƠN HÀNG TRỰC TIẾP KÈM MÃ ĐƠN
     const trackingUrl = `${shop.shopWebsite}?lookup=${encodeURIComponent(order.code)}`;
-
-    let template = templateRes.data;
-    if (!template) {
-      if (requestedTemplateId === "tpl0003") {
-        template = {
-          id: "tpl0003",
-          name: "Email cảm ơn đánh giá",
-          subject: "[Xứ Nắng Gió] Cảm ơn {{CUSTOMER_NAME}} đã đánh giá đơn #{{ORDER_CODE}} • Tặng bạn mã ưu đãi",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 560px;">
-            <h2 style="color: #78350f; margin-top: 0;">💛 Xứ Nắng Gió Cảm Ơn Bạn</h2>
-            <p>Chào <strong>{{CUSTOMER_NAME}}</strong>,</p>
-            <p>Nhà vườn rất trân trọng đánh giá của bạn cho đơn hàng <strong>#{{ORDER_CODE}}</strong>.</p>
-            <div style="background: #fffbeb; border: 1.5px dashed #f59e0b; padding: 16px; border-radius: 12px; text-align: center; margin: 16px 0;">
-              <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: bold;">MÃ GIẢM GIÁ CHO ĐƠN HÀNG KẾ TIẾP:</p>
-              <div style="font-size: 22px; font-weight: 900; font-family: monospace; color: #b45309; margin: 8px 0;">{{ORDER_CODE}}</div>
-            </div>
-            <p style="font-size: 13px; color: #78716c;">Hotline / Zalo: <strong>{{SHOP_HOTLINE}}</strong> • {{SHOP_ADDRESS}}</p>
-          </div>`
-        };
-      } else {
-        template = {
-          id: "tpl0001",
-          name: "Email xác nhận đơn hàng",
-          subject: "[Xứ Nắng Gió] Xác nhận đơn hàng #{{ORDER_CODE}} • Cảm ơn {{CUSTOMER_NAME}}",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
-            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
-            <p style="font-size: 14px; line-height: 1.6; color: #44403c;">
-              Nhà vườn trân trọng cảm ơn bạn đã đặt niềm tin nơi nông sản Ninh Thuận. Đơn hàng của bạn đã được ghi nhận trên hệ thống và chuẩn bị bước vào khâu chọn lọc cắt hái:
-            </p>
-            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background: #fafaf9; border-left: 4px solid #b45309; border-radius: 12px; margin: 18px 0;">
-              <tr>
-                <td align="left" style="padding: 14px 18px; vertical-align: middle;">
-                  <div style="font-size: 11px; font-weight: bold; color: #78716c; text-transform: uppercase;">MÃ TRA CỨU ĐƠN</div>
-                  <div style="font-size: 16px; font-weight: 900; font-family: monospace; color: #b45309; margin-top: 4px;">#{{ORDER_CODE}}</div>
-                </td>
-                <td align="right" style="padding: 14px 18px; vertical-align: middle;">
-                  <div style="font-size: 11px; font-weight: bold; color: #78716c; text-transform: uppercase;">HÌNH THỨC</div>
-                  <div style="font-size: 13.5px; font-weight: bold; color: #292524; margin-top: 4px;">{{PAYMENT_METHOD}}</div>
-                </td>
-              </tr>
-            </table>
-            <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
-              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
-              {{ITEMS_SUMMARY}}
-              {{GIFTS_BLOCK}}
-              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
-                <tr>
-                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng thanh toán:</td>
-                  <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
-                </tr>
-                <tr>
-                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 6px;">Tiền cọc thanh toán:</td>
-                  <td align="right" style="font-size: 13px; font-weight: bold; color: #047857; padding-top: 6px;">{{DEPOSIT_PAID}}</td>
-                </tr>
-                <tr>
-                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 4px;">Còn lại thu khi nhận (COD):</td>
-                  <td align="right" style="font-size: 13px; font-weight: bold; color: #292524; padding-top: 4px;">{{REMAINING_COD}}</td>
-                </tr>
-                <tr>
-                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Địa chỉ giao:</td>
-                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
-                </tr>
-              </table>
-            </div>
-            <div style="text-align: center; margin: 24px 0 16px 0;">
-              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
-                Tra Cứu Tiến Độ Kiện Hàng →
-              </a>
-            </div>
-            <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
-            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
-              <tr>
-                <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
-                <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
-              </tr>
-            </table>
-          </div>`
-        };
-      }
-    } else {
-      // Tự động ép đổi link nút bấm sang {{TRACKING_URL}} nếu template DB còn lưu link cũ
-      if (template.body) {
-        template.body = template.body
-          .replaceAll('href="{{SHOP_WEBSITE}}"', 'href="{{TRACKING_URL}}"')
-          .replaceAll('href="https://xunanggio.com"', 'href="{{TRACKING_URL}}"');
-      }
-    }
-
     const totalAmount = Number(String(order.final_total).replace(/\D/g, "")) || 0;
 
-    // 👉 ƯU TIÊN SỐ TIỀN DO CLIENT TRUYỀN SANG ĐỂ TRÁNH TÍNH NHẦM THÀNH 0Đ
+    // Tính toán số tiền đã nhận và tiền thu hộ COD
     let depositPaid = 0;
     let remainingCod = totalAmount;
 
@@ -327,7 +238,6 @@ Deno.serve(async (req: Request) => {
         depositPaid = 0;
         remainingCod = totalAmount;
       } else {
-        // Fallback an toàn: Mặc định là cọc 50.000đ
         depositPaid = Math.min(shop.depositAmount, totalAmount);
         remainingCod = Math.max(0, totalAmount - depositPaid);
       }
@@ -335,7 +245,7 @@ Deno.serve(async (req: Request) => {
 
     const paymentLabel = body.data?.PAYMENT_METHOD || formatPaymentMethodLabel(order.payment_method);
 
-    // 👉 RENDER DANH SÁCH MÓN DẠNG <table> (KHÔNG BỊ LỖI DÍNH CHỮ x160.000đ)
+    // Bảng chi tiết sản phẩm HTML chuẩn Responsive
     let itemsSummaryHtml = body.data?.ITEMS_SUMMARY || body.itemsSummaryHtml;
     if (!itemsSummaryHtml) {
       const items = (itemsRes.data && itemsRes.data.length > 0) ? itemsRes.data : (body.cart || []);
@@ -368,6 +278,130 @@ Deno.serve(async (req: Request) => {
       giftsHtml += `<div style="color: #047857; margin-top: 4px; font-size: 13.5px;">🍇 <strong>Ưu đãi vườn:</strong> ${order.campaign_gifts}</div>`;
     }
 
+    // Xây dựng template phù hợp cho từng luồng
+    let template = templateRes.data;
+    if (!template) {
+      if (requestedTemplateId === "tpl0003") {
+        template = {
+          id: "tpl0003",
+          name: "Email cảm ơn đánh giá",
+          subject: "[Xứ Nắng Gió] Cảm ơn {{CUSTOMER_NAME}} đã đánh giá đơn #{{ORDER_CODE}} • Tặng bạn mã ưu đãi",
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 560px;">
+            <h2 style="color: #78350f; margin-top: 0;">💛 Xứ Nắng Gió Cảm Ơn Bạn</h2>
+            <p>Chào <strong>{{CUSTOMER_NAME}}</strong>,</p>
+            <p>Nhà vườn rất trân trọng đánh giá của bạn cho đơn hàng <strong>#{{ORDER_CODE}}</strong>.</p>
+            <div style="background: #fffbeb; border: 1.5px dashed #f59e0b; padding: 16px; border-radius: 12px; text-align: center; margin: 16px 0;">
+              <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: bold;">MÃ GIẢM GIÁ CHO ĐƠN HÀNG KẾ TIẾP:</p>
+              <div style="font-size: 22px; font-weight: 900; font-family: monospace; color: #b45309; margin: 8px 0;">{{ORDER_CODE}}</div>
+            </div>
+            <p style="font-size: 13px; color: #78716c;">Hotline / Zalo: <strong>{{SHOP_HOTLINE}}</strong> • {{SHOP_ADDRESS}}</p>
+          </div>`
+        };
+      } else if (eventType === "PAYMENT_CONFIRMED") {
+        // LUỒNG 1: BIÊN NHẬN ĐÃ NHẬN TIỀN CỌC / CHUYỂN KHOẢN (DO ADMIN DUYỆT)
+        template = {
+          id: "tpl_confirmed",
+          name: "Biên nhận thanh toán",
+          subject: "[Xứ Nắng Gió] Biên nhận thanh toán đơn hàng #{{ORDER_CODE}} • Đã xác nhận",
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
+            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
+            <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;">
+              <strong style="color: #047857; font-size: 14px;">✓ Nhà vườn đã nhận thành công {{DEPOSIT_PAID}}</strong>
+              <p style="margin: 4px 0 0 0; color: #064e3b; font-size: 13px; line-height: 1.5;">
+                Đơn hàng #{{ORDER_CODE}} đã được chuyển giao cho bộ phận Kho đóng thùng xốp để gửi nhà xe theo lịch hẹn.
+              </p>
+            </div>
+            
+            <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
+              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
+              {{ITEMS_SUMMARY}}
+              {{GIFTS_BLOCK}}
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
+                <tr>
+                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng đơn hàng:</td>
+                  <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 6px;">Đã thanh toán (VietQR):</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #047857; padding-top: 6px;">{{DEPOSIT_PAID}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 4px;">Còn lại gửi nhà xe (COD):</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #292524; padding-top: 4px;">{{REMAINING_COD}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Điểm giao / Bến xe:</td>
+                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="text-align: center; margin: 24px 0 16px 0;">
+              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
+                Theo Dõi Tiến Độ Đóng Kiện & Nhà Xe →
+              </a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
+              <tr>
+                <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
+                <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
+              </tr>
+            </table>
+          </div>`
+        };
+      } else {
+        // LUỒNG 2: XÁC NHẬN TIẾP NHẬN ĐƠN COD (TRẢ SAU)
+        template = {
+          id: "tpl0001",
+          name: "Email xác nhận đơn COD",
+          subject: "[Xứ Nắng Gió] Xác nhận đơn hàng COD #{{ORDER_CODE}} • Cảm ơn {{CUSTOMER_NAME}}",
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
+            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
+            <div style="background: #fff7ed; border: 1.5px solid #fed7aa; padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;">
+              <strong style="color: #c2410c; font-size: 14px;">Phương thức: Thanh toán khi nhận hàng (COD)</strong>
+              <p style="margin: 4px 0 0 0; color: #7c2d12; font-size: 13px; line-height: 1.5;">
+                Đơn hàng đã được ghi nhận. Quý khách vui lòng chuẩn bị <strong>{{REMAINING_COD}}</strong> để thanh toán cho tài xế/nhà xe khi nhận thùng nông sản.
+              </p>
+            </div>
+            <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
+              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
+              {{ITEMS_SUMMARY}}
+              {{GIFTS_BLOCK}}
+              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
+                <tr>
+                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng tiền thu hộ (COD):</td>
+                  <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
+                </tr>
+                <tr>
+                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Điểm giao / Bến xe:</td>
+                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
+                </tr>
+              </table>
+            </div>
+            <div style="text-align: center; margin: 24px 0 16px 0;">
+              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
+                Tra Cứu Lộ Trình Đơn Hàng →
+              </a>
+            </div>
+            <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
+              <tr>
+                <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
+                <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
+              </tr>
+            </table>
+          </div>`
+        };
+      }
+    } else {
+      if (template.body) {
+        template.body = template.body
+          .replaceAll('href="{{SHOP_WEBSITE}}"', 'href="{{TRACKING_URL}}"')
+          .replaceAll('href="https://xunanggio.com"', 'href="{{TRACKING_URL}}"');
+      }
+    }
+
     const templateVariables: Record<string, string> = {
       CUSTOMER_NAME: order.customer_name,
       customer_name: order.customer_name,
@@ -392,11 +426,8 @@ Deno.serve(async (req: Request) => {
       phone: order.phone,
       GIFTS_BLOCK: giftsHtml,
       gifts_block: giftsHtml,
-
-      // 👉 Cung cấp biến link tra cứu trực tiếp
       TRACKING_URL: trackingUrl,
       tracking_url: trackingUrl,
-
       SHOP_NAME: shop.shopName,
       shop_name: shop.shopName,
       SHOP_ADDRESS: shop.shopAddress,

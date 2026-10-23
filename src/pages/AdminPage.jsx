@@ -4,7 +4,7 @@ import {
   ArrowLeft, LayoutDashboard, ShoppingBag, 
   Settings, BookOpen, Check, Feather, PackageCheck,
   Lock, KeyRound, LogOut, ShieldAlert, MessageSquare,
-  RefreshCw
+  RefreshCw, FileSpreadsheet
 } from 'lucide-react';
 
 import DashboardTab from '../components/admin/DashboardTab';
@@ -18,6 +18,7 @@ import EditProductModal from '../components/admin/EditProductModal';
 import EditPostModal from '../components/admin/EditPostModal';
 import EditStoryModal from '../components/admin/EditStoryModal';
 import ConfirmModal from '../components/admin/ConfirmModal';
+import BankReconciliationModal from '../components/admin/BankReconciliationModal';
 
 import { supabase } from '../supabaseClient';
 import { formatDate } from '../utils/dateUtils';
@@ -31,9 +32,8 @@ const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'tam2026';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '808208978769-7h3ognen0s4ecvr8259kadnl8tkmg6il.apps.googleusercontent.com';
 const ALLOWED_ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || 'xunanggio@gmail.com')
   .split(',')
-  .map(e => e.trim().toLowerCase());
+  .map((e) => e.trim().toLowerCase());
 
-// Giải mã JWT Google Credential
 function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
@@ -67,7 +67,6 @@ export default function AdminPage({
   onNavigateHome,
   onNavigatePacking
 }) {
-  // 1. Kiểm tra session admin
   const [adminUser, setAdminUser] = useState(() => {
     try {
       const saved = sessionStorage.getItem('xng_admin_user') || localStorage.getItem('xng_admin_user');
@@ -83,7 +82,6 @@ export default function AdminPage({
 
   const isAuthenticated = Boolean(adminUser);
 
-  // Xử lý khi đăng nhập Google thành công
   const handleGoogleCredentialResponse = useCallback((response) => {
     const profile = parseJwt(response.credential);
     if (!profile || !profile.email) {
@@ -103,7 +101,6 @@ export default function AdminPage({
     }
   }, []);
 
-  // Khởi tạo nút Google Sign-In
   useEffect(() => {
     if (isAuthenticated) return;
 
@@ -128,7 +125,6 @@ export default function AdminPage({
     return () => clearInterval(interval);
   }, [isAuthenticated, handleGoogleCredentialResponse]);
 
-  // Đăng nhập bằng mật khẩu quản trị
   const handlePasswordLogin = (e) => {
     e.preventDefault();
     if (passInput.trim() === ADMIN_PASSWORD) {
@@ -148,11 +144,12 @@ export default function AdminPage({
     if (onNavigateHome) onNavigateHome();
   };
 
-  // State quản lý tab & dữ liệu
   const [activeTab, setActiveTab] = useState('dashboard');
   const [savedNotice, setSavedNotice] = useState(false);
   const [actionLoadingCode, setActionLoadingCode] = useState(null);
+  const [confirmingOrderCode, setConfirmingOrderCode] = useState(null);
   const [modalConfig, setModalConfig] = useState(null);
+  const [isReconcileOpen, setIsReconcileOpen] = useState(false);
 
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
@@ -167,7 +164,6 @@ export default function AdminPage({
   });
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
-  // 2. Tải danh sách đơn hàng an toàn (chuẩn hóa status về key tiếng Anh)
   const fetchOrdersFromDatabase = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoadingOrders(true);
@@ -184,7 +180,7 @@ export default function AdminPage({
         return;
       }
 
-      const orderCodes = ordersData.map(o => o.code).filter(Boolean);
+      const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
       let itemsMap = {};
 
       if (orderCodes.length > 0) {
@@ -194,7 +190,7 @@ export default function AdminPage({
           .in('order_code', orderCodes);
 
         if (Array.isArray(itemsData)) {
-          itemsData.forEach(item => {
+          itemsData.forEach((item) => {
             const key = item.order_code;
             if (!itemsMap[key]) itemsMap[key] = [];
             itemsMap[key].push(item);
@@ -202,7 +198,7 @@ export default function AdminPage({
         }
       }
 
-      const mergedOrders = ordersData.map(ord => ({
+      const mergedOrders = ordersData.map((ord) => ({
         ...ord,
         status: normalizeOrderStatus(ord.status),
         order_items: itemsMap[ord.code] || ord.cart || []
@@ -238,7 +234,6 @@ export default function AdminPage({
     setTimeout(() => setSavedNotice(false), 2500);
   };
 
-  // 3. Cập nhật trạng thái đơn hàng trên Supabase
   const handleUpdateStatus = async (orderCode, newStatusRaw, reason = null) => {
     const normalizedStatus = normalizeOrderStatus(newStatusRaw);
 
@@ -297,11 +292,108 @@ export default function AdminPage({
     }
   };
 
-  // 4. Xóa đơn hàng trên Supabase
+  // Xác nhận thanh toán trực tiếp (Được kích hoạt sau khi bấm modal xác nhận ở DashboardTab)
+  const handleConfirmPaymentAndNotify = async (order) => {
+    if (!order || !order.code) return;
+
+    setConfirmingOrderCode(order.code);
+
+    try {
+      const totalOrderNum = Number(order.final_total || order.total || 0);
+      const configuredDeposit = Number(shopConfig?.depositAmount || 50000);
+      
+      // Tính đúng số tiền cọc hoặc tiền chuyển khoản 100%
+      const verifiedAmount = order.payment_method === 'deposit' 
+        ? Math.min(configuredDeposit, totalOrderNum) 
+        : totalOrderNum;
+
+      const updatedStatus = ORDER_STATUS.CONFIRMED;
+      const nowIso = new Date().toISOString();
+
+      // 1. Cập nhật trạng thái và số tiền đã nhận vào bảng orders trên Supabase
+      const { error: dbError } = await supabase
+        .from('orders')
+        .update({
+          status: updatedStatus,
+          payment_verified: true,
+          deposit_paid: verifiedAmount,
+          payment_verified_at: nowIso,
+          updated_at: nowIso
+        })
+        .eq('code', order.code);
+
+      if (dbError) throw dbError;
+
+      // 2. Kích hoạt gửi email xác nhận biên nhận cho khách
+      const customerEmail = order.email || order.customer?.email;
+      let emailSent = false;
+
+      if (customerEmail && customerEmail.includes('@')) {
+        try {
+          const remainingCod = Math.max(0, totalOrderNum - verifiedAmount);
+          const { error: mailError } = await supabase.functions.invoke('send-order-email', {
+            body: {
+              to: customerEmail,
+              template: 'payment_success',
+              order_code: order.code,
+              customer_name: order.customer_name || order.name || 'Quý khách',
+              payment_method: order.payment_method,
+              deposit_paid: verifiedAmount,
+              final_total: totalOrderNum,
+              remaining_cod: remainingCod,
+              items: order.order_items || order.cart || []
+            }
+          });
+          if (!mailError) emailSent = true;
+        } catch (mailErr) {
+          console.warn('Gửi email thông báo thất bại:', mailErr);
+        }
+      }
+
+      // 3. Cập nhật state nội bộ dbOrders
+      setDbOrders((prev) => {
+        const nextOrders = prev.map((o) =>
+          o.code === order.code
+            ? {
+                ...o,
+                status: updatedStatus,
+                payment_verified: true,
+                deposit_paid: verifiedAmount,
+                payment_verified_at: nowIso
+              }
+            : o
+        );
+        try {
+          localStorage.setItem('shop_orders', JSON.stringify(nextOrders));
+        } catch (e) {
+          console.error(e);
+        }
+        return nextOrders;
+      });
+
+      if (onUpdateOrderStatus) {
+        onUpdateOrderStatus(order.code, updatedStatus);
+      }
+
+      showSavedToast(
+        `Đã duyệt đơn #${order.code}!` + (emailSent ? ` (Đã gửi email đến ${customerEmail})` : '')
+      );
+    } catch (err) {
+      console.error('Lỗi khi duyệt thanh toán:', err);
+      setModalConfig({
+        title: 'Lỗi Duyệt Thanh Toán',
+        message: err.message || 'Không thể cập nhật đơn hàng.',
+        isAlert: true
+      });
+    } finally {
+      setConfirmingOrderCode(null);
+    }
+  };
+
   const handleDeleteOrder = (orderCode) => {
     setModalConfig({
       title: 'Xác Nhận Xóa Đơn',
-      message: `Tâm có chắc muốn xóa vĩnh viễn đơn ${orderCode} khỏi cơ sở dữ liệu?`,
+      message: `Bạn có chắc muốn xóa vĩnh viễn đơn ${orderCode} khỏi cơ sở dữ liệu?`,
       confirmLabel: 'Đồng ý xóa',
       onConfirm: async () => {
         setActionLoadingCode(orderCode);
@@ -347,7 +439,6 @@ export default function AdminPage({
     showSavedToast('Đã lưu bài viết cẩm nang!');
   };
 
-  // GIAO DIỆN KHÓA NẾU CHƯA ĐĂNG NHẬP
   if (!isAuthenticated) {
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4 py-12 font-sans animate-fadeIn">
@@ -420,11 +511,8 @@ export default function AdminPage({
     );
   }
 
-  // GIAO DIỆN QUẢN TRỊ KHI ĐÃ ĐĂNG NHẬP
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
-      
-      {/* KHỐI HEADER ĐƯỢC FIX CỨNG BẰNG STICKY TOP-0 (KHÔNG RUNG LẮC, KHÔNG TRỄ) */}
       <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
         <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -451,6 +539,17 @@ export default function AdminPage({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsReconcileOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-bold rounded-xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
+                title="Đối Soát Sao Kê Ngân Hàng MB Bank"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="hidden sm:inline">Đối Soát Sao Kê</span>
+                <span className="sm:hidden">Sao Kê</span>
+              </button>
+
               {onNavigatePacking && (
                 <button
                   type="button"
@@ -484,7 +583,6 @@ export default function AdminPage({
             </div>
           </div>
 
-          {/* 6 Tab điều hướng */}
           <div className="w-full bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5 border border-stone-200/50">
             <button
               type="button"
@@ -555,7 +653,6 @@ export default function AdminPage({
         </header>
       </div>
 
-      {/* CÁC TAB NỘI DUNG BÊN DƯỚI */}
       <div className="space-y-6 pt-3">
         {activeTab === 'dashboard' && (
           <DashboardTab
@@ -563,6 +660,8 @@ export default function AdminPage({
             isLoading={isLoadingOrders}
             onRefresh={fetchOrdersFromDatabase}
             onUpdateStatus={handleUpdateStatus}
+            onConfirmPayment={handleConfirmPaymentAndNotify}
+            confirmingOrderCode={confirmingOrderCode}
             onDeleteOrder={handleDeleteOrder}
             depositAmount={shopConfig?.depositAmount || 50000}
             actionLoadingCode={actionLoadingCode}
@@ -689,7 +788,13 @@ export default function AdminPage({
         )}
       </div>
 
-      {/* CÁC MODAL THAO TÁC */}
+      <BankReconciliationModal
+        isOpen={isReconcileOpen}
+        onClose={() => setIsReconcileOpen(false)}
+        orders={dbOrders}
+        onRefreshOrders={fetchOrdersFromDatabase}
+      />
+
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
