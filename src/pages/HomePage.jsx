@@ -863,8 +863,8 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 3. LỊCH MÙA VỤ 12 THÁNG (FIX NÚT BẤM HOẠT ĐỘNG 100%) ================= */}
-      <section className="bg-white rounded-3xl p-5 sm:p-7 border border-stone-200/90 shadow-xs space-y-6">
+      {/* ================= 3. LỊCH MÙA VỤ 12 THÁNG (FULL CỤM: FIX KHÔNG LẸM T12 & FULL RESPONSIVE) ================= */}
+      <section className="bg-white rounded-3xl p-4 sm:p-7 border border-stone-200/90 shadow-xs space-y-5 sm:space-y-6">
         {/* HEADER SECTION */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
           <div>
@@ -903,8 +903,125 @@ export default function HomePage({
           </div>
         </div>
 
-        {/* CONTAINER 12 THẺ */}
-        <div className="flex flex-row items-stretch gap-1.5 sm:gap-2 h-[480px] sm:h-[510px] w-full select-none rounded-2xl p-1.5 pt-7 pb-2 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
+        {/* ================= GIAO DIỆN MOBILE (< md): THANH TAB CHỌN THÁNG + CARD CHI TIẾT ================= */}
+        <div className="block md:hidden space-y-4">
+          {/* Thanh cuộn 12 tháng dạng Pill Buttons */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {MONTHLY_HARVEST_CALENDAR.map((item) => {
+              const isSelected = item.month === selectedMonth;
+              const isCurrent = item.month === currentRealMonth;
+
+              return (
+                <button
+                  key={item.month}
+                  type="button"
+                  onClick={() => setSelectedMonth(item.month)}
+                  className={`shrink-0 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    isSelected
+                      ? "bg-amber-800 text-white border-amber-800 shadow-sm scale-105"
+                      : "bg-stone-50 text-stone-700 border-stone-200/90 hover:bg-stone-100"
+                  }`}
+                >
+                  {isCurrent && (
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? "bg-amber-300" : "bg-emerald-500"} animate-pulse`}
+                    />
+                  )}
+                  <span>Tháng {item.month}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Card chi tiết tháng đang chọn trên mobile */}
+          {activeMonthData && (
+            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[440px] flex flex-col justify-between p-5 border border-stone-700/80 shadow-lg">
+              {/* Ảnh nền */}
+              <div className="absolute inset-0 pointer-events-none">
+                <img
+                  src={activeMonthData.image}
+                  alt={activeMonthData.title}
+                  className="w-full h-full object-cover filter brightness-[0.65] contrast-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-black/40" />
+              </div>
+
+              {/* Đỉnh card mobile */}
+              <div className="relative z-10 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-black text-xs px-2.5 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md">
+                    THÁNG {activeMonthData.month}
+                  </span>
+                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-black/50 border border-white/20 text-amber-200 backdrop-blur-md">
+                    {activeMonthData.status}
+                  </span>
+                </div>
+
+                {activeMonthData.month === currentRealMonth && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-3 py-1 rounded-full backdrop-blur-md">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Chính vụ rộ</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Thân card mobile */}
+              <div className="relative z-10 space-y-3 my-auto py-4">
+                <h4 className="text-xl font-black text-white leading-snug drop-shadow-md">
+                  {activeMonthData.title}
+                </h4>
+
+                <div className="p-3.5 rounded-2xl bg-black/45 border border-white/15 backdrop-blur-md text-xs text-stone-200 leading-relaxed space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="shrink-0 text-amber-400 font-bold">
+                      🌾 Đặc trưng:
+                    </span>
+                    <span className="text-stone-100">
+                      {activeMonthData.desc}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2 pt-2 border-t border-white/10">
+                    <span className="shrink-0 text-amber-300 font-bold">
+                      💡 Thưởng thức:
+                    </span>
+                    <span className="text-amber-100/90">
+                      {activeMonthData.tips}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chân card mobile */}
+              <div className="relative z-10 space-y-3 pt-1">
+                <div className="flex items-center justify-between text-[11px] px-1 text-stone-300">
+                  <span className="text-amber-400 font-mono tracking-wider uppercase text-[10px] font-bold">
+                    Đặc sản chọn lọc:
+                  </span>
+                  <span className="font-semibold text-white/90">
+                    {activeMonthData.highlight}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    goToShop(activeMonthData.categoryTarget || "all");
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-md"
+                >
+                  <ShoppingBag className="w-4 h-4 text-stone-950" />
+                  <span>Xem Nông Sản Tháng {activeMonthData.month}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ================= GIAO DIỆN TABLET & DESKTOP (md:flex): ACCORDION 12 THẺ KHÔNG BỊ CẮT LẸM ================= */}
+        <div className="hidden md:flex flex-row items-stretch gap-1 lg:gap-1.5 h-[490px] lg:h-[510px] w-full select-none rounded-2xl p-1.5 pt-7 pb-2 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
           {MONTHLY_HARVEST_CALENDAR.map((item) => {
             const isExpanded = item.month === selectedMonth;
             const isRealMonth = item.month === currentRealMonth;
@@ -920,9 +1037,9 @@ export default function HomePage({
                   if (!isExpanded) setSelectedMonth(item.month);
                 }}
                 style={{ transitionProperty: "flex-grow, transform" }}
-                className={`relative rounded-2xl min-w-0 flex flex-col justify-between overflow-hidden duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[flex-grow,transform] ${
+                className={`relative rounded-2xl flex flex-col justify-between overflow-hidden duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[flex-grow,transform] min-w-0 ${
                   isExpanded
-                    ? "flex-[6] sm:flex-[7] z-20 ring-2 ring-amber-500/90 bg-stone-900 -translate-y-3.5 cursor-default shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+                    ? "flex-[5] lg:flex-[6] z-20 ring-2 ring-amber-500/90 bg-stone-900 -translate-y-3.5 cursor-default shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
                     : "flex-1 z-0 translate-y-0 cursor-pointer shadow-none hover:z-30 hover:scale-[1.03] hover:-translate-y-3.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.25)] group/card"
                 }`}
               >
@@ -937,26 +1054,24 @@ export default function HomePage({
                         : "scale-100 filter brightness-95 contrast-105 group-hover/card:scale-110"
                     }`}
                   />
-                  {/* GRADIENT NỀN */}
                   <div
                     className={`absolute inset-0 transition-opacity duration-500 ${
                       isExpanded
-                        ? "bg-gradient-to-t from-stone-950/90 via-stone-900/40 to-black/40"
+                        ? "bg-gradient-to-t from-stone-950/95 via-stone-900/50 to-black/40"
                         : "bg-gradient-to-t from-black/60 via-transparent to-black/45 group-hover/card:from-black/70"
                     }`}
                   />
                 </div>
 
-                {/* ================= 1. DẠNG THU NHỎ ================= */}
+                {/* DẠNG THU NHỎ */}
                 <div
                   className={`absolute inset-0 py-3.5 px-0.5 flex flex-col items-center justify-between pointer-events-none transition-opacity duration-300 z-10 ${
                     isExpanded ? "opacity-0 invisible" : "opacity-100 visible"
                   }`}
                 >
-                  {/* Badge số tháng trên đỉnh */}
                   <div className="flex flex-col items-center gap-1">
                     <span
-                      className={`font-mono font-black text-xs px-2 py-0.5 rounded-lg shadow-2xs backdrop-blur-md transition-colors ${
+                      className={`font-mono font-black text-[11px] lg:text-xs px-1 lg:px-2 py-0.5 rounded-lg shadow-2xs backdrop-blur-md transition-colors ${
                         isRealMonth
                           ? "bg-amber-400 text-stone-950 font-black ring-1 ring-amber-300"
                           : "bg-black/60 text-white border border-white/30 group-hover/card:border-amber-400 group-hover/card:text-amber-300"
@@ -969,10 +1084,9 @@ export default function HomePage({
                     )}
                   </div>
 
-                  {/* Typography giọt nước dọc */}
                   <div className="my-auto py-2 flex items-center justify-center overflow-visible">
                     <span
-                      className="font-black text-2xl sm:text-3xl lg:text-[38px] tracking-[0.12em] uppercase text-transparent select-none whitespace-nowrap transition-transform duration-300 group-hover/card:scale-105"
+                      className="font-black text-lg lg:text-[30px] tracking-[0.1em] uppercase text-transparent select-none whitespace-nowrap transition-transform duration-300 group-hover/card:scale-105"
                       style={{
                         writingMode: "vertical-rl",
                         transform: "rotate(180deg)",
@@ -991,48 +1105,47 @@ export default function HomePage({
                     </span>
                   </div>
 
-                  {/* Số thứ tự chân thẻ */}
-                  <span className="text-[10px] font-mono font-black text-white/80 drop-shadow-md pb-0.5">
+                  <span className="text-[9px] lg:text-[10px] font-mono font-black text-white/80 drop-shadow-md pb-0.5">
                     #{item.month < 10 ? `0${item.month}` : item.month}
                   </span>
                 </div>
 
-                {/* ================= 2. DẠNG PHÓNG TO ================= */}
+                {/* DẠNG PHÓNG TO: CO GIÃN THEO DIỆN TÍCH THẺ (TỰ ĐỘNG CHIA KHÔNG GIAN, KHÔNG ÉP CỤT T12) */}
                 <div
-                  className={`absolute inset-0 w-full h-full p-5 sm:p-6 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
+                  className={`absolute inset-0 w-full h-full p-4 lg:p-6 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
                     isExpanded
                       ? "opacity-100 visible pointer-events-auto"
                       : "opacity-0 invisible pointer-events-none"
                   }`}
                 >
-                  <div className="w-full h-full flex flex-col justify-between min-w-[320px] sm:min-w-[360px] pointer-events-auto">
-                    {/* ĐỈNH THẺ */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md">
+                  <div className="w-full h-full flex flex-col justify-between pointer-events-auto overflow-hidden">
+                    {/* Đỉnh thẻ */}
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-mono font-black text-[11px] lg:text-xs px-2 py-0.5 lg:py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
                           THÁNG {item.month}
                         </span>
-                        <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-black/40 border border-white/20 text-amber-200 backdrop-blur-md">
+                        <span className="text-[10px] lg:text-[11px] font-bold px-2 py-0.5 lg:py-1 rounded-full bg-black/40 border border-white/20 text-amber-200 backdrop-blur-md truncate">
                           {item.status}
                         </span>
                       </div>
 
                       {isRealMonth && (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-3 py-1 rounded-full backdrop-blur-md shadow-xs">
+                        <span className="inline-flex items-center gap-1 text-[10px] lg:text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-2 py-0.5 lg:py-1 rounded-full backdrop-blur-md shadow-xs shrink-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Chính vụ rộ</span>
+                          <span>Chính vụ</span>
                         </span>
                       )}
                     </div>
 
-                    {/* THÂN THẺ */}
-                    <div className="space-y-3.5 my-auto py-1">
-                      <h4 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-md">
+                    {/* Thân thẻ */}
+                    <div className="space-y-2 lg:space-y-3.5 my-auto py-1 min-w-0">
+                      <h4 className="text-base lg:text-2xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words line-clamp-2">
                         {item.title}
                       </h4>
 
-                      <div className="p-3.5 rounded-2xl bg-black/35 border border-white/15 backdrop-blur-md text-xs text-stone-200 leading-relaxed font-light space-y-2">
-                        <div className="flex items-start gap-2">
+                      <div className="p-3 lg:p-3.5 rounded-2xl bg-black/40 border border-white/15 backdrop-blur-md text-[11px] lg:text-xs text-stone-200 leading-relaxed font-light space-y-1.5">
+                        <div className="flex items-start gap-1.5">
                           <span className="shrink-0 text-amber-400 font-bold">
                             🌾 Đặc trưng:
                           </span>
@@ -1040,7 +1153,7 @@ export default function HomePage({
                             {item.desc}
                           </span>
                         </div>
-                        <div className="flex items-start gap-2 pt-2 border-t border-white/10">
+                        <div className="flex items-start gap-1.5 pt-1.5 border-t border-white/10">
                           <span className="shrink-0 text-amber-300 font-bold">
                             💡 Thưởng thức:
                           </span>
@@ -1051,13 +1164,13 @@ export default function HomePage({
                       </div>
                     </div>
 
-                    {/* CHÂN THẺ */}
-                    <div className="space-y-2.5 relative z-30 pointer-events-auto">
-                      <div className="flex items-center justify-between text-[11px] px-1 text-stone-300">
-                        <span className="text-amber-400 font-mono tracking-wider uppercase text-[10px] font-bold">
-                          Đặc sản chọn lọc:
+                    {/* Chân thẻ */}
+                    <div className="space-y-2 relative z-30 pointer-events-auto">
+                      <div className="flex items-center justify-between text-[10.5px] lg:text-[11px] px-1 text-stone-300">
+                        <span className="text-amber-400 font-mono tracking-wider uppercase text-[9.5px] lg:text-[10px] font-bold shrink-0">
+                          Đặc sản:
                         </span>
-                        <span className="font-semibold text-white/90 truncate max-w-[220px]">
+                        <span className="font-semibold text-white/90 truncate ml-2">
                           {item.highlight}
                         </span>
                       </div>
@@ -1069,11 +1182,13 @@ export default function HomePage({
                           e.stopPropagation();
                           goToShop(item.categoryTarget || "all");
                         }}
-                        className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
+                        className="w-full py-2.5 lg:py-3 px-3 lg:px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-[11.5px] lg:text-xs flex items-center justify-center gap-1.5 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
                       >
-                        <ShoppingBag className="w-4 h-4 text-stone-950" />
-                        <span>Xem Nông Sản Tháng {item.month}</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <ShoppingBag className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-stone-950 shrink-0" />
+                        <span className="truncate">
+                          Xem Nông Sản Tháng {item.month}
+                        </span>
+                        <ArrowRight className="w-3.5 h-3.5 text-stone-950 shrink-0" />
                       </button>
                     </div>
                   </div>
