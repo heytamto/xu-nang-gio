@@ -12,6 +12,7 @@ import ShopPage from './pages/ShopPage';
 import StoryPage from './pages/StoryPage';
 import BlogPage from './pages/BlogPage';
 import CheckoutPage from './pages/CheckoutPage';
+import PolicyPage from './pages/PolicyPage';
 
 // Lazy loading cho các trang quản trị để tối ưu bundle size cho khách hàng
 const AdminPage = lazy(() => import('./pages/AdminPage'));
@@ -131,7 +132,7 @@ export default function App() {
         window.history.replaceState({}, document.title, cleanUrl);
       }
 
-      if (pageFromUrl && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing'].includes(pageFromUrl)) {
+      if (pageFromUrl && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing', 'policy'].includes(pageFromUrl)) {
         setCurrentPage(pageFromUrl);
         sessionStorage.setItem('shop_current_page', pageFromUrl);
       }
@@ -706,6 +707,14 @@ export default function App() {
           />
         )}
 
+        {currentPage === 'policy' && (
+          <PolicyPage
+            onNavigateHome={() => navigateTo('home')}
+            onNavigateShop={() => navigateTo('shop')}
+            onNavigate={navigateTo}
+          />
+        )}
+
         {currentPage === 'admin' && (
           <Suspense fallback={
             <div className="min-h-[60vh] flex items-center justify-center text-xs font-bold text-stone-500 gap-2">
@@ -781,11 +790,12 @@ export default function App() {
         shopConfig={shopConfig}
       />
 
-      {currentPage !== 'packing' && currentPage !== 'admin' && (
+      {currentPage !== 'packing' && currentPage !== 'admin' && currentPage !== 'policy' && (
         <Footer 
           config={shopConfig}
           onNavigateAdmin={() => navigateTo('admin')} 
           onNavigatePacking={() => navigateTo('packing')}
+          onNavigatePolicy={() => navigateTo('policy')}
           onOpenLookup={() => {
             setInitialLookupCode('');
             setIsLookupModalOpen(true);

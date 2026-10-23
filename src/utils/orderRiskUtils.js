@@ -9,7 +9,7 @@ export function parseCleanMoney(val) {
   const cleanDigits = str.replace(/[^0-9]/g, '');
   if (!cleanDigits) return 0;
 
-  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy nếu còn sót trong cache)
+  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy cache)
   const len = cleanDigits.length;
   if (len >= 12 && len % 2 === 0) {
     const half1 = cleanDigits.slice(0, len / 2);
@@ -72,12 +72,13 @@ export function isBadStatus(statusStr) {
 }
 
 /**
- * Xây dựng từ điển lịch sử rủi ro cho từng đơn hàng của từng số điện thoại
- * Hỗ trợ tương thích đồng thời cả Supabase (snake_case) và State cũ (camelCase)
+ * XÂY DỰNG TỪ ĐIỂN LỊCH SỬ RỦI RO & GẮN CỜ KHÁCH HÀNG (CUSTOMER TAGGING ENGINE)
+ * Phân loại: VIP/Khách quen, Đang treo bom, Hay báo hủy, Đã hoàn lương
  */
 export function buildCustomerProfileMap(orders = []) {
   const map = new Map();
   
+  // 1. Gom nhóm các đơn theo 9 số cuối của SĐT để tránh lệch đầu 0 hoặc +84
   orders.forEach((ord) => {
     const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
     if (cleanP.length >= 8) {
@@ -90,7 +91,7 @@ export function buildCustomerProfileMap(orders = []) {
   const profileMap = new Map();
   
   map.forEach((orderList, key) => {
-    // Sắp xếp đơn từ mới nhất -> cũ nhất (ưu tiên created_at từ Supabase)
+    // Sắp xếp đơn từ mới nhất -> cũ nhất
     const sorted = [...orderList].sort((a, b) => {
       const timeB = parseOrderTimestamp(b.created_at || b.createdAt);
       const timeA = parseOrderTimestamp(a.created_at || a.createdAt);
@@ -98,11 +99,11 @@ export function buildCustomerProfileMap(orders = []) {
     });
     
     sorted.forEach((currentOrd, index) => {
-      // Chỉ lấy các đơn CŨ HƠN đơn hiện tại (chống tự tham chiếu)
+      // Chỉ xét các đơn CŨ HƠN đơn hiện tại (chống việc đơn hiện tại tự gắn cờ chính nó)
       const olderOrders = sorted.slice(index + 1);
 
       const latestOlder = olderOrders[0];
-      const isLatestSuccess = latestOlder && !isBadStatus(latestOlder.status);
+      const isLatestSuccess = latestOlder && normalizeOrderStatus(latestOlder.status) === ORDER_STATUS.COMPLETED;
 
       // Đơn bom hàng (loại trừ trường hợp khách đã chuyển khoản 100%)
       const bombedOrders = olderOrders.filter((ord) => {
@@ -112,14 +113,27 @@ export function buildCustomerProfileMap(orders = []) {
         return norm === ORDER_STATUS.BOMBED && !isPrepaid100;
       });
 
-      // Đơn đã hủy
+      // Đơn đã hủy trong quá khứ
       const cancelledOrders = olderOrders.filter((ord) => {
         const norm = normalizeOrderStatus(ord.status);
         return norm === ORDER_STATUS.CANCELLED;
       });
 
-      const validOrders = olderOrders.filter((ord) => !isBadStatus(ord.status));
-      const isPardoned = isLatestSuccess && validOrders.length > 0 && (bombedOrders.length > 0 || cancelledOrders.length > 0);
+      // Đơn đã hoàn thành (nhận hàng thành công)
+      const completedOrders = olderOrders.filter((ord) => {
+        const norm = normalizeOrderStatus(ord.status);
+        return norm === ORDER_STATUS.COMPLETED;
+      });
+
+      // Trạng thái đã khôi phục uy tín (Pardoned)
+      const hasBadHistory = bombedOrders.length > 0 || cancelledOrders.length > 0;
+      const isPardoned = isLatestSuccess && hasBadHistory;
+
+      const hasActiveBombedRisk = !isPardoned && bombedOrders.length > 0;
+      const hasActiveCancelledRisk = !isPardoned && cancelledOrders.length >= 2;
+      const isVipCustomer = completedOrders.length >= 2;
+
+      // Xác định đơn lỗi gần nhất để hiển thị tham chiếu
       const primaryBadOrder = bombedOrders[0] || cancelledOrders[0] || null;
 
       let reason = '';
@@ -131,19 +145,67 @@ export function buildCustomerProfileMap(orders = []) {
           const matchNote = String(orderNote).match(/\[(BOM HÀNG|LÝ DO HỦY):\s*([^\]]+)\]/i);
           rawReason = matchNote ? matchNote[2] : orderNote;
         }
-        reason = rawReason || (normalizeOrderStatus(primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Không liên lạc được' : 'Khách xin hủy đơn');
+        reason = rawReason || (normalizeOrderStatus(primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Thuê bao chặn số' : 'Khách xin hủy đơn');
+      }
+
+      // Xây dựng thẻ Tag định danh nhanh
+      let customerTag = null;
+      if (hasActiveBombedRisk) {
+        customerTag = {
+          type: 'danger',
+          label: 'Đang treo bom',
+          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
+          tooltip: 'Khách từng bom đơn trước đó. Tuyệt đối không gửi COD!'
+        };
+      } else if (isPardoned) {
+        customerTag = {
+          type: 'pardoned',
+          label: 'Đã hoàn lương',
+          badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+          tooltip: 'Từng có sự cố đơn cũ nhưng đơn gần nhất đã nhận hàng thành công.'
+        };
+      } else if (isVipCustomer) {
+        customerTag = {
+          type: 'vip',
+          label: `Khách quen (${completedOrders.length} đơn)`,
+          badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+          tooltip: `Đã hoàn thành ${completedOrders.length} đơn hàng trước đó.`
+        };
+      } else if (hasActiveCancelledRisk) {
+        customerTag = {
+          type: 'warning',
+          label: `Hủy ${cancelledOrders.length} lần`,
+          badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+          tooltip: `Khách từng xin hủy ${cancelledOrders.length} đơn trong quá khứ.`
+        };
       }
 
       const orderKey = currentOrd.code || currentOrd.orderId;
       profileMap.set(`${key}_${orderKey}`, {
         isPardoned,
-        hasActiveBombedRisk: !isPardoned && bombedOrders.length > 0,
-        hasActiveCancelledRisk: !isPardoned && cancelledOrders.length >= 2,
+        hasActiveBombedRisk,
+        hasActiveCancelledRisk,
+        isVipCustomer,
+        completedCount: completedOrders.length,
         primaryBadOrder,
-        badOrderReason: reason
+        badOrderReason: reason,
+        customerTag
       });
     });
   });
 
   return profileMap;
+}
+
+/**
+ * Helper lấy nhanh thẻ tag của một đơn hàng cụ thể
+ */
+export function getOrderCustomerTag(ord, profileMap) {
+  if (!ord || !profileMap) return null;
+  const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
+  if (cleanP.length < 8) return null;
+  const key = cleanP.slice(-9);
+  const orderKey = ord.code || ord.orderId;
+  const profile = profileMap.get(`${key}_${orderKey}`);
+  return profile?.customerTag || null;
 }

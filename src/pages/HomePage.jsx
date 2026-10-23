@@ -32,13 +32,14 @@ import {
   TrendingUp,
   Quote,
   X,
-  Loader2
+  Loader2,
+  MoveHorizontal
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { fetchTotalOrdersCount, fetchPaginatedApprovedReviews } from '../services/orderService';
 import { formatDate } from '../utils/dateUtils';
 
-// Bản đồ Icon dự phòng
+// Bản đồ Icon dự phòng cho danh mục
 const CATEGORY_ID_ICON_MAP = {
   cat01: Sparkles,    // Combo Ưu Đãi
   cat02: Apple,       // Trái Cây Tươi Giàn
@@ -48,67 +49,143 @@ const CATEGORY_ID_ICON_MAP = {
   cat06: Leaf         // Đặc Sản Sấy Dẻo
 };
 
-const HARVEST_SEASONS = [
+// DỮ LIỆU ĐẶC SẢN 12 THÁNG NẮNG GIÓ PHAN RANG (Ảnh thực phẩm tuyển chọn tươi mọng)
+const MONTHLY_HARVEST_CALENDAR = [
   {
-    name: "Nho Đỏ Red Cardinal",
-    season: "Tháng 3 - Tháng 8",
-    status: "Đang chính vụ rộ",
-    statusColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    desc: "Cắt giàn quả ngọt lịm, vị thanh mát, mọng nước nhất năm."
+    month: 1,
+    title: "Vào Vụ Tỏi Cô Đơn & Hành Tím Gác Bếp",
+    highlight: "Tỏi Cô Đơn Nhơn Hải",
+    status: "Chính vụ đầu năm",
+    statusBadge: "bg-amber-100 text-amber-900 border-amber-300",
+    desc: "Đầu năm đất cát Nhơn Hải ráo gắt, tỏi cô đơn củ chắc nịch tích tụ dược tính và tinh dầu thơm nồng nhất năm.",
+    categoryTarget: "cat05",
+    image: "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?auto=format&fit=crop&w=1000&q=80",
+    tips: "Tỏi đầu mùa củ vỏ bóng trắng vân tía nhạt, mua gác bếp ăn cả năm không lo óp lép."
   },
   {
-    name: "Táo Gió Mật Phước Hậu",
-    season: "Quanh năm (Rộ T11 - T4)",
-    status: "Thu hoạch mỗi sớm",
-    statusColor: "bg-amber-100 text-amber-900 border-amber-300",
-    desc: "Bọc túi màn sinh học, cắn rôm rốp giòn tan mọng nước."
+    month: 2,
+    title: "Táo Gió Mật Đón Nắng Xuân Phước Hậu",
+    highlight: "Táo Gió Mật Giòn",
+    status: "Rộ ngọt mọng nước",
+    statusBadge: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    desc: "Vườn táo giòn ngọt, vỏ phớt vàng mơ, cắn vào giòn rụm mọng nước giải nhiệt ngày nắng.",
+    categoryTarget: "cat02",
+    image: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=1000&q=80",
+    tips: "Táo bọc lưới sinh học không phun xịt, rửa nước muối loãng là có thể ăn cả vỏ giòn tan."
   },
   {
-    name: "Tỏi Cô Đơn Nhơn Hải",
-    season: "Tháng 1 - Tháng 3",
-    status: "Hàng gác bếp ráo nắng",
-    statusColor: "bg-stone-200 text-stone-800 border-stone-300",
-    desc: "Phơi khô ráo vỏ, dược tính và tinh dầu đậm đặc nhất."
+    month: 3,
+    title: "Khai Vụ Nho Đỏ Red Cardinal Cắt Giàn",
+    highlight: "Nho Đỏ Cắt Giàn",
+    status: "Chính vụ mùa khô",
+    statusBadge: "bg-rose-100 text-rose-900 border-rose-300",
+    desc: "Nho đỏ bắt đầu chín rộ các giàn Thái An. Trái đỏ tím cánh gián, vị chua ngọt thanh mát tự nhiên.",
+    categoryTarget: "cat02",
+    image: "https://images.unsplash.com/photo-1596363505729-4190a9506133?auto=format&fit=crop&w=1000&q=80",
+    tips: "Chùm cuống tươi xanh mướt, quả khít đều. Ăn tươi hoặc làm siro nho đá tuyết cực đã."
   },
   {
-    name: "Mực Một Nắng Cà Ná",
-    season: "Tháng 4 - Tháng 9",
-    status: "Câu đêm phơi gắt",
-    statusColor: "bg-cyan-100 text-cyan-900 border-cyan-300",
-    desc: "Dong thuyền câu mực ống đêm, dẻo ngọt thơm lừng mùi biển."
+    month: 4,
+    title: "Mực Ống Một Nắng Cà Ná Dong Thuyền Đêm",
+    highlight: "Mực Một Nắng Cà Ná",
+    status: "Mùa biển êm trúng lộc",
+    statusBadge: "bg-cyan-100 text-cyan-900 border-cyan-300",
+    desc: "Mực ống câu đêm vừa cập bến rạng sáng, xẻ phơi đúng 1 nắng gắt giòn, dày cơm dẻo quánh.",
+    categoryTarget: "cat04",
+    image: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=1000&q=80",
+    tips: "Nướng than hoa hoặc chiên nước mắm, xé ra thịt mực nở phồng thơm nức mùi biển Cà Ná."
+  },
+  {
+    month: 5,
+    title: "Rộ Nho Xanh NH01-48 Giòn Ngọt",
+    highlight: "Nho Xanh Ninh Thuận",
+    status: "Cao điểm thu hái giàn",
+    statusBadge: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    desc: "Nắng rực rỡ nhất giúp nho xanh tích lũy lượng đường cực đại, vỏ bóng phấn, giòn ngọt thanh tao.",
+    categoryTarget: "cat02",
+    image: "https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&w=1000&q=80",
+    tips: "Nho có phấn trắng tự nhiên bọc quanh vỏ là dấu hiệu của chùm mới cắt sớm, chưa qua xử lý."
+  },
+  {
+    month: 6,
+    title: "Măng Tây Xanh Cát Phù Sa An Hải",
+    highlight: "Măng Tây Xanh Giòn",
+    status: "Đọt non tươi rói",
+    statusBadge: "bg-emerald-100 text-emerald-800 border-emerald-300",
+    desc: "Măng thu hoạch tinh mơ khi sương còn đọng, thân giòn bùi mọng nước, giàu dinh dưỡng.",
+    categoryTarget: "cat02",
+    image: "https://images.unsplash.com/photo-1515471204630-e4b2d30560a6?auto=format&fit=crop&w=1000&q=80",
+    tips: "Xào tỏi, nấu súp hoặc luộc chấm kho quẹt giòn ngọt mát ruột."
+  },
+  {
+    month: 7,
+    title: "Chả Cá Đỏ Củ Quết Mộc Đông Hải",
+    highlight: "Chả Cá Quết Tay",
+    status: "Mùa cá cơm & cá đỏ củ",
+    statusBadge: "bg-amber-100 text-amber-900 border-amber-300",
+    desc: "Cá biển sâu tươi rói cập cảng quết ngay cùng tiêu sọ và hành tím, dẻo dai tự nhiên không pha bột.",
+    categoryTarget: "cat03",
+    image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=1000&q=80",
+    tips: "Chiên phồng chấm mắm tỏi ớt hoặc thả lẩu, nấu bánh canh cá ngọt nước đậm đà."
+  },
+  {
+    month: 8,
+    title: "Mật Nho Chum Sành Ủ Men Nắng Trời",
+    highlight: "Mật Nho Chum Sành",
+    status: "Ủ ráo đượm vị",
+    statusBadge: "bg-purple-100 text-purple-900 border-purple-300",
+    desc: "Nho chín rộ tháng 6-7 được ủ đường phèn trong chum sành phơi nắng ráo, chắt ra mẻ mật sền sệt đỏ cánh gián.",
+    categoryTarget: "cat05",
+    image: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1000&q=80",
+    tips: "Pha cùng đá lạnh và vài giọt nước cốt tắc giải khát cực sâu cổ họng."
+  },
+  {
+    month: 9,
+    title: "Nước Mắm Nhĩ Cá Cơm Than Cà Ná Khai Thùng",
+    highlight: "Nước Mắm Cà Ná",
+    status: "Đủ 12 tháng ủ ròng",
+    statusBadge: "bg-amber-100 text-amber-900 border-amber-300",
+    desc: "Cá cơm than béo mẫm ủ muối tinh khiết 12-18 tháng ráo nắng, giọt mắm màu cánh gián thơm phức đượm vị biển.",
+    categoryTarget: "cat05",
+    image: "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=1000&q=80",
+    tips: "Chấm thịt luộc, rau sống hoặc làm quà biếu chuẩn phong vị làng nghề cổ truyền."
+  },
+  {
+    month: 10,
+    title: "Táo Gió Mật Trở Lại Vụ Đông Xuân",
+    highlight: "Táo Gió Giòn Mật",
+    status: "Bắt đầu rộ lứa mới",
+    statusBadge: "bg-emerald-100 text-emerald-900 border-emerald-300",
+    desc: "Thời tiết se lạnh hanh hao làm thịt quả táo dày chắc, cắn ngập răng giòn ngọt thanh lành.",
+    categoryTarget: "cat02",
+    image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=1000&q=80",
+    tips: "Chọn trái căng đều, cuống còn tươi xanh là táo vừa cắt giàn buổi sớm."
+  },
+  {
+    month: 11,
+    title: "Nho Đen Không Hạt & Nho Kẹo Sấy Dẻo",
+    highlight: "Nho Sấy Dẻo Tự Nhiên",
+    status: "Phơi sấy chuẩn bị Tết",
+    statusBadge: "bg-purple-100 text-purple-900 border-purple-300",
+    desc: "Nho chín mọng đưa vào lò sấy nhiệt chậm, giữ nguyên lớp mật dẻo tự nhiên, không ngậm đường công nghiệp.",
+    categoryTarget: "cat06",
+    image: "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=1000&q=80",
+    tips: "Thích hợp làm món ăn vặt lành mạnh, làm bánh hoặc làm quà Tết quê thơm thảo."
+  },
+  {
+    month: 12,
+    title: "Hạt Điều Rang Củi & Combo Giỏ Quà Nắng Gió",
+    highlight: "Hạt Điều Rang Củi",
+    status: "Mùa lễ hội & biếu tặng",
+    statusBadge: "bg-amber-100 text-amber-900 border-amber-300",
+    desc: "Hạt điều nương rẫy Bình Sơn rang chảo gang đun củi thơm lừng, giòn bùi ngậy béo phục vụ mùa Tết sum vầy.",
+    categoryTarget: "cat01",
+    image: "https://images.unsplash.com/photo-1509912760195-4f6cfd939638?auto=format&fit=crop&w=1000&q=80",
+    tips: "Bóc nhẹ lớp vỏ lụa mỏng để thưởng thức trọn vẹn vị béo ngậy nguyên bản không khét dầu."
   }
 ];
 
-const FALLBACK_CUSTOMER_REVIEWS = [
-  {
-    id: "fb-1",
-    customer_name: "Chị Ánh Tuyết",
-    role: "Quận 7, TP.HCM",
-    content: "Chùm nho xanh với táo gió mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị ngọt thanh mát tự nhiên chứ không gắt đường. Cả nhà ai cũng khen!",
-    rating: 5,
-    order_code: "XNG2609-8812",
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
-  },
-  {
-    id: "fb-2",
-    customer_name: "Anh Hoàng Nam",
-    role: "Ba Đình, Hà Nội",
-    content: "Đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị cấn dập. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
-    rating: 5,
-    order_code: "XNG2610-4109",
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString()
-  },
-  {
-    id: "fb-3",
-    customer_name: "Cô Mỹ Hạnh",
-    role: "Hải Châu, Đà Nẵng",
-    content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, bao ăn từng quả.",
-    rating: 5,
-    order_code: "XNG2608-1123",
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString()
-  }
-];
-
+// CẨM NANG 10 ĐẶC SẢN CHUẨN GỐC NINH THUẬN
 const NINH_THUAN_EXPERIENCES = [
   {
     id: 'nho',
@@ -172,7 +249,7 @@ const NINH_THUAN_EXPERIENCES = [
     title: 'Măng Tây Xanh Đất Cát Phù Sa',
     origin: 'Cánh đồng cát An Hải, Ninh Phước',
     realSigns: [
-      'Đọt măng thon thẳng, chồi búp bọc chặt không bung nở, gốc măng mướt giòn không bị xơ xơ già cỗi.',
+      'Đọt măng thon thẳng, chồi búp bọc chặt không bung nở, gốc măng mướt giòn không bị xơ già cỗi.',
       'Thu hoạch tinh mơ lúc 4h sáng khi sương còn đọng, thân cây giòn ngọt, giàu chất xơ tự nhiên.',
       'Trồng bằng phân ủ mục hữu cơ và bón phân chuồng tự nhiên trên bãi cát ven biển.'
     ],
@@ -252,6 +329,36 @@ const NINH_THUAN_EXPERIENCES = [
   }
 ];
 
+const FALLBACK_CUSTOMER_REVIEWS = [
+  {
+    id: "fb-1",
+    customer_name: "Chị Ánh Tuyết",
+    role: "Quận 7, TP.HCM",
+    content: "Chùm nho xanh với táo gió mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị ngọt thanh mát tự nhiên chứ không gắt đường. Cả nhà ai cũng khen!",
+    rating: 5,
+    order_code: "XNG2609-8812",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+  },
+  {
+    id: "fb-2",
+    customer_name: "Anh Hoàng Nam",
+    role: "Ba Đình, Hà Nội",
+    content: "Đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị cấn dập. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
+    rating: 5,
+    order_code: "XNG2610-4109",
+    created_at: new Date(Date.now() - 86400000 * 4).toISOString()
+  },
+  {
+    id: "fb-3",
+    customer_name: "Cô Mỹ Hạnh",
+    role: "Hải Châu, Đà Nẵng",
+    content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, bao ăn từng quả.",
+    rating: 5,
+    order_code: "XNG2608-1123",
+    created_at: new Date(Date.now() - 86400000 * 7).toISOString()
+  }
+];
+
 export default function HomePage({ 
   products = [], 
   categories = [], 
@@ -267,7 +374,11 @@ export default function HomePage({
 
   const [realOrderCount, setRealOrderCount] = useState(1200);
 
-  // 👉 LAZY LOADING CHO REVIEWS
+  // 👉 Tự động nhận diện tháng hiện tại
+  const currentRealMonth = useMemo(() => new Date().getMonth() + 1, []);
+  const [selectedMonth, setSelectedMonth] = useState(currentRealMonth);
+
+  // 👉 Lazy Loading Đánh giá
   const [reviewsList, setReviewsList] = useState([]);
   const [totalReviewsCount, setTotalReviewsCount] = useState(0);
   const [reviewPage, setReviewPage] = useState(0);
@@ -275,7 +386,7 @@ export default function HomePage({
   const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
   const isFetchingRef = useRef(false);
 
-  // 👉 TỰ ĐỘNG TRƯỢT & KÉO CHUỘT
+  // 👉 Tự động trượt & Kéo chuột
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -283,14 +394,11 @@ export default function HomePage({
   const isDragMoved = useRef(false);
   const autoScrollRafRef = useRef(null);
 
-  // State quản lý xem phóng to ảnh review
   const [activeLightboxImg, setActiveLightboxImg] = useState(null);
 
-  // Kiểm soát bật/tắt mục đánh giá từ cấu hình Admin
   const isReviewsEnabled = shopConfig?.showCustomerReviews !== false && 
                            String(shopConfig?.showCustomerReviews).toUpperCase() !== 'FALSE';
 
-  // Đóng modal khi bấm phím Esc
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') setActiveLightboxImg(null);
@@ -299,7 +407,6 @@ export default function HomePage({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Cuộn danh mục sản phẩm
   const scrollCategories = (direction) => {
     if (scrollRef.current) {
       const scrollAmount = direction === 'left' ? -280 : 280;
@@ -307,7 +414,6 @@ export default function HomePage({
     }
   };
 
-  // 1. Tải mẻ đánh giá tiếp theo (Lazy Load)
   const loadReviewsBatch = useCallback(async (pageToLoad = 0, isInitial = false) => {
     if (isFetchingRef.current) return;
     if (!isInitial && !hasMoreReviews) return;
@@ -316,11 +422,11 @@ export default function HomePage({
     setIsLoadingMoreReviews(true);
 
     try {
-      const res = await fetchPaginatedApprovedReviews(pageToLoad, 5);
+      const res = await fetchPaginatedApprovedReviews(pageToLoad, 6);
       setTotalReviewsCount(res.totalCount || 0);
       setHasMoreReviews(res.hasMore);
 
-      if (res.reviews.length > 0) {
+      if (res.reviews && res.reviews.length > 0) {
         setReviewsList((prev) => {
           if (isInitial) return res.reviews;
           const existingIds = new Set(prev.map((r) => r.id || r.code || r.order_code));
@@ -332,7 +438,7 @@ export default function HomePage({
         setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
       }
     } catch (err) {
-      console.warn('Lỗi tải đánh giá lazyload:', err);
+      console.warn('Lỗi tải đánh giá:', err);
       if (isInitial) setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
     } finally {
       setIsLoadingMoreReviews(false);
@@ -340,7 +446,6 @@ export default function HomePage({
     }
   }, [hasMoreReviews]);
 
-  // Khởi tạo ban đầu
   useEffect(() => {
     if (isReviewsEnabled) {
       loadReviewsBatch(0, true);
@@ -350,7 +455,7 @@ export default function HomePage({
     }).catch(() => {});
   }, [isReviewsEnabled, loadReviewsBatch]);
 
-  // 2. VÒNG LẶP TỰ ĐỘNG TRƯỢT NGANG (AUTO-SCROLL MARQUEE)
+  // VÒNG LẶP TRƯỢT TỰ ĐỘNG KHÔNG RESET ÉP VỀ ĐẦU
   useEffect(() => {
     if (!isReviewsEnabled) return;
 
@@ -362,19 +467,12 @@ export default function HomePage({
     const step = (timestamp) => {
       if (!isHovered && !isDragging && scrollContainer) {
         const delta = timestamp - lastTimestamp;
-        // Tốc độ trượt ~36px / giây, mượt mà và dễ đọc
-        const move = (36 * delta) / 1000;
+        const move = (32 * delta) / 1000;
         scrollContainer.scrollLeft += move;
 
-        // Nếu trượt gần đến cuối danh sách (còn 350px), kích hoạt nạp thêm mẻ lazy-load
         const { scrollLeft, scrollWidth, clientWidth } = scrollContainer;
-        if (scrollLeft + clientWidth + 350 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+        if (scrollLeft + clientWidth + 450 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
           loadReviewsBatch(reviewPage + 1);
-        }
-
-        // Nếu đã hết dữ liệu và chạm kịch mép phải, nhẹ nhàng quay lại đầu
-        if (!hasMoreReviews && scrollLeft + clientWidth >= scrollWidth - 2) {
-          scrollContainer.scrollLeft = 0;
         }
       }
       lastTimestamp = timestamp;
@@ -390,7 +488,7 @@ export default function HomePage({
     };
   }, [isHovered, isDragging, hasMoreReviews, isLoadingMoreReviews, reviewPage, loadReviewsBatch, isReviewsEnabled]);
 
-  // 3. XỬ LÝ KÉO THẢ CHUỘT TRỰC TIẾP TRÊN THẺ
+  // KÉO THẢ CHUỘT
   const handleMouseDown = (e) => {
     if (!reviewsScrollRef.current) return;
     setIsDragging(true);
@@ -403,14 +501,14 @@ export default function HomePage({
     if (!isDragging || !reviewsScrollRef.current) return;
     e.preventDefault();
     const x = e.pageX - reviewsScrollRef.current.offsetLeft;
-    const walk = (x - startX) * 1.4;
+    const walk = (x - startX) * 1.5;
     if (Math.abs(walk) > 4) {
       isDragMoved.current = true;
     }
     reviewsScrollRef.current.scrollLeft = scrollLeftState - walk;
 
     const { scrollLeft, scrollWidth, clientWidth } = reviewsScrollRef.current;
-    if (scrollLeft + clientWidth + 350 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+    if (scrollLeft + clientWidth + 450 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
       loadReviewsBatch(reviewPage + 1);
     }
   };
@@ -419,23 +517,9 @@ export default function HomePage({
     setIsDragging(false);
   };
 
-  // Cuộn bằng nút mũi tên
-  const scrollReviews = (direction) => {
-    if (reviewsScrollRef.current) {
-      const scrollAmount = direction === 'left' ? -340 : 340;
-      reviewsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
-      
-      const { scrollLeft, scrollWidth, clientWidth } = reviewsScrollRef.current;
-      if (direction === 'right' && scrollLeft + clientWidth + 400 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
-        loadReviewsBatch(reviewPage + 1);
-      }
-    }
-  };
-
-  // Bắt sự kiện cuộn ngang để Lazy Load
   const handleReviewsScroll = (e) => {
     const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
-    if (scrollLeft + clientWidth + 300 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
+    if (scrollLeft + clientWidth + 400 >= scrollWidth && hasMoreReviews && !isLoadingMoreReviews) {
       loadReviewsBatch(reviewPage + 1);
     }
   };
@@ -453,7 +537,6 @@ export default function HomePage({
     else if (onNavigate) onNavigate('story');
   };
 
-  // Lọc và ưu tiên sản phẩm bán chạy nhất đẩy ra Home
   const featuredProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
     const salesCountMap = new Map();
@@ -476,7 +559,7 @@ export default function HomePage({
         }
       });
     } catch (e) {
-      console.warn('Lỗi tính toán sản phẩm bán chạy:', e);
+      console.warn('Lỗi tính sản phẩm bán chạy:', e);
     }
 
     const sorted = [...products].sort((a, b) => {
@@ -501,10 +584,14 @@ export default function HomePage({
 
   const displayCategories = categories.filter(c => c.id !== 'all');
 
+  const activeMonthData = useMemo(() => {
+    return MONTHLY_HARVEST_CALENDAR.find((m) => m.month === selectedMonth) || MONTHLY_HARVEST_CALENDAR[0];
+  }, [selectedMonth]);
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
       
-      {/* ================= 1. HERO BANNER MẶT TIỀN ================= */}
+      {/* 1. HERO BANNER MẶT TIỀN */}
       <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 left-10 w-80 h-80 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -612,7 +699,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 2. KHÁM PHÁ GIAN HÀNG QUÊ ================= */}
+      {/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-black uppercase tracking-wider text-stone-600 flex items-center gap-1.5">
@@ -684,40 +771,193 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 3. LỊCH MÙA VỤ THU HOẠCH PHAN RANG ================= */}
-      <section className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-xs space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+      {/* ================= 3. LỊCH MÙA VỤ 12 THÁNG (CÂN BẰNG THỊ GIÁC - TRÁI CÂY TƯƠI MỌNG) ================= */}
+      <section className="bg-white rounded-3xl p-5 sm:p-7 border border-stone-200/90 shadow-xs space-y-5">
+        
+        {/* HEADER SECTION */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
           <div>
             <div className="flex items-center gap-2 text-amber-800 text-xs font-black tracking-wider uppercase">
-              <Calendar className="w-4 h-4 text-amber-600" />
-              <span>Thời điểm trái ngon nhất</span>
+              <Calendar className="w-4 h-4 text-amber-700" />
+              <span>Hành trình mùa màng Phan Rang</span>
             </div>
-            <h3 className="text-lg sm:text-xl font-black text-stone-900 mt-0.5">
-              Lịch Mùa Vụ Thu Hoạch Nông Sản Xứ Nắng
+            <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-0.5">
+              Lịch Mùa Vụ Thu Hoạch Nông Sản 12 Tháng
             </h3>
           </div>
-          <p className="text-xs text-stone-500 max-w-sm font-light">
-            Trái cây hái đúng độ chín cây tự nhiên luôn cho lượng đường và hương thơm sâu sắc nhất.
-          </p>
+          
+          <div>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(currentRealMonth)}
+              title={selectedMonth !== currentRealMonth ? `Bấm để quay về xem đặc sản Tháng ${currentRealMonth}` : undefined}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border active:scale-95 ${
+                selectedMonth === currentRealMonth
+                  ? 'bg-amber-100/90 text-amber-950 border-amber-300 shadow-2xs'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 hover:border-amber-400 hover:shadow-xs'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>Đang là Tháng {currentRealMonth}</span>
+              {selectedMonth !== currentRealMonth && (
+                <span className="text-[10.5px] font-medium text-amber-800/80 pl-1 border-l border-amber-300/80">
+                  (Quay lại)
+                </span>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {HARVEST_SEASONS.map((item, idx) => (
-            <div key={idx} className="p-4 rounded-2xl bg-[#faf8f5] border border-stone-200/80 space-y-2 hover:border-amber-300 transition-colors">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono font-bold text-stone-500">{item.season}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${item.statusColor}`}>
-                  {item.status}
-                </span>
+        {/* KHUNG CHỨA 12 THẺ CÂN BẰNG MÀU SẮC, GIỮ TRỌN ĐỘ TƯƠI CỦA NÔNG SẢN */}
+        <div className="flex flex-row items-stretch gap-1.5 h-[440px] sm:h-[460px] w-full select-none rounded-2xl overflow-hidden p-1.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner">
+          {MONTHLY_HARVEST_CALENDAR.map((item) => {
+            const isExpanded = item.month === selectedMonth;
+            const isRealMonth = item.month === currentRealMonth;
+
+            const shortWords = item.highlight.split(' ');
+            const line1 = shortWords[0] || '';
+            const line2 = shortWords.slice(1).join(' ') || '';
+
+            return (
+              <div
+                key={item.month}
+                onClick={() => setSelectedMonth(item.month)}
+                className={`relative rounded-xl overflow-hidden cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] flex flex-col justify-between ${
+                  isExpanded
+                    ? 'flex-[5] sm:flex-[6] shadow-xl ring-2 ring-amber-500/80 bg-stone-900'
+                    : 'flex-[1] hover:flex-[1.25] group/card border border-stone-200/80 hover:border-amber-400 bg-stone-800'
+                }`}
+              >
+                {/* ẢNH GỐC NGUYÊN BẢN (KHÔNG ÁP LỚP MÀU LÀM XỈN TRÁI CÂY) */}
+                <img
+                  src={item.image}
+                  alt={item.title}
+                  className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-out ${
+                    isExpanded 
+                      ? 'scale-105 filter brightness-[0.72] contrast-105' 
+                      : 'scale-100 filter brightness-95 contrast-105 group-hover/card:scale-110 group-hover/card:brightness-105'
+                  }`}
+                />
+
+                {/* GRADIENT VIỀN MỎNG: CHỈ BẢO VỆ CHỮ Ở ĐỈNH VÀ ĐÁY, PHẦN GIỮA ĐỂ LỘ TRÁI CÂY TỰ NHIÊN */}
+                <div 
+                  className={`absolute inset-0 transition-opacity duration-500 pointer-events-none ${
+                    isExpanded 
+                      ? 'bg-gradient-to-t from-stone-950/90 via-stone-900/30 to-black/35' 
+                      : 'bg-gradient-to-t from-black/75 via-transparent to-black/60 group-hover/card:from-black/65'
+                  }`} 
+                />
+
+                {/* ================= 1. THẺ THU NHỎ (TRONG TRẺO, RÕ CHỮ, KHÔNG BỊ ÁM ĐỤC) ================= */}
+                {!isExpanded && (
+                  <div className="relative z-10 w-full h-full py-3 px-1 flex flex-col items-center justify-between text-center pointer-events-none">
+                    
+                    {/* Badge số tháng ở đỉnh */}
+                    <div className="flex flex-col items-center gap-1 pt-0.5">
+                      <span className={`font-mono font-black text-xs px-1.5 py-0.5 rounded-md shadow-xs backdrop-blur-xs transition-colors ${
+                        isRealMonth 
+                          ? 'bg-amber-400 text-stone-950 font-black ring-1 ring-amber-300' 
+                          : 'bg-black/55 text-white border border-white/25 group-hover/card:bg-amber-500 group-hover/card:text-stone-950'
+                      }`}>
+                        T{item.month}
+                      </span>
+                      {isRealMonth && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      )}
+                    </div>
+
+                    {/* Tên nông sản 2 dòng, chữ trắng bóng đổ nét căng */}
+                    <div className="my-auto flex flex-col items-center justify-center">
+                      <span className="text-[11px] font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] leading-tight px-0.5 group-hover/card:text-amber-300 transition-colors">
+                        {line1}
+                        <br />
+                        <span className="text-[10px] opacity-90">{line2}</span>
+                      </span>
+                    </div>
+
+                    {/* Số thứ tự chân thẻ */}
+                    <span className="text-[9.5px] font-mono font-bold text-white/70 drop-shadow-md pb-0.5">
+                      #{item.month < 10 ? `0${item.month}` : item.month}
+                    </span>
+                  </div>
+                )}
+
+                {/* ================= 2. THẺ PHÓNG TO (KHÔNG GẮT, HỘP MÔ TẢ KÍNH MỜ ÊM MẮT) ================= */}
+                {isExpanded && (
+                  <div className="relative z-10 w-full h-full p-5 sm:p-7 flex flex-col justify-between text-white animate-fadeIn">
+                    
+                    {/* ĐỈNH THẺ */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/20 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-amber-400 text-stone-950 shadow-md">
+                          THÁNG {item.month}
+                        </span>
+                        <span className="text-[11px] font-bold px-3 py-0.5 rounded-full border bg-black/40 border-white/20 text-amber-300 backdrop-blur-md">
+                          {item.status}
+                        </span>
+                      </div>
+
+                      {isRealMonth && (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-400/40 px-3 py-0.5 rounded-full backdrop-blur-md shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>Chính vụ hiện tại</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* THÂN THẺ: KHUNG KÍNH MỜ BẢO VỆ CHỮ TRÊN NỀN HOA QUẢ TƯƠI */}
+                    <div className="space-y-3 my-auto py-2">
+                      <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug drop-shadow-md">
+                        {item.title}
+                      </h4>
+
+                      <div className="p-3.5 rounded-2xl bg-stone-950/60 border border-white/15 backdrop-blur-md text-xs text-stone-100 leading-relaxed font-light space-y-1.5 shadow-inner">
+                        <p className="line-clamp-2">
+                          <strong className="text-amber-300 font-bold">🌾 Đặc trưng: </strong>
+                          {item.desc}
+                        </p>
+                        <p className="line-clamp-2 text-amber-200 pt-1.5 border-t border-white/10">
+                          <strong className="text-amber-300 font-bold">💡 Thưởng thức: </strong>
+                          {item.tips}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* CHÂN THẺ: TÁCH RIÊNG 2 DÒNG, NÚT DÀN NGANG KHÔNG BỊ CHÈN CHỮ */}
+                    <div className="pt-2.5 border-t border-white/20 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">
+                          Tâm điểm mùa vụ:
+                        </span>
+                        <strong className="text-white font-bold truncate max-w-[240px]">
+                          {item.highlight}
+                        </strong>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goToShop(item.categoryTarget || 'all');
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-black/40 transition-all active:scale-[0.98] cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4 text-stone-950" />
+                        <span>Xem Nông Sản Tháng {item.month}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                  </div>
+                )}
               </div>
-              <h4 className="text-sm font-black text-stone-900">{item.name}</h4>
-              <p className="text-xs text-stone-600 font-light leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
       </section>
 
-      {/* ================= 4. MÓN NGON TUYỂN CHỌN ================= */}
+      {/* 4. MÓN NGON TUYỂN CHỌN */}
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
@@ -758,7 +998,7 @@ export default function HomePage({
         )}
       </section>
 
-      {/* ================= 5. QUY TRÌNH ĐÓNG THÙNG BẢO ĐẢM TƯƠI NGON ================= */}
+      {/* 5. QUY TRÌNH ĐÓNG THÙNG BẢO ĐẢM TƯƠI NGON */}
       <section className="bg-gradient-to-br from-stone-900 to-stone-950 text-white rounded-3xl p-6 sm:p-10 border border-stone-800 shadow-xl space-y-6">
         <div className="max-w-2xl space-y-1">
           <span className="text-amber-400 text-xs font-black tracking-wider uppercase flex items-center gap-1.5">
@@ -789,7 +1029,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 6. GÓC VĂN HÓA THỔ NHƯỠNG ================= */}
+      {/* 6. GÓC VĂN HÓA THỔ NHƯỠNG */}
       <section className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-3xl p-6 sm:p-8 border border-amber-200/70 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/50 pb-4">
           <div className="space-y-1">
@@ -839,10 +1079,10 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA ================= */}
+      {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA */}
       <ExperienceGuideSection />
 
-      {/* ================= 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG ================= */}
+      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG */}
       {isReviewsEnabled && (
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-stone-200 pb-4">
@@ -858,28 +1098,12 @@ export default function HomePage({
               </h3>
             </div>
 
-            {/* Nút điều hướng cuộn ngang */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => scrollReviews('left')}
-                className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Xem đánh giá trước"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollReviews('right')}
-                className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-600 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Xem đánh giá tiếp theo"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-stone-400 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200/80">
+              <MoveHorizontal className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+              <span>Tự động trượt • Kéo để xem thêm</span>
             </div>
           </div>
 
-          {/* Thanh cuộn ngang: Tự động trượt marquee, kéo bằng chuột, ẩn thanh scrollbar */}
           <div 
             ref={reviewsScrollRef}
             onScroll={handleReviewsScroll}
@@ -904,11 +1128,9 @@ export default function HomePage({
               return (
                 <div 
                   key={rev.id || `${orderCode}-${idx}`} 
-                  // Khóa cứng chiều cao h-[210px] và bề rộng w-[280px] sm:w-[320px]
                   className="w-[280px] sm:w-[320px] h-[210px] shrink-0 p-4 sm:p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
                 >
                   <div className="space-y-2">
-                    {/* HÀNG SAO & MÃ ĐƠN */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-0.5 text-amber-500">
                         {[...Array(ratingNum)].map((_, i) => (
@@ -927,7 +1149,6 @@ export default function HomePage({
                       )}
                     </div>
 
-                    {/* VÙNG NỘI DUNG NHẬN XÉT: Khóa khung min-h-[52px] và line-clamp-3 */}
                     <div className="relative min-h-[52px] flex items-start">
                       <Quote className="w-4 h-4 text-stone-200 absolute -top-1 -left-1 opacity-50 shrink-0" />
                       <p className="text-xs text-stone-600 font-light leading-relaxed italic line-clamp-3 pl-2.5">
@@ -935,7 +1156,6 @@ export default function HomePage({
                       </p>
                     </div>
 
-                    {/* THUMBNAIL ẢNH ĐÍNH KÈM THỰC TẾ (NẾU CÓ) */}
                     {images.length > 0 && (
                       <div className="flex items-center gap-1.5 pt-0.5 pl-2">
                         {images.slice(0, 3).map((imgUrl, imgIdx) => (
@@ -964,7 +1184,6 @@ export default function HomePage({
                     )}
                   </div>
 
-                  {/* CHÂN THẺ ĐÁNH GIÁ (LUÔN CĂN ĐÁY) */}
                   <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
                     <div className="min-w-0 pr-2">
                       <strong className="text-xs font-bold text-stone-900 block truncate">
@@ -984,18 +1203,17 @@ export default function HomePage({
               );
             })}
 
-            {/* Ô LOADER LAZY LOADING KHI ĐANG TẢI THÊM */}
             {isLoadingMoreReviews && (
-              <div className="w-[120px] h-[210px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
+              <div className="w-[140px] h-[210px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
                 <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
-                <span className="text-[10.5px] font-medium">Tải thêm...</span>
+                <span className="text-[10.5px] font-medium">Đang tải tiếp...</span>
               </div>
             )}
           </div>
         </section>
       )}
 
-      {/* ================= 9. BỐN CAM KẾT VƯỜN QUÊ ================= */}
+      {/* 9. BỐN CAM KẾT VƯỜN QUÊ */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
         {[
           { 
@@ -1037,7 +1255,7 @@ export default function HomePage({
         })}
       </section>
 
-      {/* ================= 10. BANNER KÝ SỰ BẢN ĐỊA ================= */}
+      {/* 10. BANNER KÝ SỰ BẢN ĐỊA */}
       <section className="relative overflow-hidden bg-gradient-to-r from-amber-900 via-stone-900 to-stone-900 text-white rounded-3xl p-7 sm:p-10 shadow-xl border border-stone-800 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="space-y-2 text-center md:text-left max-w-2xl">
           <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold">
@@ -1062,7 +1280,7 @@ export default function HomePage({
         </button>
       </section>
 
-      {/* ================= MODAL LIGHTBOX PHÓNG TO ẢNH REVIEW ================= */}
+      {/* MODAL LIGHTBOX PHÓNG TO ẢNH REVIEW */}
       {activeLightboxImg && (
         <div 
           onClick={() => setActiveLightboxImg(null)}
@@ -1096,9 +1314,7 @@ export default function HomePage({
   );
 }
 
-// =========================================================================
-// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (ĐÃ SỬA LỖI TỰ ĐỘNG CUỘN TRANG)
-// =========================================================================
+// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH
 function ExperienceGuideSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -1134,7 +1350,6 @@ function ExperienceGuideSection() {
     return () => clearInterval(timer);
   }, [isPaused, currentIndex]);
 
-  // 👉 SỬA LỖI: Cuộn riêng thanh tab ngang, TUYỆT ĐỐI KHÔNG làm giật thanh cuộn của toàn trang
   useEffect(() => {
     const container = tabsContainerRef.current;
     if (!container) return;

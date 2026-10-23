@@ -24,7 +24,7 @@ export const DEFAULT_SHOP_CONFIG = {
   hotline: rawHotline,
   phoneNumber: cleanPhone || rawZalo,
   zaloPhone: rawZalo,
-  email: import.meta.env.VITE_EMAIL || 'xunanggio@gmail.com',
+  email: import.meta.env.VITE_EMAIL || 'cskh@xunanggio.com',
   address: import.meta.env.VITE_STORE_ADDRESS || 'Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận',
   originProvince: import.meta.env.VITE_ORIGIN_PROVINCE || 'Ninh Thuận',
   warehousePin: '1234',
@@ -33,6 +33,7 @@ export const DEFAULT_SHOP_CONFIG = {
   zaloUrl: rawZalo ? `https://zalo.me/${rawZalo}` : '',
   facebookUrl: import.meta.env.VITE_FACEBOOK_URL || 'https://facebook.com/xunanggio',
   tiktokUrl: import.meta.env.VITE_TIKTOK_URL || 'https://tiktok.com/@xunanggio',
+  telegramUrl: import.meta.env.VITE_TELEGRAM_URL || 'https://t.me/xunanggio',
 
   // 3. Google Maps (Tọa độ giàn vườn)
   mapDirectionsUrl: import.meta.env.VITE_MAP_DIRECTIONS_URL || 'https://www.google.com/maps/dir/?api=1&destination=11.563539,108.930892',

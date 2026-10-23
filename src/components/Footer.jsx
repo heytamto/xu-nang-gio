@@ -1,3 +1,4 @@
+// src/components/Footer.jsx
 import React from 'react';
 import { 
   Phone, 
@@ -33,10 +34,20 @@ function TikTokIcon({ className = "w-3 h-3" }) {
   );
 }
 
+// 👉 Icon Telegram
+function TelegramIcon({ className = "w-3 h-3" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.211-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.121l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.535-.195 1.006.132.832.935z" />
+    </svg>
+  );
+}
+
 export default function Footer({ 
   onNavigateAdmin, 
   onNavigatePacking, 
   onOpenLookup,
+  onNavigatePolicy,
   config = DEFAULT_SHOP_CONFIG 
 }) {
   const mapEmbedSrc = config?.mapEmbedUrl || DEFAULT_MAP_EMBED_URL;
@@ -44,125 +55,153 @@ export default function Footer({
   return (
     <footer id="shop-footer" className="bg-stone-900 text-stone-300 pt-12 pb-8 border-t border-stone-800 transition-all font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8">
+        
+        {/* LƯỚI 3 CỘT CÂN ĐỐI (4 - 4 - 4) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
           
           {/* CỘT 1: THƯƠNG HIỆU & LỐI TẮT HỆ THỐNG */}
-          <div className="lg:col-span-4 space-y-3">
-            <h3 className="text-lg font-black text-white tracking-wide flex items-center gap-2">
-              <span className="text-amber-500 font-serif text-xl">☀</span> Xứ Nắng Gió
-            </h3>
-            <p className="text-xs text-stone-400 leading-relaxed font-light">
-              Nông sản & Đặc sản nắng gió Ninh Thuận - Thu hoạch tận vườn, phơi ráo tự nhiên.
-            </p>
-            <div className="flex items-center gap-2 text-xs text-emerald-400 pt-1 font-medium">
-              <ShieldCheck className="w-4 h-4 shrink-0" />
-              <span>100% chính gốc Ninh Thuận - Không phẩm màu</span>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h3 className="text-lg font-black text-white tracking-wide flex items-center gap-2">
+                <span className="text-amber-500 font-serif text-xl">☀</span> Xứ Nắng Gió
+              </h3>
+              <p className="text-xs text-stone-400 leading-relaxed font-light">
+                Nông sản & Đặc sản nắng gió Ninh Thuận - Thu hoạch tận vườn, phơi ráo tự nhiên.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium pt-0.5">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>100% chính gốc Ninh Thuận - Không phẩm màu</span>
+              </div>
             </div>
 
-            {/* Các lối tắt tra cứu & quản trị nội bộ */}
-            <div className="flex flex-wrap items-center gap-2 pt-2">
-              {onOpenLookup && (
-                <button
-                  type="button"
-                  onClick={onOpenLookup}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800/90 hover:bg-stone-700 text-stone-300 hover:text-white text-[11px] font-medium transition-colors cursor-pointer"
-                >
-                  <Search className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Tra cứu đơn hàng</span>
-                </button>
-              )}
+            {/* Các nút lối tắt hệ thống */}
+            <div className="pt-2">
+              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-2">
+                Tiện ích & Hệ thống:
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {onOpenLookup && (
+                  <button
+                    type="button"
+                    onClick={onOpenLookup}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-[11px] font-medium transition-colors cursor-pointer border border-stone-700/60"
+                  >
+                    <Search className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Tra cứu đơn hàng</span>
+                  </button>
+                )}
 
-              {onNavigateAdmin && (
-                <button
-                  type="button"
-                  onClick={onNavigateAdmin}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800/90 hover:bg-stone-700 text-stone-400 hover:text-amber-300 text-[11px] font-medium transition-colors cursor-pointer"
-                  title="Trang quản trị"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>Quản lý</span>
-                </button>
-              )}
+                {onNavigatePolicy && (
+                  <button
+                    type="button"
+                    onClick={onNavigatePolicy}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-[11px] font-medium transition-colors cursor-pointer border border-stone-700/60"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Chính sách bán hàng</span>
+                  </button>
+                )}
 
-              {onNavigatePacking && (
-                <button
-                  type="button"
-                  onClick={onNavigatePacking}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800/90 hover:bg-stone-700 text-stone-400 hover:text-amber-300 text-[11px] font-medium transition-colors cursor-pointer"
-                  title="Khu vực soạn và đóng thùng xốp"
-                >
-                  <PackageCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Kho đóng hàng</span>
-                </button>
-              )}
+                {onNavigateAdmin && (
+                  <button
+                    type="button"
+                    onClick={onNavigateAdmin}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-amber-300 text-[11px] font-medium transition-colors cursor-pointer border border-stone-700/60"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Quản lý</span>
+                  </button>
+                )}
+
+                {onNavigatePacking && (
+                  <button
+                    type="button"
+                    onClick={onNavigatePacking}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-amber-300 text-[11px] font-medium transition-colors cursor-pointer border border-stone-700/60"
+                  >
+                    <PackageCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Kho đóng hàng</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {/* CỘT 2: LIÊN HỆ & MẠNG XÃ HỘI */}
-          <div className="lg:col-span-4 space-y-3 text-xs">
-            <h4 className="font-bold text-white text-sm uppercase tracking-wider">Liên hệ & Đặt hàng</h4>
+          <div className="space-y-4 text-xs">
+            <h4 className="font-bold text-white text-sm uppercase tracking-wider border-b border-stone-800 pb-2">
+              Liên Hệ & Đặt Hàng
+            </h4>
+            
             <div className="space-y-3 text-stone-400">
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-stone-200">
-                  <Phone className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Hotline / Zalo: <strong className="font-mono text-white text-sm">{config.hotline || '0848.957.345'}</strong></span>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-2 pl-6">
-                  {config.phoneNumber && (
-                    <a
-                      href={`tel:${config.phoneNumber}`}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition-colors"
-                      title="Gọi điện trực tiếp"
-                    >
-                      <Phone className="w-3 h-3" />
-                      <span>Gọi ngay</span>
-                    </a>
-                  )}
+              <div className="flex items-center gap-2 text-stone-200">
+                <Phone className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Hotline / Zalo: <strong className="font-mono text-white text-sm">{config.hotline || '0848.957.345'}</strong></span>
+              </div>
 
-                  {config.zaloUrl && (
-                    <a
-                      href={config.zaloUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] transition-colors"
-                      title="Liên hệ Zalo"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      <span>Zalo</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                    </a>
-                  )}
+              {/* Các nút hành động nhanh & Mạng xã hội (đã bổ sung Telegram) */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {config.phoneNumber && (
+                  <a
+                    href={`tel:${config.phoneNumber}`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition-colors"
+                  >
+                    <Phone className="w-3 h-3" />
+                    <span>Gọi ngay</span>
+                  </a>
+                )}
 
-                  {config.facebookUrl && (
-                    <a
-                      href={config.facebookUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-bold text-[11px] transition-colors"
-                      title="Ghé thăm Facebook"
-                    >
-                      <FacebookIcon className="w-3 h-3" />
-                      <span>Facebook</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                    </a>
-                  )}
+                {config.zaloUrl && (
+                  <a
+                    href={config.zaloUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 font-bold text-[11px] transition-colors"
+                  >
+                    <MessageCircle className="w-3 h-3" />
+                    <span>Zalo</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </a>
+                )}
 
-                  {config.tiktokUrl && (
-                    <a
-                      href={config.tiktokUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold text-[11px] transition-colors"
-                      title="Ghé thăm TikTok"
-                    >
-                      <TikTokIcon className="w-3 h-3" />
-                      <span>TikTok</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                    </a>
-                  )}
-                </div>
+                {config.facebookUrl && (
+                  <a
+                    href={config.facebookUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-bold text-[11px] transition-colors"
+                  >
+                    <FacebookIcon className="w-3 h-3" />
+                    <span>Facebook</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </a>
+                )}
+
+                {config.tiktokUrl && (
+                  <a
+                    href={config.tiktokUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 font-bold text-[11px] transition-colors"
+                  >
+                    <TikTokIcon className="w-3 h-3" />
+                    <span>TikTok</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </a>
+                )}
+                {config.telegramUrl && (
+                <a
+                  href={config.telegramUrl} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 font-bold text-[11px] transition-colors"
+                  title="Nhắn tin qua Telegram"
+                >
+                  <TelegramIcon className="w-3 h-3" />
+                  <span>Telegram</span>
+                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                </a>
+                )}
               </div>
 
               {config.email && (
@@ -171,7 +210,6 @@ export default function Footer({
                   <a
                     href={`mailto:${config.email}?subject=${encodeURIComponent("Tư vấn mua đặc sản Ninh Thuận")}`}
                     className="hover:text-amber-300 underline underline-offset-2 transition-colors flex items-center gap-1"
-                    title="Gửi thư đến shop"
                   >
                     <span>{config.email}</span>
                     <ExternalLink className="w-3 h-3 opacity-60" />
@@ -189,16 +227,15 @@ export default function Footer({
                   <span>Hút chân không & bọc chống sốc kỹ càng</span>
                 </p>
               </div>
-
             </div>
           </div>
 
           {/* CỘT 3: BẢN ĐỒ VỊ TRÍ NHÀ VƯỜN */}
-          <div className="lg:col-span-4 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
+          <div className="space-y-3 text-xs">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-2">
               <h4 className="font-bold text-white text-sm uppercase tracking-wider flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-amber-500" />
-                <span>Vị trí nhà vườn</span>
+                <span>Vị Trí Nhà Vườn</span>
               </h4>
               {config.mapDirectionsUrl && (
                 <a 
@@ -213,7 +250,6 @@ export default function Footer({
               )}
             </div>
 
-            {/* KHUNG BẢN ĐỒ TỶ LỆ ASPECT-16/9 ÔM SÁT LƯỚI */}
             <div className="w-full aspect-16/9 rounded-2xl overflow-hidden border border-stone-800 bg-stone-800 relative shadow-inner group">
               <iframe
                 title="Bản đồ Google Maps Xứ Nắng Gió"

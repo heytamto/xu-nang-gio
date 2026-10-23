@@ -1028,3 +1028,109 @@ export async function fetchPaginatedApprovedReviews(page = 0, pageSize = 6) {
     return { reviews: [], totalCount: 0, hasMore: false };
   }
 }
+
+/**
+ * Kiểm tra mã đơn cũ dùng làm voucher:
+ * 1. Phải khớp chính xác SĐT của người đặt đơn cũ (tránh share chéo mã).
+ * 2. Đơn cũ phải có đánh giá hợp lệ (bảng reviews).
+ * 3. Chưa từng được sử dụng thành công (đơn completed).
+ * 4. Không đang bị treo ở các đơn đang xử lý (pending, confirmed, packing, shipping).
+ */
+export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
+  const cleanCode = String(voucherCodeInput || '').trim().toUpperCase();
+  const cleanPhone = String(inputPhone || '').replace(/\D/g, '').slice(-9); // Chuẩn hóa 9 số cuối
+
+  if (!cleanCode) {
+    return { valid: false, message: 'Vui lòng nhập mã đơn cũ để nhận ưu đãi!' };
+  }
+
+  if (!cleanPhone || cleanPhone.length < 8) {
+    return { valid: false, message: 'Vui lòng điền Số điện thoại trước khi áp dụng mã giảm giá!' };
+  }
+
+  try {
+    // BƯỚC 1: Truy vấn đơn hàng gốc để kiểm tra số điện thoại chính chủ
+    const { data: originalOrder, error: orderErr } = await supabase
+      .from('orders')
+      .select('code, phone, status')
+      .eq('code', cleanCode)
+      .maybeSingle();
+
+    if (orderErr || !originalOrder) {
+      return { 
+        valid: false, 
+        message: `Mã đơn #${cleanCode} không tồn tại trên hệ thống!` 
+      };
+    }
+
+    const originalPhoneClean = String(originalOrder.phone || '').replace(/\D/g, '').slice(-9);
+    if (originalPhoneClean !== cleanPhone) {
+      return {
+        valid: false,
+        message: `Mã #${cleanCode} chỉ áp dụng cho chính chủ SĐT đặt đơn này, không thể dùng cho số khác!`
+      };
+    }
+
+    // BƯỚC 2: Kiểm tra đơn cũ đã có đánh giá được duyệt hay chưa
+    const { data: reviewData } = await supabase
+      .from('reviews')
+      .select('id, order_code, is_approved')
+      .eq('order_code', cleanCode)
+      .eq('is_approved', true)
+      .maybeSingle();
+
+    if (!reviewData) {
+      return { 
+        valid: false, 
+        message: `Đơn hàng #${cleanCode} chưa gửi đánh giá cảm nhận hoặc đánh giá chưa được duyệt!` 
+      };
+    }
+
+    // BƯỚC 3: Kiểm tra xem mã này đã dùng hoặc đang bị treo ở đơn khác chưa
+    const { data: existingUsage } = await supabase
+      .from('orders')
+      .select('code, status')
+      .or(`used_previous_order_code.eq.${cleanCode},voucher_code.eq.${cleanCode}`);
+
+    if (Array.isArray(existingUsage) && existingUsage.length > 0) {
+      const activeLockOrder = existingUsage.find((ord) => {
+        const st = normalizeOrderStatus(ord.status);
+        return [
+          ORDER_STATUS.PENDING,
+          ORDER_STATUS.CONFIRMED,
+          ORDER_STATUS.PACKING,
+          ORDER_STATUS.SHIPPING,
+          ORDER_STATUS.COMPLETED
+        ].includes(st);
+      });
+
+      if (activeLockOrder) {
+        const lockStatus = normalizeOrderStatus(activeLockOrder.status);
+        if (lockStatus === ORDER_STATUS.COMPLETED) {
+          return {
+            valid: false,
+            message: `Mã #${cleanCode} đã được dùng cho đơn #${activeLockOrder.code} trước đó!`
+          };
+        } else {
+          return {
+            valid: false,
+            message: `Mã #${cleanCode} đang được giữ ở đơn #${activeLockOrder.code} (đang chờ duyệt/giao)!`
+          };
+        }
+      }
+    }
+
+    // Hợp lệ: Giảm 10% tối đa 50k (hoặc theo shopConfig)
+    return {
+      valid: true,
+      code: cleanCode,
+      discountPercent: 10,
+      maxDiscount: 50000,
+      message: `Áp dụng thành công ưu đãi 10% từ đơn cũ #${cleanCode}!`
+    };
+
+  } catch (err) {
+    console.error('Lỗi kiểm tra voucher:', err);
+    return { valid: false, message: 'Lỗi đối soát voucher, vui lòng thử lại sau.' };
+  }
+}
