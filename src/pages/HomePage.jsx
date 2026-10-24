@@ -784,7 +784,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
+{/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
       <section className="space-y-3.5">
         <div className="flex items-center justify-between px-1">
           <p className="text-sm font-black uppercase tracking-wider text-stone-700 flex items-center gap-2">
@@ -813,7 +813,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => goToShop("all")}
-              className="text-sm font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 ml-2"
+              className="text-sm font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 ml-2 cursor-pointer"
             >
               <span>Xem tất cả ({products.length})</span>
               <ArrowRight className="w-4 h-4" />
@@ -822,9 +822,10 @@ export default function HomePage({
         </div>
 
         <div className="relative group/scroll">
+          {/* ĐÃ ẨN HOÀN TOÀN THANH CUỘN BẰNG [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden */}
           <div
             ref={scrollRef}
-            className="flex items-center gap-3 overflow-x-auto pb-2.5 pt-1 px-1 scroll-smooth select-none [scrollbar-color:#d6d3d1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-stone-300 hover:[&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-track]:bg-transparent"
+            className="flex items-center gap-3 overflow-x-auto pb-1 pt-1 px-1 scroll-smooth select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             style={{ whiteSpace: "nowrap" }}
           >
             <button
@@ -856,8 +857,8 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* 3. LỊCH MÙA VỤ 12 THÁNG */}
-      <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6">
+{/* 3. LỊCH MÙA VỤ 12 THÁNG (NỚI CAO THOÁNG ĐÃNG, ĐẦY ĐỦ NỘI DUNG) */}
+      <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 font-sans">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
           <div>
             <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
@@ -895,7 +896,7 @@ export default function HomePage({
           </div>
         </div>
 
-        {/* GIAO DIỆN MOBILE (< md) */}
+        {/* GIAO DIỆN MOBILE (< md): TỰ ĐỘNG CO GIÃN THEO NỘI DUNG min-h-[520px] */}
         <div className="block md:hidden space-y-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {MONTHLY_HARVEST_CALENDAR.map((item) => {
@@ -925,7 +926,7 @@ export default function HomePage({
           </div>
 
           {activeMonthData && (
-            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[460px] flex flex-col justify-between p-6 border border-stone-700/80 shadow-lg">
+            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[520px] flex flex-col justify-between p-6 border border-stone-700/80 shadow-lg">
               <div className="absolute inset-0 pointer-events-none">
                 <img
                   src={activeMonthData.image}
@@ -958,12 +959,12 @@ export default function HomePage({
                   {activeMonthData.title}
                 </h4>
 
-                <div className="p-4 rounded-2xl bg-black/50 border border-white/15 backdrop-blur-md text-sm text-stone-100 leading-relaxed space-y-2.5">
+                <div className="p-4 rounded-2xl bg-black/55 border border-white/15 backdrop-blur-md text-sm text-stone-100 leading-relaxed space-y-2.5">
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 text-amber-400 font-bold">
                       🌾 Đặc trưng:
                     </span>
-                    <span className="text-stone-100 font-normal">
+                    <span className="text-stone-100 font-normal leading-relaxed break-words">
                       {activeMonthData.desc}
                     </span>
                   </div>
@@ -971,7 +972,7 @@ export default function HomePage({
                     <span className="shrink-0 text-amber-300 font-bold">
                       💡 Thưởng thức:
                     </span>
-                    <span className="text-amber-100 font-normal">
+                    <span className="text-amber-100 font-normal leading-relaxed break-words">
                       {activeMonthData.tips}
                     </span>
                   </div>
@@ -995,7 +996,7 @@ export default function HomePage({
                     e.stopPropagation();
                     goToShop(activeMonthData.categoryTarget || "all");
                   }}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-md"
+                  className="w-full h-11 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-md"
                 >
                   <ShoppingBag className="w-4 h-4 text-stone-950" />
                   <span>Xem Nông Sản Tháng {activeMonthData.month}</span>
@@ -1006,8 +1007,8 @@ export default function HomePage({
           )}
         </div>
 
-        {/* GIAO DIỆN TABLET & DESKTOP (md:flex) */}
-        <div className="hidden md:flex flex-row items-stretch gap-1.5 h-[500px] lg:h-[530px] w-full select-none rounded-3xl p-2 pt-8 pb-2.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
+        {/* GIAO DIỆN TABLET & DESKTOP: CHIỀU CAO NỚI CHUẨN h-[600px] lg:h-[640px], KHÔNG BỊ CẮT CHỮ */}
+        <div className="hidden md:flex flex-row items-stretch gap-1.5 h-[600px] lg:h-[640px] w-full select-none rounded-3xl p-2 pt-9 pb-3 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
           {MONTHLY_HARVEST_CALENDAR.map((item) => {
             const isExpanded = item.month === selectedMonth;
             const isRealMonth = item.month === currentRealMonth;
@@ -1025,7 +1026,7 @@ export default function HomePage({
                 style={{ transitionProperty: "flex-grow, transform" }}
                 className={`relative rounded-2xl flex flex-col justify-between overflow-hidden duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] will-change-[flex-grow,transform] min-w-0 ${
                   isExpanded
-                    ? "flex-[5] lg:flex-[6] z-20 ring-2 ring-amber-500/90 bg-stone-900 -translate-y-3.5 cursor-default shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+                    ? "flex-[6.5] lg:flex-[8] z-20 ring-2 ring-amber-500/90 bg-stone-900 -translate-y-3.5 cursor-default shadow-[0_20px_42px_rgba(0,0,0,0.4)]"
                     : "flex-1 z-0 translate-y-0 cursor-pointer shadow-none hover:z-30 hover:scale-[1.03] hover:-translate-y-3.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.25)] group/card"
                 }`}
               >
@@ -1095,18 +1096,19 @@ export default function HomePage({
                   </span>
                 </div>
 
-                {/* DẠNG PHÓNG TO */}
+                {/* DẠNG PHÓNG TO: ĐẦY ĐỦ NỘI DUNG, KHÔNG GIAN RỘNG RÃI TUYỆT ĐỐI */}
                 <div
-                  className={`absolute inset-0 w-full h-full p-5 lg:p-7 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
+                  className={`absolute inset-0 w-full h-full p-6 lg:p-8 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
                     isExpanded
                       ? "opacity-100 visible pointer-events-auto"
                       : "opacity-0 invisible pointer-events-none"
                   }`}
                 >
-                  <div className="w-full h-full flex flex-col justify-between pointer-events-auto overflow-hidden">
+                  <div className="w-full h-full flex flex-col justify-between pointer-events-auto">
+                    {/* Header Thẻ Active */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono font-black text-xs lg:text-sm px-2.5 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
+                        <span className="font-mono font-black text-xs lg:text-sm px-3 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
                           THÁNG {item.month}
                         </span>
                         <span className="text-xs font-bold px-3 py-1 rounded-full bg-black/40 border border-white/20 text-amber-200 backdrop-blur-md truncate">
@@ -1122,32 +1124,34 @@ export default function HomePage({
                       )}
                     </div>
 
-                    <div className="space-y-3 lg:space-y-4 my-auto py-2 min-w-0">
-                      <h4 className="text-lg lg:text-2xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words line-clamp-2">
+                    {/* Khối Nội Dung Chính: Tự do xuống dòng, hiển thị trọn vẹn cả 2 đoạn */}
+                    <div className="space-y-4 my-auto py-2 min-w-0">
+                      <h4 className="text-xl lg:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words">
                         {item.title}
                       </h4>
 
-                      <div className="p-4 rounded-2xl bg-black/45 border border-white/15 backdrop-blur-md text-xs lg:text-sm text-stone-100 leading-relaxed font-normal space-y-2">
-                        <div className="flex items-start gap-2">
+                      <div className="p-4 sm:p-5 rounded-2xl bg-black/55 border border-white/15 backdrop-blur-md text-xs lg:text-sm text-stone-100 leading-relaxed font-normal space-y-3 shadow-lg">
+                        <div className="flex items-start gap-2.5">
                           <span className="shrink-0 text-amber-400 font-bold">
                             🌾 Đặc trưng:
                           </span>
-                          <span className="line-clamp-2 text-stone-100">
+                          <span className="text-stone-100 break-words leading-relaxed font-normal">
                             {item.desc}
                           </span>
                         </div>
-                        <div className="flex items-start gap-2 pt-2 border-t border-white/10">
+                        <div className="flex items-start gap-2.5 pt-2.5 border-t border-white/10">
                           <span className="shrink-0 text-amber-300 font-bold">
                             💡 Thưởng thức:
                           </span>
-                          <span className="line-clamp-2 text-amber-100">
+                          <span className="text-amber-100 break-words leading-relaxed font-normal">
                             {item.tips}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-2.5 relative z-30 pointer-events-auto">
+                    {/* Footer Thẻ Active */}
+                    <div className="space-y-3 relative z-30 pointer-events-auto pt-1">
                       <div className="flex items-center justify-between text-xs lg:text-sm px-1 text-stone-300">
                         <span className="text-amber-400 font-mono tracking-wider uppercase text-xs font-bold shrink-0">
                           Đặc sản:
@@ -1164,7 +1168,7 @@ export default function HomePage({
                           e.stopPropagation();
                           goToShop(item.categoryTarget || "all");
                         }}
-                        className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs lg:text-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
+                        className="w-full h-11 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs lg:text-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
                       >
                         <ShoppingBag className="w-4 h-4 text-stone-950 shrink-0" />
                         <span className="truncate">

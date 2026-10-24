@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, PackageCheck, Clock, X, Copy, Check, 
-  Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle, ShieldAlert 
+  Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle, ShieldAlert,
+  ChevronDown
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
@@ -14,6 +15,83 @@ import {
   formatCountdownTimer 
 } from '../utils/dateUtils';
 import OrderReviewModal from './OrderReviewModal';
+
+const CANCEL_REASONS = [
+  'Đổi ý / Không còn nhu cầu',
+  'Muốn đặt lại món khác / đổi số lượng',
+  'Điền sai địa chỉ hoặc số điện thoại',
+  'Bận không đón được xe khách đúng giờ',
+  'Lý do khác'
+];
+
+function CustomCancelReasonSelect({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
+          isOpen
+            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
+            : 'bg-stone-50 hover:bg-white border-stone-200 hover:border-amber-400 shadow-2xs text-stone-800 font-medium'
+        }`}
+      >
+        <span className="truncate">{value || 'Chọn lý do hủy đơn...'}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
+            isOpen ? 'rotate-180 text-amber-700' : ''
+          }`}
+        />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm">
+          <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
+            CHỌN LÝ DO HỦY ĐƠN:
+          </div>
+
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {CANCEL_REASONS.map((reason) => {
+              const isSelected = reason === value;
+              return (
+                <div
+                  key={reason}
+                  onClick={() => {
+                    onChange(reason);
+                    setIsOpen(false);
+                  }}
+                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                    isSelected
+                      ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs'
+                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
+                  }`}
+                >
+                  <span className="truncate">{reason}</span>
+                  {isSelected && (
+                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function OrderLookupModal({ 
   isOpen, 
@@ -234,13 +312,13 @@ export default function OrderLookupModal({
                     if (errorMessage) setErrorMessage('');
                   }}
                   placeholder="VD: 0848957345 hoặc XNG261022-X31G"
-                  className="w-full rounded-2xl border border-stone-200 pl-4 pr-10 py-3 text-sm sm:text-base text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-mono uppercase tracking-wider"
+                  className="w-full h-11 rounded-2xl border border-stone-200 pl-4 pr-10 text-sm sm:text-base text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-mono uppercase tracking-wider"
                 />
                 {searchTerm && (
                   <button
                     type="button"
                     onClick={() => setSearchTerm('')}
-                    className="absolute right-3.5 top-3.5 text-stone-400 hover:text-stone-600 text-xs cursor-pointer"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer p-1"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -250,7 +328,7 @@ export default function OrderLookupModal({
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-stone-900 hover:bg-amber-800 text-white font-bold px-5 sm:px-6 py-3 rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all disabled:opacity-50 shadow-xs cursor-pointer shrink-0"
+                className="h-11 bg-stone-900 hover:bg-amber-800 text-white font-bold px-5 sm:px-6 rounded-2xl text-xs sm:text-sm flex items-center gap-2 transition-all disabled:opacity-50 shadow-xs cursor-pointer shrink-0"
               >
                 <Search className="w-4 h-4" />
                 <span>{loading ? 'Đang tìm...' : 'Tra cứu'}</span>
@@ -436,7 +514,7 @@ export default function OrderLookupModal({
                               setCancellingOrder(ord);
                               setCancelReason('Đổi ý / Không còn nhu cầu');
                             }}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-2xs"
+                            className="h-10 px-4 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs sm:text-sm transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1.5 active:scale-95"
                           >
                             <Ban className="w-3.5 h-3.5" />
                             <span>Hủy đơn</span>
@@ -455,7 +533,7 @@ export default function OrderLookupModal({
                             <button
                               type="button"
                               onClick={() => setReviewOrderTarget(ord)}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer active:scale-95"
+                              className="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer active:scale-95 inline-flex items-center gap-1.5"
                             >
                               <Star className="w-4 h-4 fill-stone-950" />
                               <span>Đánh giá đơn hàng</span>
@@ -482,59 +560,83 @@ export default function OrderLookupModal({
               Cần hỗ trợ về đơn hàng?
             </span>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <a href={`tel:${cleanHotline}`} className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-stone-100 text-stone-800 font-bold text-xs sm:text-sm border border-stone-200/80 hover:bg-stone-200 transition-colors">
+              <a href={`tel:${cleanHotline}`} className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 h-10 px-4 rounded-2xl bg-stone-100 text-stone-800 font-bold text-xs sm:text-sm border border-stone-200/80 hover:bg-stone-200 transition-colors">
                 <PhoneCall className="w-4 h-4 text-amber-700" />
                 <span>{hotline}</span>
               </a>
-              <a href={`https://zalo.me/${zaloPhone}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors">
+              <a href={`https://zalo.me/${zaloPhone}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm transition-colors shadow-2xs">
                 <span>Zalo</span>
               </a>
             </div>
           </div>
 
-          {/* Popup Xác Nhận Hủy */}
+          {/* Popup Xác Nhận Hủy: MỞ RỘNG max-w-lg VÀ DROPDOWN CUSTOM BO TRÒN THEME KEM ẤM */}
           {cancellingOrder && (
-            <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-xs rounded-3xl p-5 flex flex-col justify-center items-center z-20 animate-fadeIn text-stone-900">
-              <div className="bg-white rounded-3xl p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
-                <div className="flex items-center gap-3 text-rose-600 border-b border-stone-100 pb-3.5">
-                  <AlertCircle className="w-6 h-6 shrink-0" />
-                  <h4 className="font-black text-base text-stone-900">Xác Nhận Hủy Đơn Hàng?</h4>
+            <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-xs rounded-3xl p-4 sm:p-6 flex flex-col justify-center items-center z-30 animate-fadeIn text-stone-900">
+              <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg border border-stone-200 shadow-2xl space-y-5 animate-scaleUp">
+                
+                {/* Header popup */}
+                <div className="flex items-center gap-3.5 border-b border-stone-100 pb-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                    <AlertCircle className="w-6 h-6 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">Xác Nhận Hủy Đơn Hàng?</h4>
+                    <p className="font-mono text-xs text-stone-500 font-bold mt-0.5">Mã đơn: #{cancellingOrder.code}</p>
+                  </div>
                 </div>
-                <div className="text-xs sm:text-sm space-y-3 text-stone-600 leading-relaxed">
-                  <p>Bạn có chắc chắn muốn hủy đơn hàng mã <strong className="font-mono text-stone-900 font-bold">{cancellingOrder.code}</strong> không?</p>
+
+                <div className="text-xs sm:text-sm space-y-3.5 text-stone-600 leading-relaxed font-normal">
+                  <p>
+                    Bạn có chắc chắn muốn hủy đơn hàng mã <strong className="font-mono text-stone-900 font-black">{cancellingOrder.code}</strong> không? Sau khi hủy, hệ thống nhà vườn sẽ dừng chuẩn bị kiện nông sản này.
+                  </p>
                   
                   {Boolean(cancellingOrder.payment_verified || cancellingOrder.deposit_paid > 0) && (
-                    <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs flex items-start gap-2">
-                      <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        Đơn đã ghi nhận thanh toán/cọc. Sau khi bấm hủy, vui lòng liên hệ Hotline <strong>{hotline}</strong> để kế toán vườn hoàn tiền.
+                    <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs sm:text-sm flex items-start gap-2.5 shadow-2xs">
+                      <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed font-medium">
+                        Đơn đã ghi nhận thanh toán/cọc. Sau khi bấm hủy, vui lòng liên hệ Hotline <strong>{hotline}</strong> để kế toán vườn hoàn tiền trong 24h.
                       </span>
                     </div>
                   )}
 
-                  <div className="space-y-1.5 pt-1">
+                  {/* Custom Dropdown thay thế thẻ select mặc định */}
+                  <div className="space-y-1.5 pt-1 text-left">
                     <label className="block text-xs font-bold text-stone-700">Lý do hủy đơn:</label>
-                    <select
+                    <CustomCancelReasonSelect
                       value={cancelReason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-2.5 rounded-xl border border-stone-200 bg-stone-50 font-medium cursor-pointer focus:outline-none focus:border-amber-600"
-                    >
-                      <option value="Đổi ý / Không còn nhu cầu">Đổi ý / Không còn nhu cầu</option>
-                      <option value="Muốn đặt lại món khác / đổi số lượng">Muốn đặt lại món khác / đổi số lượng</option>
-                      <option value="Điền sai địa chỉ hoặc số điện thoại">Điền sai địa chỉ hoặc số điện thoại</option>
-                      <option value="Bận không đón được xe khách đúng giờ">Bận không đón được xe khách đúng giờ</option>
-                      <option value="Lý do khác">Lý do khác</option>
-                    </select>
+                      onChange={setCancelReason}
+                    />
                   </div>
                 </div>
-                <div className="flex items-center gap-3 pt-2">
-                  <button type="button" disabled={isSubmittingCancel} onClick={() => setCancellingOrder(null)} className="flex-1 py-2.5 rounded-xl border border-stone-200 font-bold text-xs sm:text-sm text-stone-700 hover:bg-stone-50 cursor-pointer">
+
+                {/* 2 nút hành động chuẩn h-11 */}
+                <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
+                  <button 
+                    type="button" 
+                    disabled={isSubmittingCancel} 
+                    onClick={() => setCancellingOrder(null)} 
+                    className="flex-1 h-11 rounded-2xl border border-stone-200 font-bold text-xs sm:text-sm text-stone-700 hover:bg-stone-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
                     Không, giữ lại
                   </button>
-                  <button type="button" disabled={isSubmittingCancel} onClick={handleConfirmCancelOrder} className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs">
-                    {isSubmittingCancel ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Xác nhận hủy</span>}
+                  <button 
+                    type="button" 
+                    disabled={isSubmittingCancel} 
+                    onClick={handleConfirmCancelOrder} 
+                    className="flex-1 h-11 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-rose-600/20 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isSubmittingCancel ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang hủy...</span>
+                      </>
+                    ) : (
+                      <span>Xác nhận hủy</span>
+                    )}
                   </button>
                 </div>
+
               </div>
             </div>
           )}

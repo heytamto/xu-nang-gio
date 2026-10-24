@@ -12,7 +12,6 @@ function parseTxDate(rawDateStr) {
   if (rawDateStr instanceof Date) return rawDateStr;
   const str = String(rawDateStr).trim();
   
-  // Hỗ trợ dạng DD/MM/YYYY hoặc DD/MM/YYYY HH:mm:ss
   const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
   if (match) {
     const [, d, m, y, hr = '0', min = '0', sec = '0'] = match;
@@ -30,14 +29,21 @@ export default function BankReconciliationModal({
   orders = [], 
   shopConfig = {} 
 }) {
+  // 1. TẤT CẢ CÁC HOOKS PHẢI NẰM ĐẦU TIÊN VÀ TRƯỚC BẤT KỲ CÂU LỆNH RETURN SỚM NÀO
   const fileInputRef = useRef(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [reconData, setReconData] = useState(null);
   const [filterTab, setFilterTab] = useState('all'); // 'all' | 'matched' | 'unmatched' | 'discrepancy'
 
-  if (!isOpen) return null;
+  const defaultDeposit = useMemo(() => resolveDepositAmount(shopConfig), [shopConfig]);
 
-  const defaultDeposit = resolveDepositAmount(shopConfig);
+  const displayedList = useMemo(() => {
+    if (!reconData) return [];
+    if (filterTab === 'matched') return reconData.matched;
+    if (filterTab === 'discrepancy') return reconData.discrepancies;
+    if (filterTab === 'unmatched') return reconData.unmatched;
+    return reconData.matched;
+  }, [reconData, filterTab]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -122,10 +128,7 @@ export default function BankReconciliationModal({
         }
       }
 
-      // Lọc danh sách đơn hàng thuộc phạm vi thời gian của sao kê (nếu xác định được ngày bắt đầu & kết thúc)
       const hasDateRange = minTxTime !== Infinity && maxTxTime !== -Infinity;
-      
-      // Cho biên độ giãn ±1 ngày để phòng trường hợp khách đặt tối hôm trước, sáng hôm sau mới chuyển khoản
       const bufferMs = 24 * 60 * 60 * 1000;
       const rangeStart = hasDateRange ? minTxTime - bufferMs : null;
       const rangeEnd = hasDateRange ? maxTxTime + bufferMs : null;
@@ -174,7 +177,7 @@ export default function BankReconciliationModal({
             txAmount: tx.amount,
             expectedAmount: requiredAmount,
             diff,
-            status, // 'exact' | 'over' | 'under'
+            status,
             content: tx.content,
             txDate: tx.date ? tx.date.toLocaleString('vi-VN') : 'Không rõ ngày'
           };
@@ -212,17 +215,11 @@ export default function BankReconciliationModal({
     }
   };
 
-  const displayedList = useMemo(() => {
-    if (!reconData) return [];
-    if (filterTab === 'matched') return reconData.matched;
-    if (filterTab === 'discrepancy') return reconData.discrepancies;
-    if (filterTab === 'unmatched') return reconData.unmatched;
-    return reconData.matched;
-  }, [reconData, filterTab]);
+  // 2. CHỈ ĐƯỢC PHÉP RETURN SỚM SAU KHI TẤT CẢ HOOKS ĐÃ ĐƯỢC KHỞI TẠO XONG
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      {/* Khung modal chuẩn rộng max-w-5xl (1024px) */}
       <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 flex flex-col max-h-[92vh] space-y-5">
         
         {/* Header Modal */}
@@ -251,8 +248,6 @@ export default function BankReconciliationModal({
 
         {/* Thân Modal */}
         <div className="space-y-5 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
-          
-          {/* Khu vực Upload file */}
           <div 
             onClick={() => fileInputRef.current?.click()}
             className="border-2 border-dashed border-stone-300 hover:border-amber-600 rounded-3xl p-6 sm:p-8 text-center cursor-pointer bg-stone-50/60 hover:bg-amber-50/30 transition-all shadow-2xs group"
@@ -280,11 +275,8 @@ export default function BankReconciliationModal({
             )}
           </div>
 
-          {/* Kết quả sau khi phân tích */}
           {reconData && (
             <div className="space-y-4 animate-fadeIn">
-              
-              {/* Thẻ tóm tắt thông số kỳ sao kê */}
               <div className="p-4 sm:p-5 bg-stone-50 rounded-2xl border border-stone-200/80 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
                 <div className="flex items-center gap-2.5 text-stone-700">
                   <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
@@ -296,7 +288,6 @@ export default function BankReconciliationModal({
                 </div>
               </div>
 
-              {/* Bộ lọc tab chuẩn h-11 */}
               <div className="flex items-center gap-2 border-b border-stone-100 pb-3 text-xs sm:text-sm overflow-x-auto">
                 <button
                   type="button"
@@ -328,7 +319,6 @@ export default function BankReconciliationModal({
                 </button>
               </div>
 
-              {/* Bảng chi tiết mở rộng */}
               <div className="border border-stone-200 rounded-3xl overflow-hidden max-h-80 overflow-y-auto text-xs sm:text-sm shadow-2xs">
                 {filterTab === 'unmatched' ? (
                   <table className="w-full text-left border-collapse">
