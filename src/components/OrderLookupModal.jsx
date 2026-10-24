@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, PackageCheck, Clock, X, Copy, Check, 
-  Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle 
+  Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle, ShieldAlert 
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
@@ -180,10 +180,11 @@ export default function OrderLookupModal({
       );
 
       const isPrepaid = ['deposit', 'full_qr'].includes(cancellingOrder.payment_method) || 
-        String(cancellingOrder.payment_method || '').toLowerCase().includes('chuyển khoản');
+        String(cancellingOrder.payment_method || '').toLowerCase().includes('chuyển khoản') ||
+        Boolean(cancellingOrder.payment_verified);
 
       if (isPrepaid) {
-        setCancelSuccessNote(`Đơn ${orderCode} đã hủy thành công. Vui lòng liên hệ Hotline/Zalo kèm mã đơn để hoàn tiền trong 24h.`);
+        setCancelSuccessNote(`Đơn ${orderCode} đã hủy thành công. Vui lòng liên hệ Hotline hoặc Zalo ${hotline} để kế toán hoàn tiền trong 24h.`);
       } else {
         setCancelSuccessNote(`Đơn hàng ${orderCode} đã được hủy thành công.`);
       }
@@ -290,11 +291,9 @@ export default function OrderLookupModal({
               const hasAlreadyReviewed = reviewedCodes.has(ord.code);
 
               const displayTotal = Number(ord.final_total ?? ord.total ?? 0);
+              const depositPaid = Number(ord.deposit_paid ?? 0);
+              const remainingCod = Number(ord.remaining_cod ?? (displayTotal - depositPaid));
 
-              // Tùy biến màu thẻ đơn hàng:
-              // - Đơn hoàn thành: Tông emerald/xanh ngọc trang nhã
-              // - Đơn mới: Tông emerald sáng
-              // - Các đơn khác: Tông stone trung tính
               const cardColorClass = isCompleted 
                 ? 'border-emerald-300 bg-emerald-50/40 shadow-xs' 
                 : isNew 
@@ -355,7 +354,7 @@ export default function OrderLookupModal({
                       {Array.isArray(ord.order_items) && ord.order_items.length > 0 ? (
                         ord.order_items.map((item, idx) => (
                           <div key={item.id || idx} className="leading-snug text-stone-800 font-medium">
-                            • {item.name} ({item.weight_label || 'Tiêu chuẩn'}) x{item.quantity}
+                            • {item.name || item.title} ({item.weight_label || 'Tiêu chuẩn'}) x{item.quantity}
                             {item.campaign_gift_title && (
                               <span className="text-[11px] text-amber-700 ml-1.5 font-normal">
                                 (🎁 {item.campaign_gift_title})
@@ -393,9 +392,31 @@ export default function OrderLookupModal({
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between text-xs text-stone-500 pt-1 border-t border-stone-200/50">
-                    <span>Tổng thanh toán: <strong className="text-amber-800 font-mono font-bold text-sm">{displayTotal.toLocaleString('vi-VN')} đ</strong></span>
-                    <span className="flex items-center gap-1 text-[11px]">
+                  {/* Chi tiết thanh toán & cọc */}
+                  <div className="bg-stone-50 p-2.5 rounded-xl border border-stone-200/60 space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-stone-600">Tổng giá trị đơn:</span>
+                      <strong className="text-stone-900 font-mono text-sm">{displayTotal.toLocaleString('vi-VN')}đ</strong>
+                    </div>
+
+                    {depositPaid > 0 && (
+                      <div className="flex items-center justify-between text-emerald-700 text-[11px]">
+                        <span>Đã thanh toán / cọc:</span>
+                        <strong className="font-mono">-{depositPaid.toLocaleString('vi-VN')}đ</strong>
+                      </div>
+                    )}
+
+                    {remainingCod > 0 && (
+                      <div className="flex items-center justify-between text-stone-600 text-[11px] pt-1 border-t border-stone-200/60">
+                        <span>Cần gửi nhà xe khi nhận:</span>
+                        <strong className="font-mono font-bold text-amber-900">{remainingCod.toLocaleString('vi-VN')}đ</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-stone-500 pt-0.5">
+                    <span className="text-[11px] text-stone-400">Thời gian đặt:</span>
+                    <span className="flex items-center gap-1 text-[11px] font-mono">
                       <Clock className="w-3.5 h-3.5 text-stone-400" />
                       <span>{formatDateTime(ord.created_at)}</span>
                     </span>
@@ -462,11 +483,11 @@ export default function OrderLookupModal({
               Cần hỗ trợ về đơn hàng?
             </span>
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <a href={`tel:${cleanHotline}`} className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 text-stone-800 font-bold text-xs border border-stone-200/80">
+              <a href={`tel:${cleanHotline}`} className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 text-stone-800 font-bold text-xs border border-stone-200/80 hover:bg-stone-200 transition-colors">
                 <PhoneCall className="w-3.5 h-3.5 text-amber-700" />
                 <span>{hotline}</span>
               </a>
-              <a href={`https://zalo.me/${zaloPhone}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs">
+              <a href={`https://zalo.me/${zaloPhone}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors">
                 <span>Zalo</span>
               </a>
             </div>
@@ -482,12 +503,22 @@ export default function OrderLookupModal({
                 </div>
                 <div className="text-xs space-y-2 text-stone-600 leading-relaxed">
                   <p>Bạn có chắc chắn muốn hủy đơn hàng mã <strong className="font-mono text-stone-900 font-bold">{cancellingOrder.code}</strong> không?</p>
+                  
+                  {Boolean(cancellingOrder.payment_verified || cancellingOrder.deposit_paid > 0) && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-[11px] flex items-start gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        Đơn đã ghi nhận thanh toán/cọc. Sau khi bấm hủy, vui lòng liên hệ Hotline <strong>{hotline}</strong> để kế toán vườn hoàn tiền.
+                      </span>
+                    </div>
+                  )}
+
                   <div className="space-y-1 pt-1">
                     <label className="block text-[11px] font-bold text-stone-700">Lý do hủy đơn:</label>
                     <select
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="w-full text-xs p-2 rounded-xl border border-stone-200 bg-stone-50 font-medium"
+                      className="w-full text-xs p-2 rounded-xl border border-stone-200 bg-stone-50 font-medium cursor-pointer focus:outline-none focus:border-amber-600"
                     >
                       <option value="Đổi ý / Không còn nhu cầu">Đổi ý / Không còn nhu cầu</option>
                       <option value="Muốn đặt lại món khác / đổi số lượng">Muốn đặt lại món khác / đổi số lượng</option>
@@ -498,10 +529,10 @@ export default function OrderLookupModal({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                  <button type="button" disabled={isSubmittingCancel} onClick={() => setCancellingOrder(null)} className="flex-1 py-2 rounded-xl border border-stone-200 font-bold text-xs text-stone-700">
+                  <button type="button" disabled={isSubmittingCancel} onClick={() => setCancellingOrder(null)} className="flex-1 py-2 rounded-xl border border-stone-200 font-bold text-xs text-stone-700 hover:bg-stone-50 cursor-pointer">
                     Không, giữ lại
                   </button>
-                  <button type="button" disabled={isSubmittingCancel} onClick={handleConfirmCancelOrder} className="flex-1 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs flex items-center justify-center gap-1.5">
+                  <button type="button" disabled={isSubmittingCancel} onClick={handleConfirmCancelOrder} className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
                     {isSubmittingCancel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <span>Xác nhận hủy</span>}
                   </button>
                 </div>

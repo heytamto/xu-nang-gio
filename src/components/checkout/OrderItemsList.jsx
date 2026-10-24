@@ -1,12 +1,12 @@
 // src/components/checkout/OrderItemsList.jsx
 import React from 'react';
-import { ShoppingBag, Trash2 } from 'lucide-react';
+import { ShoppingBag, Trash2, Gift } from 'lucide-react';
 
 export default function OrderItemsList({ 
   cart = [], 
-  totalAmount = 0,
-  onUpdateQuantity,
-  onRemoveItem
+  totalAmount = 0, 
+  onUpdateQuantity, 
+  onRemoveItem 
 }) {
   const safeTotal = Number(totalAmount) || 0;
 
@@ -43,9 +43,11 @@ export default function OrderItemsList({
       <div className="divide-y divide-stone-200/70 max-h-72 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
         {cart.map((item, idx) => {
           const qty = Number(item.quantity) || 1;
-          const unitPrice = Number(item.price ?? item.base_price ?? 0);
+          const unitPrice = Number(item.price ?? item.base_price ?? item.basePrice ?? 0);
           const itemTotal = unitPrice * qty;
           const specLabel = item.weight_label || item.weightLabel || item.weight || item.unit || 'Tiêu chuẩn';
+          const itemName = item.name || item.title || item.product_name || 'Nông sản Ninh Thuận';
+          const giftTitle = item.campaign_gift_title || item.campaignGiftTitle;
           const uniqueKey = item.cartItemId || item.id || `${item.product_id || item.productId || idx}_${item.weight_id || item.weightId || 'std'}`;
 
           return (
@@ -55,7 +57,7 @@ export default function OrderItemsList({
                 {item.image && (
                   <img
                     src={item.image}
-                    alt={item.name}
+                    alt={itemName}
                     className="w-12 h-12 rounded-xl object-cover shrink-0 border border-stone-200/80 shadow-2xs bg-stone-100"
                     onError={(e) => {
                       e.currentTarget.src = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
@@ -63,11 +65,28 @@ export default function OrderItemsList({
                   />
                 )}
                 <div className="min-w-0 flex-1">
-                  <span className="font-bold text-stone-900 block leading-snug truncate">{item.name}</span>
+                  <span className="font-bold text-stone-900 block leading-snug truncate">
+                    {itemName}
+                  </span>
+                  
                   <span className="text-[11px] text-stone-500 block mt-0.5 truncate">
                     Quy cách: <strong className="text-stone-700">{specLabel}</strong>
                     {item.flavor ? ` • ${item.flavor}` : ''}
+                    {unitPrice > 0 && (
+                      <span className="text-stone-400 font-mono ml-1.5">
+                        ({unitPrice.toLocaleString('vi-VN')}đ)
+                      </span>
+                    )}
                   </span>
+
+                  {/* Quà tặng theo món nếu có */}
+                  {giftTitle && (
+                    <div className="inline-flex items-center gap-1 text-[9.5px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
+                      <Gift className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                      <span className="truncate">Tặng: {giftTitle}</span>
+                    </div>
+                  )}
+
                   <div className="text-[11px] font-bold text-amber-700 font-mono mt-0.5 sm:hidden">
                     {itemTotal.toLocaleString('vi-VN')}đ
                   </div>

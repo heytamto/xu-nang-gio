@@ -13,12 +13,6 @@ import { parseCleanMoney } from '../../utils/orderRiskUtils';
 import { useAdminDashboard } from '../../hooks/useAdminDashboard';
 import ConfirmModal from './ConfirmModal';
 
-const PAYMENT_LABELS = {
-  deposit: 'Cọc 50.000đ',
-  full_qr: 'Chuyển khoản 100%',
-  cod: 'COD (Trả sau)'
-};
-
 const DATE_OPTIONS = [
   { value: 'all', label: 'Tất cả thời gian' },
   { value: 'today', label: 'Hôm nay' },
@@ -37,6 +31,57 @@ const FORWARD_STATUS_MAP = {
   [ORDER_STATUS.CANCELLED]: [],
   [ORDER_STATUS.BOMBED]: []
 };
+
+// =========================================================================
+// HÀM LẤY TÊN NGÂN HÀNG ĐỘNG (DB SUPABASE -> ENV -> VIETQR)
+// =========================================================================
+export function getActiveBankLabel(shopConfig) {
+  const dbBank = shopConfig?.payment?.bankName || shopConfig?.bankName;
+  if (dbBank && typeof dbBank === 'string' && dbBank.trim()) {
+    return dbBank.trim();
+  }
+  const envBank = import.meta.env?.VITE_BANK_NAME;
+  if (envBank && typeof envBank === 'string' && envBank.trim()) {
+    return envBank.trim();
+  }
+  return 'VietQR';
+}
+
+// =========================================================================
+// HÀM ĐỌC SỐ TIỀN CỌC ĐỘNG TỪ CẤU HÌNH SHOP
+// =========================================================================
+export function resolveDepositAmount(shopConfig) {
+  const amount = 
+    shopConfig?.payment?.depositAmount ?? 
+    shopConfig?.payment_config?.depositAmount ?? 
+    shopConfig?.depositAmount ?? 
+    shopConfig?.deposit_amount;
+    
+  const num = Number(amount);
+  return !isNaN(num) && num > 0 ? num : 50000;
+}
+
+// =========================================================================
+// HÀM HIỂN THỊ NHÃN THANH TOÁN ĐỘNG (THAY CHO PAYMENT_LABELS TĨNH)
+// =========================================================================
+export function getDynamicPaymentLabel(method, configDeposit, orderRecord) {
+  const m = String(method || '').toLowerCase();
+  
+  if (m === 'deposit' || m.includes('cọc')) {
+    const depositVal = Number(
+      orderRecord?.deposit_amount_expected || 
+      orderRecord?.deposit_paid || 
+      configDeposit
+    );
+    return `Cọc ${depositVal.toLocaleString('vi-VN')}đ`;
+  }
+  
+  if (m === 'full_qr' || m.includes('100%')) {
+    return 'Chuyển khoản 100%';
+  }
+  
+  return 'COD (Trả sau)';
+}
 
 // =========================================================================
 // HÀM HIỂN THỊ DANH SÁCH MÓN ĐẶT HÀNG
@@ -212,13 +257,15 @@ function DashboardOrderRow({
   onDeleteOrder,
   onRequestConfirmPayment,
   confirmingOrderCode,
-  depositAmount = 50000
+  depositAmount = 50000,
+  shopConfig = {}
 }) {
   const currentStatusCode = normalizeOrderStatus(ord.status);
   const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
   
   const paymentMethodVal = ord.payment_method || ord.paymentMethod;
-  const displayPayment = PAYMENT_LABELS[paymentMethodVal] || paymentMethodVal || 'Chưa chọn';
+  const activeDepositConfig = resolveDepositAmount(shopConfig);
+  const displayPayment = getDynamicPaymentLabel(paymentMethodVal, activeDepositConfig, ord);
 
   const { hasRisk, isPardoned, isBombedRisk, isCancelledRisk, primaryRefer } = riskTrace;
 
@@ -244,11 +291,17 @@ function DashboardOrderRow({
 
   const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
   const isTerminalStatus = allowedNextStatuses.length === 0;
+  const isCompleted = currentStatusCode === ORDER_STATUS.COMPLETED;
+  const isEnded = isTerminalStatus || isCompleted || currentStatusCode === ORDER_STATUS.CANCELLED || currentStatusCode === ORDER_STATUS.BOMBED;
+  
   const isLockedStatus = isInspectingRefer || isTerminalStatus;
   const customerName = ord.customer_name || ord.name || 'Khách đặt';
 
-  const isPaid = ord.payment_verified;
+  const isPaid = Boolean(ord.payment_verified) || isCompleted;
   const isConfirming = confirmingOrderCode === ord.code;
+
+  const bankLabel = getActiveBankLabel(shopConfig);
+  const displayedDepositNum = Number(ord.deposit_amount_expected || ord.deposit_paid || activeDepositConfig);
 
   return (
     <div 
@@ -256,11 +309,11 @@ function DashboardOrderRow({
       className={`pt-3 p-3.5 rounded-2xl transition-all border flex flex-col gap-3 text-xs font-sans cursor-pointer select-none ${
         isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : ''
       } ${
-        !isSelected && isBombedRisk 
+        !isSelected && !isCompleted && isBombedRisk 
           ? 'bg-rose-50/70 border-rose-300 ring-1 ring-rose-400 shadow-2xs' 
-          : !isSelected && isCancelledRisk
+          : !isSelected && !isCompleted && isCancelledRisk
             ? 'bg-amber-50/50 border-amber-200 ring-1 ring-amber-300'
-            : !isSelected && isPardoned
+            : !isSelected && !isCompleted && isPardoned
               ? 'bg-emerald-50/30 border-emerald-200/80'
               : !isSelected
                 ? 'bg-white border-stone-200/90 shadow-2xs hover:border-amber-300/80'
@@ -289,19 +342,19 @@ function DashboardOrderRow({
                   href={`tel:${ord.phone}`}
                   onClick={(e) => e.stopPropagation()}
                   className={`inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-colors ${
-                    isBombedRisk
+                    !isCompleted && isBombedRisk
                       ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-2xs'
-                      : isCancelledRisk
+                      : !isCompleted && isCancelledRisk
                         ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
                         : isPardoned
                           ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                           : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
                   }`}
-                  title={isBombedRisk ? '⚠️ Khách đang bị treo án bom đơn gần nhất!' : isPardoned ? '✨ Khách từng có đơn xấu nhưng đã khôi phục uy tín thành công' : ''}
+                  title={!isCompleted && isBombedRisk ? '⚠️ Khách đang bị treo án bom đơn gần nhất!' : isPardoned ? '✨ Khách từng có đơn xấu nhưng đã khôi phục uy tín thành công' : ''}
                 >
-                  <PhoneCall className={`w-3 h-3 ${isBombedRisk || isCancelledRisk ? 'text-white' : 'text-stone-700'}`} />
+                  <PhoneCall className={`w-3 h-3 ${!isCompleted && (isBombedRisk || isCancelledRisk) ? 'text-white' : 'text-stone-700'}`} />
                   <span>{ord.phone}</span>
-                  {isBombedRisk && (
+                  {!isCompleted && isBombedRisk && (
                     <span className="text-[9px] bg-white text-red-700 px-1 rounded font-black ml-0.5">
                       ĐANG TREO BOM
                     </span>
@@ -318,16 +371,16 @@ function DashboardOrderRow({
               {isPaid ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100/90 text-emerald-900 border border-emerald-300 shadow-2xs">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Đã cọc {Number(ord.deposit_paid || depositAmount).toLocaleString('vi-VN')}đ</span>
+                  <span>{isCompleted ? 'Đã thanh toán đủ 100%' : `Đã cọc ${displayedDepositNum.toLocaleString('vi-VN')}đ`}</span>
                 </span>
-              ) : paymentMethodVal !== 'cod' ? (
+              ) : !isEnded && paymentMethodVal !== 'cod' ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
                   <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
-                  <span>Chờ nổ tiền MB</span>
+                  <span>Chờ nổ tiền {bankLabel}</span>
                 </span>
               ) : null}
 
-              {isBombedRisk ? (
+              {!isCompleted && isBombedRisk ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-900 border border-red-300">
                   <ShieldAlert className="w-3 h-3 text-red-700" />
                   <span>Khách rủi ro cao</span>
@@ -337,7 +390,7 @@ function DashboardOrderRow({
                   <CheckCircle className="w-3 h-3 text-emerald-700" />
                   <span>Đã khôi phục uy tín</span>
                 </span>
-              ) : isCancelledRisk ? (
+              ) : !isCompleted && isCancelledRisk ? (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                   <History className="w-3 h-3 text-amber-700" />
                   <span>Từng hủy nhiều lần</span>
@@ -361,9 +414,9 @@ function DashboardOrderRow({
 
             {ord.address && (
               <p className={`text-[11px] line-clamp-1 p-1 rounded-md transition-colors ${
-                isBombedRisk 
+                !isCompleted && isBombedRisk 
                   ? 'bg-red-100 text-red-950 font-bold border border-red-300 inline-block' 
-                  : isCancelledRisk
+                  : !isCompleted && isCancelledRisk
                     ? 'bg-amber-100 text-amber-950 font-bold border border-amber-300 inline-block'
                     : 'text-stone-600'
               }`}>
@@ -396,8 +449,8 @@ function DashboardOrderRow({
             className="flex items-center gap-1.5"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* NÚT BẬT MODAL XÁC NHẬN CỌC / CHUYỂN KHOẢN */}
-            {!isPaid && paymentMethodVal !== 'cod' && (
+            {/* CHỈ HIỆN NÚT DUYỆT CỌC KHI ĐƠN CHƯA KẾT THÚC VÀ CHƯA THANH TOÁN */}
+            {!isPaid && !isEnded && paymentMethodVal !== 'cod' && (
               <button
                 type="button"
                 disabled={isConfirming || isProcessing}
@@ -406,7 +459,7 @@ function DashboardOrderRow({
                   onRequestConfirmPayment && onRequestConfirmPayment(ord);
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-xs hover:shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                title="Bấm để xác nhận kiểm tra tiền về MB Bank trước khi chuyển đơn sang Đã Xác Nhận"
+                title={`Bấm để xác nhận kiểm tra tiền về ${bankLabel} trước khi chuyển đơn sang Đã Xác Nhận`}
               >
                 {isConfirming ? (
                   <>
@@ -476,7 +529,8 @@ function DashboardOrderRow({
         </div>
       </div>
 
-      {(hasRisk || isPardoned) && primaryRefer && (
+      {/* CHỈ HIỂN THỊ CẢNH BÁO BÊN DƯỚI KHI ĐƠN CHƯA HOÀN TẤT */}
+      {!isCompleted && (hasRisk || isPardoned) && primaryRefer && (
         <div 
           onClick={(e) => e.stopPropagation()}
           className={`p-2.5 rounded-xl border text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 ${
@@ -564,13 +618,15 @@ function DashboardOrderGridCard({
   onDeleteOrder,
   onRequestConfirmPayment,
   confirmingOrderCode,
-  depositAmount = 50000
+  depositAmount = 50000,
+  shopConfig = {}
 }) {
   const currentStatusCode = normalizeOrderStatus(ord.status);
   const statusMeta = ORDER_STATUS_MAP[currentStatusCode] || ORDER_STATUS_MAP[ORDER_STATUS.PENDING];
   
   const paymentMethodVal = ord.payment_method || ord.paymentMethod;
-  const displayPayment = PAYMENT_LABELS[paymentMethodVal] || paymentMethodVal || 'Chưa chọn';
+  const activeDepositConfig = resolveDepositAmount(shopConfig);
+  const displayPayment = getDynamicPaymentLabel(paymentMethodVal, activeDepositConfig, ord);
 
   const { isBombedRisk, isCancelledRisk, isPardoned } = riskTrace;
 
@@ -596,11 +652,17 @@ function DashboardOrderGridCard({
 
   const allowedNextStatuses = FORWARD_STATUS_MAP[currentStatusCode] || [];
   const isTerminalStatus = allowedNextStatuses.length === 0;
+  const isCompleted = currentStatusCode === ORDER_STATUS.COMPLETED;
+  const isEnded = isTerminalStatus || isCompleted || currentStatusCode === ORDER_STATUS.CANCELLED || currentStatusCode === ORDER_STATUS.BOMBED;
+
   const isLockedStatus = isInspectingRefer || isTerminalStatus;
   const customerName = ord.customer_name || ord.name || 'Khách đặt';
 
-  const isPaid = ord.payment_verified;
+  const isPaid = Boolean(ord.payment_verified) || isCompleted;
   const isConfirming = confirmingOrderCode === ord.code;
+
+  const bankLabel = getActiveBankLabel(shopConfig);
+  const displayedDepositNum = Number(ord.deposit_amount_expected || ord.deposit_paid || activeDepositConfig);
 
   return (
     <div 
@@ -608,11 +670,11 @@ function DashboardOrderGridCard({
       className={`rounded-2xl p-3.5 border transition-all flex flex-col justify-between gap-3 text-xs font-sans shadow-2xs hover:shadow-xs cursor-pointer select-none ${
         isSelected ? 'ring-2 ring-amber-600 bg-amber-50/40 border-amber-300' : 'bg-white'
       } ${
-        !isSelected && isBombedRisk 
+        !isSelected && !isCompleted && isBombedRisk 
           ? 'border-rose-300 ring-1 ring-rose-400 bg-rose-50/40' 
-          : !isSelected && isCancelledRisk
+          : !isSelected && !isCompleted && isCancelledRisk
             ? 'border-amber-200 ring-1 ring-amber-300 bg-amber-50/30'
-            : !isSelected && isPardoned
+            : !isSelected && !isCompleted && isPardoned
               ? 'border-emerald-200/80 bg-emerald-50/20'
               : !isSelected
                 ? 'border-stone-200/90 hover:border-amber-300/80'
@@ -663,12 +725,12 @@ function DashboardOrderGridCard({
           {isPaid ? (
             <div className="inline-flex items-center gap-1 text-[10.5px] font-bold text-emerald-900 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-md">
               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              <span>Đã cọc {Number(ord.deposit_paid || depositAmount).toLocaleString('vi-VN')}đ</span>
+              <span>{isCompleted ? 'Đã thanh toán đủ 100%' : `Đã cọc ${displayedDepositNum.toLocaleString('vi-VN')}đ`}</span>
             </div>
-          ) : paymentMethodVal !== 'cod' ? (
+          ) : !isEnded && paymentMethodVal !== 'cod' ? (
             <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-md">
               <Clock className="w-2.5 h-2.5 text-amber-600 animate-pulse" />
-              <span>Chờ nổ tiền MB</span>
+              <span>Chờ nổ tiền {bankLabel}</span>
             </div>
           ) : null}
 
@@ -701,8 +763,8 @@ function DashboardOrderGridCard({
           className="flex items-center justify-between gap-2"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* NÚT BẬT MODAL DUYỆT TRÊN CARD VIEW */}
-          {!isPaid && paymentMethodVal !== 'cod' && (
+          {/* NÚT DUYỆT TRÊN CARD VIEW */}
+          {!isPaid && !isEnded && paymentMethodVal !== 'cod' && (
             <button
               type="button"
               disabled={isConfirming || isProcessing}
@@ -711,7 +773,7 @@ function DashboardOrderGridCard({
                 onRequestConfirmPayment && onRequestConfirmPayment(ord);
               }}
               className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] flex items-center gap-1 shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-              title="Xác nhận kiểm tra tiền về MB Bank"
+              title={`Xác nhận kiểm tra tiền về ${bankLabel}`}
             >
               {isConfirming ? (
                 <>
@@ -783,6 +845,7 @@ function DashboardOrderGridCard({
 export default function DashboardTab({
   orders = [],
   isLoading = false,
+  shopConfig = {},
   onRefresh,
   onUpdateStatus,
   onDeleteOrder,
@@ -792,6 +855,8 @@ export default function DashboardTab({
   actionLoadingCode = null,
   onShowAlert
 }) {
+  const activeConfigDeposit = resolveDepositAmount(shopConfig);
+
   const {
     searchQuery, setSearchQuery,
     dateFilterType, setDateFilterType,
@@ -803,9 +868,8 @@ export default function DashboardTab({
     filteredOrders,
     metrics,
     getRiskTraceDetails
-  } = useAdminDashboard(orders, depositAmount);
+  } = useAdminDashboard(orders, activeConfigDeposit);
 
-  // 1. Chế độ xem: 'list' (hàng ngang) hoặc 'grid' (dạng khối bảng)
   const [viewMode, setViewMode] = useState(() => {
     return localStorage.getItem('shop_admin_dashboard_view_mode') || 'list';
   });
@@ -815,18 +879,15 @@ export default function DashboardTab({
     localStorage.setItem('shop_admin_dashboard_view_mode', mode);
   };
 
-  // 2. State chọn nhiều đơn hàng (Bulk Selection)
   const [selectedOrderCodes, setSelectedOrderCodes] = useState([]);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isBulkStatusDropdownOpen, setIsBulkStatusDropdownOpen] = useState(false);
   const bulkDropdownRef = useRef(null);
 
-  // Modal xử lý Hủy / Bom đơn (Đơn lẻ & Hàng loạt)
   const [pendingStatusModal, setPendingStatusModal] = useState(null);
   const [statusReason, setStatusReason] = useState('');
   const [customReason, setCustomReason] = useState('');
 
-  // Modal xác nhận duyệt nhận cọc / chuyển khoản ngân hàng
   const [paymentVerificationModal, setPaymentVerificationModal] = useState(null);
 
   const [overrideModal, setOverrideModal] = useState(null);
@@ -836,6 +897,8 @@ export default function DashboardTab({
   const [confirmModalConfig, setConfirmModalConfig] = useState(null);
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const dateDropdownRef = useRef(null);
+
+  const bankLabel = getActiveBankLabel(shopConfig);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1100,11 +1163,13 @@ export default function DashboardTab({
     });
   };
 
-  // Kích hoạt mở modal xác nhận tiền cọc
   const handleRequestConfirmPayment = (ord) => {
     const isDeposit = (ord.payment_method || ord.paymentMethod) === 'deposit';
     const totalNum = parseCleanMoney(ord.final_total ?? ord.total ?? 0);
-    const expectedAmount = isDeposit ? Math.min(depositAmount, totalNum) : totalNum;
+    
+    // Ưu tiên số tiền cọc kỳ vọng được ghi lúc đặt đơn, fallback về cấu hình hiện tại
+    const targetDeposit = Number(ord.deposit_amount_expected) || activeConfigDeposit;
+    const expectedAmount = isDeposit ? Math.min(targetDeposit, totalNum) : totalNum;
 
     setPaymentVerificationModal({
       order: ord,
@@ -1490,7 +1555,8 @@ export default function DashboardTab({
                 onDeleteOrder={handleDeleteWithConfirm}
                 onRequestConfirmPayment={handleRequestConfirmPayment}
                 confirmingOrderCode={confirmingOrderCode}
-                depositAmount={depositAmount}
+                depositAmount={activeConfigDeposit}
+                shopConfig={shopConfig}
               />
             ))}
           </div>
@@ -1514,7 +1580,8 @@ export default function DashboardTab({
                 onDeleteOrder={handleDeleteWithConfirm}
                 onRequestConfirmPayment={handleRequestConfirmPayment}
                 confirmingOrderCode={confirmingOrderCode}
-                depositAmount={depositAmount}
+                depositAmount={activeConfigDeposit}
+                shopConfig={shopConfig}
               />
             ))}
           </div>
@@ -1622,7 +1689,7 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* ================= MODAL XÁC NHẬN DUYỆT TIỀN CỌC / CHUYỂN KHOẢN MB ================= */}
+      {/* ================= MODAL XÁC NHẬN DUYỆT TIỀN CỌC / CHUYỂN KHOẢN ================= */}
       {paymentVerificationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
@@ -1686,7 +1753,7 @@ export default function DashboardTab({
             <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-[11px] text-amber-950 flex items-start gap-2">
               <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <span>
-                Vui lòng mở ứng dụng <strong>MB Bank</strong> và kiểm tra biến động số dư đúng mã <strong>{paymentVerificationModal.order.code}</strong> trước khi xác nhận. Sau khi xác nhận, đơn sẽ tự động chuyển sang trạng thái <strong>Đã Xác Nhận (Confirmed)</strong> để chuyển giao qua tổ Đóng gói.
+                Vui lòng mở ứng dụng <strong>{bankLabel}</strong> và kiểm tra biến động số dư đúng mã <strong>{paymentVerificationModal.order.code}</strong> trước khi xác nhận. Sau khi xác nhận, đơn sẽ tự động chuyển sang trạng thái <strong>Đã Xác Nhận (Confirmed)</strong> để chuyển giao qua tổ Đóng gói.
               </span>
             </div>
 

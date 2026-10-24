@@ -9,16 +9,39 @@ const rawZalo = import.meta.env.VITE_ZALO_PHONE || '0848957345';
 export { VIETQR_BANKS };
 
 export const DEFAULT_SHOP_CONFIG = {
-  // 1. Tài khoản ngân hàng VietQR & Chính sách tiền cọc
+  // 1. Nhóm cấu hình Thanh toán & VietQR (Hỗ trợ cả dạng lồng & phẳng)
   bankBin: String(import.meta.env.VITE_BANK_BIN || '970422'),
   bankName: import.meta.env.VITE_BANK_NAME || 'MBBank',
   accountNo: String(import.meta.env.VITE_ACCOUNT_NO || '0848957345'),
   accountName: import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM',
   depositAmount: 50000,
+  enablePaymentGifts: true,
+  
+  payment: {
+    bankBin: String(import.meta.env.VITE_BANK_BIN || '970422'),
+    bankName: import.meta.env.VITE_BANK_NAME || 'MBBank',
+    accountNo: String(import.meta.env.VITE_ACCOUNT_NO || '0848957345'),
+    accountName: import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM',
+    depositAmount: 50000,
+  },
+
+  // 2. Nhóm cấu hình Vận chuyển (Shipping)
+  shippingFee: 30000,
+  freeShippingThreshold: 500000,
+  shipping: {
+    standardFee: 30000,
+    freeShippingMin: 500000,
+  },
+
+  // 3. Nhóm cấu hình Khách hàng thân thiết (Loyalty)
   loyaltyDiscountPercent: 10,
   loyaltyMaxDiscount: 50000,
+  loyalty: {
+    percent: 10,
+    maxDiscount: 50000,
+  },
 
-  // 2. Thông tin liên hệ, Địa chỉ & Mạng xã hội từ .env
+  // 4. Thông tin liên hệ, Địa chỉ & Mạng xã hội từ .env
   brandName: 'Xứ Nắng Gió',
   tagline: 'Đặc sản hái giàn chuẩn đất Ninh Thuận',
   hotline: rawHotline,
@@ -35,11 +58,11 @@ export const DEFAULT_SHOP_CONFIG = {
   tiktokUrl: import.meta.env.VITE_TIKTOK_URL || 'https://tiktok.com/@xunanggio',
   telegramUrl: import.meta.env.VITE_TELEGRAM_URL || 'https://t.me/xunanggio',
 
-  // 3. Google Maps (Tọa độ giàn vườn)
+  // 5. Google Maps (Tọa độ giàn vườn)
   mapDirectionsUrl: import.meta.env.VITE_MAP_DIRECTIONS_URL || 'https://www.google.com/maps/dir/?api=1&destination=11.563539,108.930892',
   mapEmbedUrl: import.meta.env.VITE_MAP_EMBED_URL || 'https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d251.61865863961202!2d108.93089242170359!3d11.563539363791506!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1svi!2s!4v1792144018447!5m2!1svi!2s',
 
-  // 4. Danh mục quà tặng mặc định (Khớp bảng gifts: gft01 -> gft07)
+  // 6. Danh mục quà tặng mặc định (Khớp bảng gifts: gft01 -> gft07)
   giftsCatalog: [
     { id: 'gft01', title: 'Hũ muối ớt tôm rang hạt', tag: 'Quà Quê', type: 'combo_bonus' },
     { id: 'gft02', title: 'Hũ mứt nho sấy dẻo', tag: 'Giàn Tươi', type: 'combo_bonus' },
@@ -51,8 +74,116 @@ export const DEFAULT_SHOP_CONFIG = {
   ]
 };
 
+// =========================================================================
+// CÁC HÀM HELPER ĐỌC GIÁ TRỊ ĐỘNG AN TOÀN
+// =========================================================================
+
 /**
- * Đọc cấu hình từ LocalStorage kèm Fallback an toàn (Đã loại bỏ cache vouchers thừa)
+ * Trích xuất số tiền cọc chuẩn từ cấu hình (Ưu tiên DB payment.depositAmount)
+ */
+export function resolveDepositAmount(shopConfig) {
+  const amount = 
+    shopConfig?.payment?.depositAmount ?? 
+    shopConfig?.payment_config?.depositAmount ?? 
+    shopConfig?.depositAmount ?? 
+    shopConfig?.deposit_amount;
+    
+  const num = Number(amount);
+  return !isNaN(num) && num > 0 ? num : 50000;
+}
+
+/**
+ * Trích xuất cấu hình tài khoản VietQR
+ */
+export function resolveBankConfig(shopConfig) {
+  return {
+    bankBin: String(shopConfig?.payment?.bankBin || shopConfig?.bankBin || import.meta.env?.VITE_BANK_BIN || '970422'),
+    bankName: shopConfig?.payment?.bankName || shopConfig?.bankName || import.meta.env?.VITE_BANK_NAME || 'MBBank',
+    accountNo: String(shopConfig?.payment?.accountNo || shopConfig?.accountNo || import.meta.env?.VITE_ACCOUNT_NO || '0848957345'),
+    accountName: shopConfig?.payment?.accountName || shopConfig?.accountName || import.meta.env?.VITE_ACCOUNT_NAME || 'TO THANH TAM',
+  };
+}
+
+/**
+ * Trích xuất phí ship và hạn mức freeship
+ */
+export function resolveShippingConfig(shopConfig) {
+  const standardFee = Number(
+    shopConfig?.shipping?.standardFee ?? 
+    shopConfig?.standardFee ?? 
+    shopConfig?.shippingFee ?? 
+    30000
+  );
+
+  const freeShippingMin = Number(
+    shopConfig?.shipping?.freeShippingMin ?? 
+    shopConfig?.freeShippingMin ?? 
+    shopConfig?.freeShippingThreshold ?? 
+    500000
+  );
+
+  return { standardFee, freeShippingMin };
+}
+
+/**
+ * Chuyển đổi dữ liệu raw từ bảng `shop_configs` Supabase sang Object đồng bộ
+ */
+export function parseShopConfigFromDb(rawRows = []) {
+  if (!Array.isArray(rawRows) || rawRows.length === 0) {
+    return DEFAULT_SHOP_CONFIG;
+  }
+
+  const configMap = {};
+  rawRows.forEach((row) => {
+    let val = row.value;
+    if (typeof val === 'string') {
+      try {
+        val = JSON.parse(val);
+      } catch {
+        // Giữ nguyên chuỗi nếu không phải JSON
+      }
+    }
+    configMap[row.key] = val;
+  });
+
+  const payment = configMap['payment'] || {};
+  const shipping = configMap['shipping'] || {};
+  const loyalty = configMap['loyalty'] || {};
+  const general = configMap['general'] || {};
+  const announcement = configMap['announcement'] || {};
+
+  return {
+    ...DEFAULT_SHOP_CONFIG,
+    ...configMap,
+    
+    // Nhóm thanh toán
+    payment: { ...DEFAULT_SHOP_CONFIG.payment, ...payment },
+    bankBin: String(payment.bankBin || DEFAULT_SHOP_CONFIG.bankBin),
+    bankName: payment.bankName || DEFAULT_SHOP_CONFIG.bankName,
+    accountNo: String(payment.accountNo || DEFAULT_SHOP_CONFIG.accountNo),
+    accountName: payment.accountName || DEFAULT_SHOP_CONFIG.accountName,
+    depositAmount: Number(payment.depositAmount) || DEFAULT_SHOP_CONFIG.depositAmount,
+
+    // Nhóm vận chuyển
+    shipping: { ...DEFAULT_SHOP_CONFIG.shipping, ...shipping },
+    shippingFee: Number(shipping.standardFee) || DEFAULT_SHOP_CONFIG.shippingFee,
+    freeShippingThreshold: Number(shipping.freeShippingMin) || DEFAULT_SHOP_CONFIG.freeShippingThreshold,
+
+    // Nhóm ưu đãi
+    loyalty: { ...DEFAULT_SHOP_CONFIG.loyalty, ...loyalty },
+    loyaltyDiscountPercent: Number(loyalty.percent) || DEFAULT_SHOP_CONFIG.loyaltyDiscountPercent,
+    loyaltyMaxDiscount: Number(loyalty.maxDiscount) || DEFAULT_SHOP_CONFIG.loyaltyMaxDiscount,
+
+    // Nhóm thông tin chung
+    brandName: general.brandName || general.shop_name || DEFAULT_SHOP_CONFIG.brandName,
+    address: general.address || DEFAULT_SHOP_CONFIG.address,
+    hotline: general.hotline || general.zaloPhone || DEFAULT_SHOP_CONFIG.hotline,
+    announcement: typeof announcement === 'string' ? announcement : (announcement.text || DEFAULT_SHOP_CONFIG.announcement),
+  };
+}
+
+/**
+ * Đọc cấu hình từ LocalStorage kèm Fallback an toàn
  */
 export function getShopConfig() {
   try {

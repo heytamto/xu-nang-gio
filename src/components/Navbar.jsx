@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Sprout, Menu, X, Search } from 'lucide-react';
 
@@ -8,11 +9,15 @@ export default function Navbar({
   cartTotal = 0,
   onOpenLookup,
   isCartBouncing = false,
-  forceVisible = false
+  forceVisible = false,
+  shopConfig = {}
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
+  const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận';
 
   const navItems = [
     { id: 'home', label: 'Trang Chủ' },
@@ -21,16 +26,19 @@ export default function Navbar({
     { id: 'blog', label: 'Cẩm Nang' },
   ];
 
+  // Luôn giữ Navbar hiển thị ở trang checkout hoặc khi forceVisible = true
+  const shouldAlwaysShow = forceVisible || currentPage === 'checkout';
+
   useEffect(() => {
-    if (forceVisible) {
+    if (shouldAlwaysShow) {
       setIsVisible(true);
     }
-  }, [forceVisible]);
+  }, [shouldAlwaysShow]);
 
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      if (isMobileMenuOpen) return;
+      if (isMobileMenuOpen || shouldAlwaysShow) return;
 
       if (currentScrollY < 20) {
         setIsVisible(true);
@@ -44,7 +52,7 @@ export default function Navbar({
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY, isMobileMenuOpen]);
+  }, [lastScrollY, isMobileMenuOpen, shouldAlwaysShow]);
 
   const handleCartClick = () => {
     setIsMobileMenuOpen(false);
@@ -69,7 +77,7 @@ export default function Navbar({
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 transition-transform duration-300 ease-in-out ${
+      className={`fixed top-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 transition-transform duration-300 ease-in-out font-sans ${
         isVisible ? 'translate-y-0 shadow-lg' : '-translate-y-full shadow-none'
       }`}
     >
@@ -80,12 +88,16 @@ export default function Navbar({
           onClick={() => handleNavClick('home')}
           className="flex items-center gap-2.5 text-left group cursor-pointer"
         >
-          <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+          <div className="w-9 h-9 rounded-xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
             <Sprout className="w-5 h-5" />
           </div>
-          <div>
-            <span className="font-black text-sm tracking-wide text-white block">XỨ NẮNG GIÓ</span>
-            <span className="text-[10px] text-amber-400 font-semibold block leading-none">Đặc Sản Ninh Thuận</span>
+          <div className="truncate max-w-[170px] sm:max-w-xs">
+            <span className="font-black text-sm tracking-wide text-white block uppercase truncate">
+              {brandName}
+            </span>
+            <span className="text-[10px] text-amber-400 font-semibold block leading-none truncate">
+              {tagline}
+            </span>
           </div>
         </button>
 
@@ -98,7 +110,7 @@ export default function Navbar({
               onClick={() => handleNavClick(item.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 currentPage === item.id
-                  ? 'bg-amber-600 text-white shadow'
+                  ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-stone-300 hover:text-white hover:bg-stone-800/70'
               }`}
             >
@@ -113,7 +125,7 @@ export default function Navbar({
           <button
             type="button"
             onClick={handleLookupClick}
-            className="hidden sm:flex items-center gap-1.5 py-1.5 px-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-800 hover:border-amber-500/40 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 py-1.5 px-3 rounded-2xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-stone-800 hover:border-amber-500/40 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-2xs"
             title="Tra cứu lịch sử đơn hàng"
           >
             <Search className="w-3.5 h-3.5 text-amber-400" />
@@ -124,7 +136,7 @@ export default function Navbar({
           <button
             type="button"
             onClick={handleLookupClick}
-            className="sm:hidden p-2 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 border border-stone-800 active:scale-95 transition-all cursor-pointer"
+            className="sm:hidden p-2 rounded-2xl bg-stone-900 hover:bg-stone-800 text-amber-400 border border-stone-800 active:scale-95 transition-all cursor-pointer shadow-2xs"
             title="Tra cứu đơn"
           >
             <Search className="w-4 h-4" />
@@ -134,7 +146,7 @@ export default function Navbar({
           <button
             type="button"
             onClick={handleCartClick}
-            className={`relative py-1.5 px-3 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer ${
+            className={`relative py-1.5 px-3 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer shadow-2xs ${
               isCartBouncing 
                 ? 'animate-cart-pop bg-amber-500 border-amber-300 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.6)]' 
                 : 'bg-stone-900 hover:bg-stone-800 text-stone-200 border-stone-800 hover:border-amber-500/40'
@@ -195,7 +207,7 @@ export default function Navbar({
               onClick={() => handleNavClick(item.id)}
               className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 currentPage === item.id
-                  ? 'bg-amber-600 text-white shadow'
+                  ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-stone-300 hover:bg-stone-800'
               }`}
             >

@@ -16,15 +16,19 @@ export default function PaymentMethodSelector({
   const isTotalLowerThanDeposit = totalAmount > 0 && totalAmount <= safeDeposit;
 
   // 1. Phân tích lịch sử đơn hàng của khách
-  const isLastOrderBombed = Boolean(
+  // Nếu khách đã hoàn lương / gỡ án thành công (isPardoned), không khóa bom nữa
+  const isPardoned = Boolean(customerHistory?.isPardoned);
+
+  const isLastOrderBombed = !isPardoned && Boolean(
     customerHistory?.lastOrderBombed || 
     customerHistory?.lastOrderStatus === 'bombed' ||
     customerHistory?.hasBombedHistory
   );
 
-  const isTwoRecentCancelled = Boolean(
+  const isTwoRecentCancelled = !isPardoned && Boolean(
     customerHistory?.twoRecentCancelled || 
-    customerHistory?.consecutiveCancelledCount >= 2
+    customerHistory?.consecutiveCancelledCount >= 2 ||
+    customerHistory?.isFrequentCanceller
   );
 
   // Khóa COD nếu: Đơn kề trước bị bom HOẶC 2 đơn gần nhất liên tục bị hủy
@@ -39,13 +43,13 @@ export default function PaymentMethodSelector({
       // Bị bom đơn kề trước -> Ép chuyển khoản 100%
       setPaymentMethod('full_qr');
     } else if (isTotalLowerThanDeposit && paymentMethod === 'deposit') {
-      // Tổng đơn nhỏ hơn cọc -> Tự động chuyển sang Chuyển khoản 100% (hoặc COD nếu không bị chặn)
-      setPaymentMethod(isCodBlocked ? 'full_qr' : 'full_qr');
+      // Tổng đơn nhỏ hơn cọc -> Chuyển sang Chuyển khoản toàn bộ (hoặc COD nếu không bị chặn COD)
+      setPaymentMethod(isCodBlocked ? 'full_qr' : 'cod');
     } else if (isCodBlocked && paymentMethod === 'cod') {
       // Bị chặn COD -> Chuyển về cọc (nếu còn cọc) hoặc full_qr (nếu đơn nhỏ hơn cọc)
-      setPaymentMethod(isTotalLowerThanDeposit ? 'full_qr' : 'deposit');
+      setPaymentMethod(isDepositBlocked ? 'full_qr' : 'deposit');
     }
-  }, [isLastOrderBombed, isTotalLowerThanDeposit, isCodBlocked, paymentMethod, setPaymentMethod]);
+  }, [isLastOrderBombed, isTotalLowerThanDeposit, isCodBlocked, isDepositBlocked, paymentMethod, setPaymentMethod]);
 
   return (
     <div className="space-y-2.5 font-sans">

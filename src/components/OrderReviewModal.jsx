@@ -1,8 +1,8 @@
 // src/components/OrderReviewModal.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Star, CheckCircle2, AlertCircle, Loader2, 
-  Sparkles, Gift, MailCheck 
+  Sparkles, Gift, MailCheck, Mail 
 } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
 import { submitOrderReview } from '../services/orderService';
@@ -34,10 +34,10 @@ export default function OrderReviewModal({
   initialEmail = '',
   onReviewSuccess 
 }) {
-  const [orderCode] = useState(initialOrderCode);
-  const [phone] = useState(initialPhone);
+  const [orderCode, setOrderCode] = useState(initialOrderCode);
+  const [phone, setPhone] = useState(initialPhone);
   const [name, setName] = useState(initialCustomerName);
-  const [email] = useState(initialEmail);
+  const [email, setEmail] = useState(initialEmail);
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [content, setContent] = useState('');
@@ -46,6 +46,21 @@ export default function OrderReviewModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [reviewResult, setReviewResult] = useState(null);
+
+  // Đồng bộ lại props khi mở modal với đơn hàng khác
+  useEffect(() => {
+    if (isOpen) {
+      setOrderCode(initialOrderCode || '');
+      setPhone(initialPhone || '');
+      setName(initialCustomerName || '');
+      setEmail(initialEmail || '');
+      setRating(5);
+      setContent('');
+      setImageUrls([]);
+      setErrorMessage('');
+      setReviewResult(null);
+    }
+  }, [isOpen, initialOrderCode, initialPhone, initialCustomerName, initialEmail]);
 
   if (!isOpen) return null;
 
@@ -121,7 +136,7 @@ export default function OrderReviewModal({
           const { error: mailError } = await supabase.functions.invoke('send-order-email', {
             body: {
               to: recipientEmail,
-              template_id: 'tpl0003', // Sử dụng template tri ân chuẩn hóa
+              template_id: 'tpl0003', // Template tri ân khách quen
               customer_name: name.trim(),
               order_code: orderCode.trim(),
               data: {
@@ -280,16 +295,33 @@ export default function OrderReviewModal({
               </div>
             </div>
 
-            <div>
-              <label className="text-[10.5px] font-bold text-stone-700 block mb-1">Tên của bạn (*)</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="VD: Anh Tâm (Thủ Đức)..."
-                className="w-full px-3 py-2 text-xs rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-medium"
-                required
-              />
+            {/* Họ tên và Email nhận voucher */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-[10.5px] font-bold text-stone-700 block mb-1">Tên của bạn (*)</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="VD: Anh Tâm (Thủ Đức)..."
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-medium"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10.5px] font-bold text-stone-600 block mb-1">Email nhận mã voucher</label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-2.5" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Để nhận voucher qua thư..."
+                    className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-medium"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* GỢI Ý ĐÁNH GIÁ NHANH */}

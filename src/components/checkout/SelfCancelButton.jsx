@@ -1,69 +1,54 @@
 // src/components/checkout/SelfCancelButton.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Clock, AlertTriangle, Loader2, XCircle } from 'lucide-react';
+import { Clock, AlertTriangle, Loader2, XCircle, PhoneCall, ShieldAlert } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../../constants/orderStatus';
 import { orderService } from '../../services/orderService';
-
-function parseOrderTimestamp(dateStr) {
-  if (!dateStr) return 0;
-  if (dateStr instanceof Date) return dateStr.getTime();
-  let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
-  if (str.includes('/')) {
-    const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?/);
-    if (match) {
-      const [, d, m, y, hr = '0', min = '0', sec = '0'] = match;
-      return new Date(Number(y), Number(m) - 1, Number(d), Number(hr), Number(min), Number(sec)).getTime();
-    }
-  }
-  const t = new Date(str).getTime();
-  return isNaN(t) ? 0 : t;
-}
+import { getRemainingCancelMs, formatCountdownTimer } from '../../utils/dateUtils';
 
 export default function SelfCancelButton({
   order,
   onCancelSuccess,
   hotline = '0848.957.345',
 }) {
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [remainingMs, setRemainingMs] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('Đổi ý / Đặt nhầm sản phẩm');
   const [customReason, setCustomReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const orderTimestamp = useMemo(() => {
-    return parseOrderTimestamp(order?.created_at || order?.createdAt);
-  }, [order?.created_at, order?.createdAt]);
-
+  const createdAtVal = order?.created_at || order?.createdAt;
   const currentStatus = normalizeOrderStatus(order?.status);
   const isPending = currentStatus === ORDER_STATUS.PENDING;
 
+  const isPrepaidOrVerified = Boolean(
+    order?.payment_verified || 
+    order?.paymentVerified || 
+    Number(order?.deposit_paid || 0) > 0
+  );
+
   // Cập nhật bộ đếm lùi 30 phút mỗi giây
   useEffect(() => {
-    if (!orderTimestamp || !isPending) {
-      setTimeLeft(0);
+    if (!createdAtVal || !isPending) {
+      setRemainingMs(0);
       return;
     }
 
     const checkTime = () => {
-      const now = Date.now();
-      const elapsed = now - orderTimestamp;
-      const remaining = 30 * 60 * 1000 - elapsed;
-      setTimeLeft(remaining > 0 ? remaining : 0);
+      const left = getRemainingCancelMs(createdAtVal, Date.now(), 30);
+      setRemainingMs(left > 0 ? left : 0);
     };
 
     checkTime();
     const timer = setInterval(checkTime, 1000);
     return () => clearInterval(timer);
-  }, [orderTimestamp, isPending]);
+  }, [createdAtVal, isPending]);
 
   // Không hiển thị nếu đơn đã duyệt sang khâu đóng gói hoặc đã hủy/hoàn
   if (!isPending) return null;
 
-  const minutes = Math.floor(timeLeft / 60000);
-  const seconds = Math.floor((timeLeft % 60000) / 1000);
-  const timeFormatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  const orderCode = order?.code || order?.orderId;
+  const orderCode = order?.code || order?.orderId || 'XNG-ORDER';
+  const cleanPhone = String(hotline).replace(/\D/g, '');
 
   const handleConfirmCancel = async () => {
     setIsSubmitting(true);
@@ -74,7 +59,6 @@ export default function SelfCancelButton({
       : cancelReason;
 
     try {
-      // Gọi service cập nhật trực tiếp qua Supabase RPC / Update
       if (orderService?.cancelOrder) {
         await orderService.cancelOrder(orderCode, finalReason);
       } else if (orderService?.updateOrderStatus) {
@@ -95,11 +79,17 @@ export default function SelfCancelButton({
 
   return (
     <div className="pt-2 font-sans">
-      {timeLeft > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-xs">
+      {remainingMs > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-amber-50/90 border border-amber-200 text-xs shadow-2xs animate-fadeIn">
           <div className="flex items-center gap-1.5 text-amber-900 font-medium">
-            <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-            <span>Đơn đang chờ hái. Còn <strong className="font-mono font-black text-amber-950 text-sm">{timeFormatted}</strong> để tự hủy</span>
+            <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin shrink-0" />
+            <span>
+              Đơn đang chờ duyệt. Còn{' '}
+              <strong className="font-mono font-black text-amber-950 text-sm">
+                {formatCountdownTimer(remainingMs)}
+              </strong>{' '}
+              để tự hủy
+            </span>
           </div>
 
           <button
@@ -111,21 +101,24 @@ export default function SelfCancelButton({
           </button>
         </div>
       ) : (
-        <p className="text-[10.5px] text-stone-500 italic">
-          ⏳ Đã hết hạn tự hủy (30 phút). Để đổi thông tin hoặc hủy đơn, vui lòng gọi Hotline:{' '}
-          <a href={`tel:${hotline.replace(/\./g, '')}`} className="font-bold text-amber-800 underline">
-            {hotline}
-          </a>.
+        <p className="text-[10.5px] text-stone-500 italic flex items-center gap-1">
+          <Clock className="w-3 h-3 text-stone-400" />
+          <span>
+            Đã hết hạn tự hủy (30 phút). Để đổi thông tin hoặc báo hủy, vui lòng gọi Hotline:{' '}
+            <a href={`tel:${cleanPhone}`} className="font-bold text-amber-800 underline">
+              {hotline}
+            </a>.
+          </span>
         </p>
       )}
 
       {/* MODAL XÁC NHẬN HỦY DÀNH CHO KHÁCH */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-fadeIn font-sans">
           <div className="bg-white rounded-3xl p-5 w-full max-w-sm border border-stone-200 shadow-2xl space-y-3.5">
             <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
               <div className="flex items-center gap-2 text-rose-700">
-                <XCircle className="w-5 h-5" />
+                <XCircle className="w-5 h-5 shrink-0" />
                 <h4 className="font-black text-sm text-stone-900">Xác Nhận Hủy Đơn</h4>
               </div>
               <span className="font-mono text-xs text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded-md">
@@ -136,6 +129,16 @@ export default function SelfCancelButton({
             <p className="text-xs text-stone-600 leading-relaxed">
               Bạn có chắc chắn muốn hủy đơn hàng này không? Sau khi hủy, hệ thống nhà vườn sẽ dừng chuẩn bị kiện hàng này.
             </p>
+
+            {/* Lưu ý nếu đơn này đã được xác nhận cọc/tiền */}
+            {isPrepaidOrVerified && (
+              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-[11px] flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span>
+                  Đơn hàng đã ghi nhận thanh toán/đặt cọc. Sau khi bấm hủy, bộ phận kế toán sẽ liên hệ số điện thoại của bạn để hoàn tiền.
+                </span>
+              </div>
+            )}
 
             <div className="space-y-2 text-xs">
               <label className="block text-[11px] font-bold text-stone-700">Lý do hủy đơn:</label>
@@ -172,7 +175,7 @@ export default function SelfCancelButton({
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 py-2 rounded-xl border border-stone-200 text-stone-600 font-bold text-xs hover:bg-stone-50 cursor-pointer"
+                className="flex-1 py-2 rounded-xl border border-stone-200 text-stone-600 font-bold text-xs hover:bg-stone-50 cursor-pointer transition-colors"
               >
                 Giữ đơn
               </button>
@@ -180,9 +183,16 @@ export default function SelfCancelButton({
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleConfirmCancel}
-                className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shadow-xs transition-all active:scale-95 disabled:opacity-50"
               >
-                {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Xác nhận hủy'}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang hủy...</span>
+                  </>
+                ) : (
+                  'Xác nhận hủy'
+                )}
               </button>
             </div>
           </div>

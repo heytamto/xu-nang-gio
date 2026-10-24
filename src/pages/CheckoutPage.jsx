@@ -1,6 +1,6 @@
 // src/pages/CheckoutPage.jsx
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { ArrowLeft, ShoppingBag, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, ArrowRight, AlertCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
 import { 
@@ -26,6 +26,26 @@ import PaymentMethodSelector from '../components/checkout/PaymentMethodSelector'
 import CodTimeline from '../components/checkout/CodTimeline';
 import VietQrBox from '../components/checkout/VietQrBox';
 import OrderSummaryCard from '../components/checkout/OrderSummaryCard';
+
+function resolveDepositAmount(shopConfig) {
+  const amount = 
+    shopConfig?.payment?.depositAmount ?? 
+    shopConfig?.payment_config?.depositAmount ?? 
+    shopConfig?.depositAmount ?? 
+    shopConfig?.deposit_amount;
+    
+  const num = Number(amount);
+  return !isNaN(num) && num > 0 ? num : 50000;
+}
+
+function resolveBankConfig(shopConfig) {
+  return {
+    bankBin: String(shopConfig?.payment?.bankBin || shopConfig?.bankBin || import.meta.env?.VITE_BANK_BIN || '970422'),
+    bankName: shopConfig?.payment?.bankName || shopConfig?.bankName || import.meta.env?.VITE_BANK_NAME || 'MBBank',
+    accountNo: String(shopConfig?.payment?.accountNo || shopConfig?.accountNo || import.meta.env?.VITE_ACCOUNT_NO || '0848957345'),
+    accountName: shopConfig?.payment?.accountName || shopConfig?.accountName || import.meta.env?.VITE_ACCOUNT_NAME || 'TO THANH TAM',
+  };
+}
 
 function isBadOrderStatus(statusStr) {
   const normalized = normalizeOrderStatus(statusStr);
@@ -72,8 +92,10 @@ export default function CheckoutPage({
 }) {
   const [orderCode] = useState(() => generateUniqueOrderCode());
 
-  // 1. STATE ĐỒNG BỘ GIÁ & DỮ LIỆU REALTIME
+  // 1. STATE QUYỀN LỢI ĐỒNG BỘ REALTIME
   const [syncedCart, setSyncedCart] = useState(cart);
+  const [paymentGifts, setPaymentGifts] = useState([]);
+  const [liveConfig, setLiveConfig] = useState(shopConfig);
   const [priceChangeNotice, setPriceChangeNotice] = useState(null);
   const [isSyncingPrice, setIsSyncingPrice] = useState(false);
 
@@ -103,9 +125,6 @@ export default function CheckoutPage({
   const [voucherError, setVoucherError] = useState('');
   const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
-  
-  const [isPaymentVerified, setIsPaymentVerified] = useState(false);
-  const [verifiedAmount, setVerifiedAmount] = useState(0);
 
   const [eligibleOldOrderVoucher, setEligibleOldOrderVoucher] = useState(null);
 
@@ -115,13 +134,158 @@ export default function CheckoutPage({
     isChecking: false
   });
 
+  // --------------------------------------------------------------------------
+  // MASTER REALTIME SYNC: LẮNG NGHE TỨC THỜI CẢ 4 BẢNG (GIFTS, PRODUCTS, VOUCHERS, SHOP_CONFIGS)
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchInitialData = async () => {
+      try {
+        const [giftsRes, configsRes] = await Promise.all([
+          supabase.from('gifts').select('*').order('id', { ascending: true }),
+          supabase.from('shop_configs').select('*')
+        ]);
+
+        if (isMounted) {
+          if (Array.isArray(giftsRes.data)) setPaymentGifts(giftsRes.data);
+          if (Array.isArray(configsRes.data)) {
+            let merged = {};
+            configsRes.data.forEach((r) => {
+              const val = typeof r.value === 'string' ? JSON.parse(r.value || '{}') : r.value;
+              merged = { ...merged, ...val };
+            });
+            setLiveConfig((prev) => ({ ...prev, ...merged }));
+          }
+        }
+      } catch (err) {
+        console.warn('Lỗi tải dữ liệu khởi tạo:', err);
+      }
+    };
+
+    fetchInitialData();
+
+    const masterChannel = supabase
+      .channel('master-checkout-realtime-listener')
+      // 1. Quà tặng (gifts): Tắt/bật là cập nhật ngay
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gifts' },
+        (payload) => {
+          if (!isMounted) return;
+          if (payload.eventType === 'UPDATE') {
+            setPaymentGifts((prev) => {
+              const next = prev.map((g) => (g.id === payload.new.id ? payload.new : g));
+              if (payload.new.id === selectedGiftId && payload.new.is_active === false) {
+                const avail = next.filter((item) => item.is_active !== false);
+                setSelectedGiftId(avail.length > 0 ? avail[0].id : '');
+              }
+              return next;
+            });
+          } else if (payload.eventType === 'INSERT') {
+            setPaymentGifts((prev) => [...prev, payload.new]);
+          } else if (payload.eventType === 'DELETE') {
+            setPaymentGifts((prev) => prev.filter((g) => g.id !== payload.old.id));
+          }
+        }
+      )
+      // 2. Sản phẩm (products): Đổi giá hoặc tồn kho là đồng bộ giỏ hàng ngay
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'products' },
+        (payload) => {
+          if (!isMounted) return;
+          const freshProd = payload.new;
+          setSyncedCart((prevCart) => {
+            let changed = false;
+            const updated = prevCart.map((it) => {
+              const cleanId = String(it.product_id || it.productId || it.id || '').split('-opt-')[0].split('_')[0].trim();
+              if (cleanId === String(freshProd.id)) {
+                const freshPrice = Number(freshProd.base_price ?? it.base_price);
+                if (freshPrice !== Number(it.price ?? it.base_price)) {
+                  changed = true;
+                }
+                return {
+                  ...it,
+                  name: freshProd.name || it.name,
+                  title: freshProd.name || it.title,
+                  price: freshPrice,
+                  basePrice: freshPrice,
+                  base_price: freshPrice,
+                  inStock: freshProd.in_stock ?? true
+                };
+              }
+              return it;
+            });
+
+            if (changed) {
+              setPriceChangeNotice('Giá sản phẩm trong giỏ vừa được nhà vườn cập nhật mới.');
+            }
+            return updated;
+          });
+        }
+      )
+      // 3. Voucher (vouchers): Sửa chiết khấu/xóa voucher là tính lại ngay
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vouchers' },
+        (payload) => {
+          if (!isMounted) return;
+          if (payload.eventType === 'UPDATE') {
+            setAppliedVouchers((prevApplied) =>
+              prevApplied.map((v) => {
+                if (v.code === payload.new.code) {
+                  return {
+                    ...v,
+                    type: payload.new.type,
+                    value: Number(payload.new.value) || 0,
+                    percent: payload.new.type === 'percent' ? Number(payload.new.value) : undefined,
+                    maxDiscount: Number(payload.new.max_discount ?? 0),
+                    minOrder: Number(payload.new.min_order ?? 0),
+                    canStack: Boolean(payload.new.can_stack)
+                  };
+                }
+                return v;
+              })
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setAppliedVouchers((prevApplied) =>
+              prevApplied.filter((v) => v.code !== payload.old.code)
+            );
+          }
+        }
+      )
+      // 4. Cấu hình vận hành (shop_configs): Đổi cọc, phí ship, mốc freeship
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'shop_configs' },
+        (payload) => {
+          if (!isMounted || !payload.new) return;
+          const val = typeof payload.new.value === 'string'
+            ? JSON.parse(payload.new.value || '{}')
+            : payload.new.value;
+          setLiveConfig((prev) => ({ ...prev, ...val }));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(masterChannel);
+    };
+  }, [selectedGiftId]);
+
   const cleanPhone = useMemo(() => customer.phone.trim().replace(/[^0-9]/g, ''), [customer.phone]);
   const prevPhoneRef = useRef(cleanPhone);
   const isPhoneValid = useMemo(() => isValidVietnamesePhone(cleanPhone), [cleanPhone]);
 
-  // -------------------------------------------------------------
-  // TÍNH NĂNG 1: ĐỒNG BỘ GIÁ VÀ TỒN KHO REALTIME TỪ SUPABASE
-  // -------------------------------------------------------------
+  const bankConfig = useMemo(() => resolveBankConfig(liveConfig), [liveConfig]);
+
+  const isPaymentGiftsEnabled = useMemo(() => {
+    return liveConfig?.enablePaymentGifts ?? liveConfig?.payment?.enableGifts ?? true;
+  }, [liveConfig]);
+
+  // Đồng bộ giá phòng thủ lần đầu khi giỏ hàng được nạp
   useEffect(() => {
     if (!cart.length) {
       setSyncedCart([]);
@@ -131,15 +295,22 @@ export default function CheckoutPage({
     const syncPricesWithDatabase = async () => {
       setIsSyncingPrice(true);
       try {
-        const productIds = cart.map((it) => it.id).filter(Boolean);
+        const productIds = cart
+          .map((it) => {
+            const rawId = it.product_id || it.productId || it.id || '';
+            return String(rawId).split('-opt-')[0].split('_')[0].trim();
+          })
+          .filter(Boolean);
+
         if (!productIds.length) {
           setSyncedCart(cart);
           return;
         }
 
+        // Bỏ 'title' và 'price' để không bị lỗi 400 Bad Request
         const { data: latestProducts, error } = await supabase
           .from('products')
-          .select('id, name, title, base_price, price, in_stock')
+          .select('id, name, base_price, in_stock')
           .in('id', productIds);
 
         if (error) throw error;
@@ -149,11 +320,13 @@ export default function CheckoutPage({
           let hasPriceChanged = false;
 
           const updated = cart.map((cartItem) => {
-            const fresh = productMap.get(String(cartItem.id));
+            const rawId = cartItem.product_id || cartItem.productId || cartItem.id || '';
+            const cleanId = String(rawId).split('-opt-')[0].split('_')[0].trim();
+            const fresh = productMap.get(cleanId);
             if (!fresh) return cartItem;
 
-            const currentItemPrice = Number(cartItem.price ?? cartItem.base_price ?? cartItem.basePrice ?? 0);
-            const freshPrice = Number(fresh.price ?? fresh.base_price ?? currentItemPrice);
+            const currentItemPrice = Number(cartItem.base_price ?? cartItem.basePrice ?? cartItem.price ?? 0);
+            const freshPrice = Number(fresh.base_price ?? currentItemPrice);
 
             if (freshPrice !== currentItemPrice) {
               hasPriceChanged = true;
@@ -161,7 +334,8 @@ export default function CheckoutPage({
 
             return {
               ...cartItem,
-              title: fresh.title || fresh.name || cartItem.title || cartItem.name,
+              name: fresh.name || cartItem.name,
+              title: fresh.name || cartItem.title,
               price: freshPrice,
               basePrice: freshPrice,
               base_price: freshPrice,
@@ -193,9 +367,7 @@ export default function CheckoutPage({
     syncPricesWithDatabase();
   }, [cart]);
 
-  // -------------------------------------------------------------
-  // TÍNH NĂNG 2: KIỂM TRA RỦI RO ĐƠN HÀNG (DEBOUNCED)
-  // -------------------------------------------------------------
+  // Kiểm tra rủi ro khách hàng
   useEffect(() => {
     if (!isPhoneValid || cleanPhone.length < 10) {
       setDbRiskData({
@@ -206,7 +378,7 @@ export default function CheckoutPage({
       return;
     }
 
-    setDbRiskData(prev => ({ ...prev, isChecking: true }));
+    setDbRiskData((prev) => ({ ...prev, isChecking: true }));
 
     const timer = setTimeout(async () => {
       try {
@@ -218,7 +390,7 @@ export default function CheckoutPage({
         });
       } catch (err) {
         console.error('Lỗi kiểm tra rủi ro đơn hàng:', err);
-        setDbRiskData(prev => ({ ...prev, isChecking: false }));
+        setDbRiskData((prev) => ({ ...prev, isChecking: false }));
       }
     }, 400);
 
@@ -245,7 +417,7 @@ export default function CheckoutPage({
 
     try {
       const localOrders = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-      const currentOrders = Array.isArray(shopConfig?.orders) ? shopConfig.orders : [];
+      const currentOrders = Array.isArray(liveConfig?.orders) ? liveConfig.orders : [];
       const allOrdersMap = new Map();
       currentOrders.forEach((o) => { if (o?.code || o?.orderId) allOrdersMap.set(o.code || o.orderId, o); });
       localOrders.forEach((o) => { if (o?.code || o?.orderId) allOrdersMap.set(o.code || o.orderId, o); });
@@ -340,11 +512,10 @@ export default function CheckoutPage({
       allCombinedOrders: [],
       previousInfo: null
     };
-  }, [cleanPhone, isPhoneValid, shopConfig?.orders, dbRiskData]);
+  }, [cleanPhone, isPhoneValid, liveConfig?.orders, dbRiskData]);
 
   useEffect(() => {
     let isMounted = true;
-
     const checkEligibleOrder = async () => {
       if (customerHistory?.isOldCustomer && Array.isArray(customerHistory?.validOrders)) {
         const result = await findEligiblePreviousOrderVoucher(
@@ -363,10 +534,6 @@ export default function CheckoutPage({
     return () => { isMounted = false; };
   }, [customerHistory]);
 
-  // -------------------------------------------------------------
-  // TÍNH TOÁN DÒNG TIỀN: TIỀN HÀNG, PHÍ SHIP, GIẢM GIÁ, TỔNG TIỀN
-  // -------------------------------------------------------------
-  // 1. Tiền hàng nông sản (Tính trên syncedCart đã làm mới giá realtime)
   const clientSubtotal = useMemo(() => {
     return syncedCart.reduce(
       (sum, item) => sum + (Number(item.price || item.base_price || item.basePrice || 0) * Number(item.quantity || 1)), 
@@ -374,18 +541,17 @@ export default function CheckoutPage({
     );
   }, [syncedCart]);
 
-  // 2. Phí vận chuyển đọc linh hoạt từ shopConfig (ưu tiên dòng shipping)
   const standardShippingFee = Number(
-    shopConfig?.shipping?.standardFee ?? 
-    shopConfig?.standardFee ?? 
-    shopConfig?.shippingFee ?? 
+    liveConfig?.shipping?.standardFee ?? 
+    liveConfig?.standardFee ?? 
+    liveConfig?.shippingFee ?? 
     30000
   );
 
   const freeShippingThreshold = Number(
-    shopConfig?.shipping?.freeShippingMin ?? 
-    shopConfig?.freeShippingMin ?? 
-    shopConfig?.freeShippingThreshold ?? 
+    liveConfig?.shipping?.freeShippingMin ?? 
+    liveConfig?.freeShippingMin ?? 
+    liveConfig?.freeShippingThreshold ?? 
     500000
   );
 
@@ -394,43 +560,38 @@ export default function CheckoutPage({
     return clientSubtotal >= freeShippingThreshold ? 0 : standardShippingFee;
   }, [clientSubtotal, freeShippingThreshold, standardShippingFee]);
 
-  // 3. Giảm giá từ voucher
   const activeDiscount = useMemo(() => {
     if (!appliedVouchers.length) return 0;
     
-    const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
-    const maxDisc = Number(shopConfig?.loyaltyMaxDiscount) || 50000;
+    const rate = Number(liveConfig?.loyaltyDiscountPercent) || 10;
+    const maxDisc = Number(liveConfig?.loyaltyMaxDiscount) || 50000;
 
     let totalDisc = 0;
     appliedVouchers.forEach((v) => {
-      if (v.isPreviousOrder || v.isLoyalty) {
-        const currentRate = Number(v.percent) || rate;
-        const currentMax = Number(v.maxDiscount) || maxDisc;
+      if (v.isPreviousOrder || v.isLoyalty || v.type === 'percent' || v.percent) {
+        const currentRate = Number(v.percent ?? v.value ?? rate);
+        const currentMax = Number(v.maxDiscount ?? maxDisc);
         const disc = Math.round((clientSubtotal * currentRate) / 100);
-        totalDisc += Math.min(disc, currentMax);
+        totalDisc += currentMax > 0 ? Math.min(disc, currentMax) : disc;
       } else {
         totalDisc += Number(v.discount || v.value || 0);
       }
     });
 
     return Math.min(totalDisc, clientSubtotal);
-  }, [appliedVouchers, clientSubtotal, shopConfig?.loyaltyDiscountPercent, shopConfig?.loyaltyMaxDiscount]);
+  }, [appliedVouchers, clientSubtotal, liveConfig?.loyaltyDiscountPercent, liveConfig?.loyaltyMaxDiscount]);
 
-  // 4. Tổng thanh toán cuối cùng = Tiền hàng + Phí vận chuyển - Giảm giá
   const activeFinalTotal = Math.max(0, clientSubtotal + shippingFee - activeDiscount);
   const activeSubtotal = clientSubtotal;
   const activeCart = syncedCart;
 
-  const paymentGifts = useMemo(() => Array.isArray(shopConfig?.giftsCatalog) ? shopConfig.giftsCatalog : (shopConfig?.paymentGifts || []), [shopConfig]);
-  
-  // 5. Tiền cọc thực tế (Chặn trần nếu tổng đơn nhỏ hơn tiền cọc cấu hình)
-  const configuredDeposit = Number(shopConfig?.depositAmount || shopConfig?.deposit_amount) || 50000;
+  const configuredDeposit = resolveDepositAmount(liveConfig);
   const depositAmount = Math.min(configuredDeposit, activeFinalTotal);
 
   useEffect(() => {
-    if (customerHistory?.hasBombedHistory) {
+    if (customerHistory?.hasBombedHistory && !customerHistory?.isPardoned) {
       if (paymentMethod !== 'full_qr') setPaymentMethod('full_qr');
-    } else if (customerHistory?.isFrequentCanceller && paymentMethod === 'cod') {
+    } else if (customerHistory?.isFrequentCanceller && !customerHistory?.isPardoned && paymentMethod === 'cod') {
       setPaymentMethod('deposit');
     }
   }, [customerHistory, paymentMethod]);
@@ -443,7 +604,7 @@ export default function CheckoutPage({
     if (eligibleOldOrderVoucher) {
       const isAlreadyApplied = appliedVouchers.some((v) => v.code === eligibleOldOrderVoucher.code);
       if (!isAlreadyApplied) {
-        const rate = Number(shopConfig?.loyaltyDiscountPercent) || 10;
+        const rate = Number(liveConfig?.loyaltyDiscountPercent) || 10;
         return { 
           isLoyalty: true, 
           code: eligibleOldOrderVoucher.code, 
@@ -470,7 +631,7 @@ export default function CheckoutPage({
     eligibleOldOrderVoucher, 
     appliedVouchers, 
     isWelcomeCodeApplied,
-    shopConfig?.loyaltyDiscountPercent
+    liveConfig?.loyaltyDiscountPercent
   ]);
 
   const applySpecificCode = async (codeToApply) => {
@@ -501,64 +662,23 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  // -------------------------------------------------------------
-  // LẮNG NGHE REALTIME & POLLING XÁC NHẬN CHUYỂN KHOẢN NGÂN HÀNG
-  // -------------------------------------------------------------
-  useEffect(() => {
-    if (paymentMethod === 'cod' || isPaymentVerified || !orderCode) return;
-
-    const paymentChannel = supabase
-      .channel(`payment-check:${orderCode}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `code=eq.${orderCode}`
-        },
-        (payload) => {
-          const updated = payload.new;
-          const status = normalizeOrderStatus(updated?.status);
-          if (status === ORDER_STATUS.CONFIRMED || status === ORDER_STATUS.PACKING) {
-            setIsPaymentVerified(true);
-            setVerifiedAmount(Number(updated.deposit_paid || updated.total || depositAmount));
-          }
-        }
-      )
-      .subscribe();
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data } = await supabase.functions.invoke('check-payment', {
-          body: { orderCode }
-        });
-
-        if (data?.paid) {
-          setIsPaymentVerified(true);
-          setVerifiedAmount(Number(data.amount || depositAmount));
-          clearInterval(pollInterval);
-        }
-      } catch (err) {
-        // Bỏ qua lỗi polling tạm thời
-      }
-    }, 4000);
-
-    return () => {
-      supabase.removeChannel(paymentChannel);
-      clearInterval(pollInterval);
-    };
-  }, [orderCode, paymentMethod, isPaymentVerified, depositAmount]);
-
-  // -------------------------------------------------------------
-  // XỬ LÝ ĐẶT HÀNG
-  // -------------------------------------------------------------
-  const processCheckoutSubmission = useCallback(async (overrides = {}) => {
+  // QUY TRÌNH DUYỆT THỦ CÔNG: ĐƠN HÀNG LUÔN KHỞI TẠO PENDING CHỜ ADMIN KIỂM TRA SỔ SÁCH
+  const processCheckoutSubmission = useCallback(async () => {
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
+    
+    // Kiểm tra cờ is_active từ bảng gifts
+    const isGiftInStock = chosenGiftObj && chosenGiftObj.is_active !== false && chosenGiftObj.inStock !== false;
+    const isGiftApplicable = isPaymentGiftsEnabled && paymentMethod !== 'cod' && isGiftInStock;
+    const giftTitleToSave = isGiftApplicable 
+      ? (chosenGiftObj?.title || chosenGiftObj?.name || '') 
+      : 'Không áp dụng (COD / Hết quà)';
+
     const previousOrderCodeUsed = appliedVouchers.find((v) => v.isLoyalty || v.isPreviousOrder)?.code || '';
 
-    const isPrepaid = overrides.isPaymentVerified ?? isPaymentVerified;
-    const initialStatus = isPrepaid ? ORDER_STATUS.CONFIRMED : ORDER_STATUS.PENDING;
+    const currentDepositExpected = paymentMethod === 'deposit' ? depositAmount : (paymentMethod === 'full_qr' ? activeFinalTotal : 0);
+    const currentRemainingCod = paymentMethod === 'deposit' 
+      ? Math.max(0, activeFinalTotal - currentDepositExpected) 
+      : (paymentMethod === 'cod' ? activeFinalTotal : 0);
 
     const orderPayload = {
       code: orderCode,
@@ -572,10 +692,14 @@ export default function CheckoutPage({
       address: shippingAddress.trim(),
       payment_method: paymentMethod,
       paymentMethod,
-      payment_verified: isPrepaid,
-      paymentVerified: isPrepaid,
-      deposit_paid: isPrepaid ? (overrides.verifiedAmount ?? verifiedAmount ?? depositAmount) : 0,
-      giftTitle: paymentMethod !== 'cod' ? (chosenGiftObj?.title || '') : 'Không áp dụng (COD)',
+      payment_verified: false,
+      paymentVerified: false,
+      
+      deposit_amount_expected: currentDepositExpected,
+      deposit_paid: 0,
+      remaining_cod: currentRemainingCod,
+      giftTitle: giftTitleToSave,
+      payment_gift: isGiftApplicable ? giftTitleToSave : null,
 
       subtotal: activeSubtotal,
       shipping_fee: shippingFee,
@@ -592,7 +716,7 @@ export default function CheckoutPage({
       used_previous_order_code: previousOrderCodeUsed,
       appliedVouchers,
       cart: activeCart,
-      status: initialStatus
+      status: ORDER_STATUS.PENDING
     };
 
     try {
@@ -608,14 +732,13 @@ export default function CheckoutPage({
   }, [
     paymentGifts,
     selectedGiftId,
+    isPaymentGiftsEnabled,
     appliedVouchers,
-    isPaymentVerified,
     orderCode,
     customer,
     cleanPhone,
     shippingAddress,
     paymentMethod,
-    verifiedAmount,
     depositAmount,
     activeSubtotal,
     shippingFee,
@@ -636,7 +759,7 @@ export default function CheckoutPage({
     setFormErrors({ name: nameErr, phone: phoneErr, email: emailErr, address: addressErr });
     if (nameErr || phoneErr || emailErr || addressErr) return;
 
-    if (customerHistory?.hasBombedHistory && paymentMethod !== 'full_qr') {
+    if (customerHistory?.hasBombedHistory && !customerHistory?.isPardoned && paymentMethod !== 'full_qr') {
       alert('Đơn hàng này cần thanh toán chuyển khoản 100% trước khi nhà vườn cắt hái!');
       setPaymentMethod('full_qr');
       return;
@@ -717,7 +840,6 @@ export default function CheckoutPage({
           </div>
         </div>
 
-        {/* THÔNG BÁO CẬP NHẬT GIÁ REALTIME NẾU CÓ THAY ĐỔI */}
         {priceChangeNotice && (
           <div className="bg-amber-50 border-b border-amber-200 p-3 px-6 flex items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
             <div className="flex items-center gap-2">
@@ -743,11 +865,12 @@ export default function CheckoutPage({
                 onUpdateQuantity={onUpdateQuantity}
                 onRemoveItem={onRemoveItem}
               />
-              {paymentMethod !== 'cod' && (
+              {paymentMethod !== 'cod' && isPaymentGiftsEnabled && (
                 <PaymentGiftSelector 
                   paymentGifts={paymentGifts} 
                   selectedGiftId={selectedGiftId} 
                   onSelectGift={setSelectedGiftId} 
+                  isEnabled={isPaymentGiftsEnabled}
                 />
               )}
               <CustomerInfoForm
@@ -767,7 +890,11 @@ export default function CheckoutPage({
                 onApplySpecificCode={applySpecificCode}
               />
             </div>
-            <ShippingPolicyCard shouldShowFullPolicy={activeCart.length <= 2} hotline={shopConfig?.hotline} />
+            <ShippingPolicyCard 
+              shouldShowFullPolicy={activeCart.length <= 2} 
+              hotline={liveConfig?.hotline} 
+              shopConfig={liveConfig}
+            />
           </div>
 
           <div className="lg:col-span-5 bg-stone-50/90 rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-xs flex flex-col justify-between gap-4 h-full">
@@ -797,13 +924,11 @@ export default function CheckoutPage({
                   depositAmount={depositAmount}
                   finalTotalAmount={activeFinalTotal}
                   orderCode={orderCode}
-                  bankBin={shopConfig?.bankBin || '970422'}
-                  bankName={shopConfig?.bankName || 'MB'}
-                  accountNo={shopConfig?.accountNo || '0848957345'}
-                  accountName={shopConfig?.accountName || 'TO THANH TAM'}
+                  bankBin={bankConfig.bankBin}
+                  bankName={bankConfig.bankName}
+                  accountNo={bankConfig.accountNo}
+                  accountName={bankConfig.accountName}
                   cleanPhone={cleanPhone}
-                  isPaymentVerified={isPaymentVerified}
-                  verifiedAmount={verifiedAmount}
                 />
               )}
             </div>
@@ -816,7 +941,6 @@ export default function CheckoutPage({
               paymentMethod={paymentMethod}
               depositAmount={depositAmount}
               isSubmitting={isSubmittingOrder}
-              isPaymentVerified={isPaymentVerified}
             />
           </div>
         </form>

@@ -9,7 +9,6 @@ export function parseCleanMoney(val) {
   const cleanDigits = str.replace(/[^0-9]/g, '');
   if (!cleanDigits) return 0;
 
-  // Xử lý trường hợp chuỗi số bị lặp gấp đôi (legacy cache)
   const len = cleanDigits.length;
   if (len >= 12 && len % 2 === 0) {
     const half1 = cleanDigits.slice(0, len / 2);
@@ -29,7 +28,6 @@ export function parseOrderDate(dateStr) {
   
   let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
   
-  // Format DD/MM/YYYY
   if (str.includes('/')) {
     const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if (match) {
@@ -39,7 +37,6 @@ export function parseOrderDate(dateStr) {
     }
   }
   
-  // Format chuẩn ISO từ PostgreSQL Supabase (2026-10-22T05:00:00Z)
   const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -50,7 +47,6 @@ export function parseOrderTimestamp(dateStr) {
   
   let str = String(dateStr).trim().replace(/\s*\(.*?\)\s*/g, '');
   
-  // Format DD/MM/YYYY HH:mm:ss
   if (str.includes('/')) {
     const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{1,2}):(\d{1,2}))?/);
     if (match) {
@@ -63,22 +59,19 @@ export function parseOrderTimestamp(dateStr) {
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
 
-/**
- * Kiểm tra trạng thái xấu chỉ dựa vào ORDER_STATUS
- */
 export function isBadStatus(statusStr) {
   const normalized = normalizeOrderStatus(statusStr);
   return normalized === ORDER_STATUS.CANCELLED || normalized === ORDER_STATUS.BOMBED;
 }
 
 /**
- * XÂY DỰNG TỪ ĐIỂN LỊCH SỬ RỦI RO & GẮN CỜ KHÁCH HÀNG (CUSTOMER TAGGING ENGINE)
- * Phân loại: VIP/Khách quen, Đang treo bom, Hay báo hủy, Đã hoàn lương
+ * XÂY DỰNG TỪ ĐIỂN LỊCH SỬ RỦI RO (TWO-PASS SCANNING)
+ * Tự động gỡ án "Treo bom" cho toàn bộ các đơn chuyển khoản trước đó khi đã có 1 đơn thành công xuất hiện
  */
 export function buildCustomerProfileMap(orders = []) {
   const map = new Map();
   
-  // 1. Gom nhóm các đơn theo 9 số cuối của SĐT để tránh lệch đầu 0 hoặc +84
+  // Gom nhóm theo 9 số cuối SĐT
   orders.forEach((ord) => {
     const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');
     if (cleanP.length >= 8) {
@@ -91,102 +84,149 @@ export function buildCustomerProfileMap(orders = []) {
   const profileMap = new Map();
   
   map.forEach((orderList, key) => {
-    // Sắp xếp đơn từ mới nhất -> cũ nhất
-    const sorted = [...orderList].sort((a, b) => {
-      const timeB = parseOrderTimestamp(b.created_at || b.createdAt);
+    // Sắp xếp tăng dần theo thời gian (cũ -> mới)
+    const chronological = [...orderList].sort((a, b) => {
       const timeA = parseOrderTimestamp(a.created_at || a.createdAt);
-      return timeB - timeA;
+      const timeB = parseOrderTimestamp(b.created_at || b.createdAt);
+      return timeA - timeB;
     });
-    
-    sorted.forEach((currentOrd, index) => {
-      // Chỉ xét các đơn CŨ HƠN đơn hiện tại (chống việc đơn hiện tại tự gắn cờ chính nó)
-      const olderOrders = sorted.slice(index + 1);
 
-      const latestOlder = olderOrders[0];
-      const isLatestSuccess = latestOlder && normalizeOrderStatus(latestOlder.status) === ORDER_STATUS.COMPLETED;
+    // -------------------------------------------------------------
+    // PASS 1: TÌM ĐƠN BOM GẦN NHẤT & ĐƠN THÀNH CÔNG ĐẦU TIÊN SAU ĐƠN BOM ĐÓ
+    // -------------------------------------------------------------
+    let lastBombedIndex = -1;
+    let firstSuccessAfterBombIndex = -1;
 
-      // Đơn bom hàng (loại trừ trường hợp khách đã chuyển khoản 100%)
-      const bombedOrders = olderOrders.filter((ord) => {
-        const norm = normalizeOrderStatus(ord.status);
-        const paymentMethod = String(ord.payment_method || ord.paymentMethod || '').toLowerCase();
-        const isPrepaid100 = paymentMethod.includes('100%') || paymentMethod === 'full_qr';
-        return norm === ORDER_STATUS.BOMBED && !isPrepaid100;
-      });
+    for (let i = chronological.length - 1; i >= 0; i--) {
+      const st = normalizeOrderStatus(chronological[i].status);
+      const pm = String(chronological[i].payment_method || chronological[i].paymentMethod || '').toLowerCase();
+      const isPrepaid100 = pm.includes('100%') || pm === 'full_qr';
 
-      // Đơn đã hủy trong quá khứ
-      const cancelledOrders = olderOrders.filter((ord) => {
-        const norm = normalizeOrderStatus(ord.status);
-        return norm === ORDER_STATUS.CANCELLED;
-      });
+      if (st === ORDER_STATUS.BOMBED && !isPrepaid100) {
+        lastBombedIndex = i;
+        break; // Lấy đơn bom mới nhất
+      }
+    }
 
-      // Đơn đã hoàn thành (nhận hàng thành công)
-      const completedOrders = olderOrders.filter((ord) => {
-        const norm = normalizeOrderStatus(ord.status);
-        return norm === ORDER_STATUS.COMPLETED;
-      });
+    if (lastBombedIndex !== -1) {
+      // Tìm đơn thành công đầu tiên sau đơn bom
+      for (let i = lastBombedIndex + 1; i < chronological.length; i++) {
+        const st = normalizeOrderStatus(chronological[i].status);
+        if (st === ORDER_STATUS.COMPLETED) {
+          firstSuccessAfterBombIndex = i;
+          break; // Chỉ lấy đơn thành công đầu tiên
+        }
+      }
+    }
 
-      // Trạng thái đã khôi phục uy tín (Pardoned)
-      const hasBadHistory = bombedOrders.length > 0 || cancelledOrders.length > 0;
-      const isPardoned = isLatestSuccess && hasBadHistory;
+    const lastBombedOrder = lastBombedIndex !== -1 ? chronological[lastBombedIndex] : null;
+    const hasPardonedSuccess = firstSuccessAfterBombIndex !== -1;
 
-      const hasActiveBombedRisk = !isPardoned && bombedOrders.length > 0;
-      const hasActiveCancelledRisk = !isPardoned && cancelledOrders.length >= 2;
-      const isVipCustomer = completedOrders.length >= 2;
+    // -------------------------------------------------------------
+    // PASS 2: GẮN NHÃN TỪNG ĐƠN HÀNG DỰA TRÊN MỐC GIẢI ÁN
+    // -------------------------------------------------------------
+    let completedCount = 0;
 
-      // Xác định đơn lỗi gần nhất để hiển thị tham chiếu
-      const primaryBadOrder = bombedOrders[0] || cancelledOrders[0] || null;
+    chronological.forEach((ord, index) => {
+      const currentStatus = normalizeOrderStatus(ord.status);
+      const isCompleted = currentStatus === ORDER_STATUS.COMPLETED;
+      if (isCompleted) completedCount += 1;
 
+      let hasActiveBombedRisk = false;
+      let isPardoned = false;
+      let isClearedPreSuccess = false; // Đơn nằm giữa đơn bom và đơn thành công
+      let isWatchlist = false;         // Đơn phát sinh sau đơn thành công
+
+      let primaryBadOrder = null;
+
+      if (lastBombedOrder) {
+        if (index <= lastBombedIndex) {
+          // Các đơn diễn ra TRƯỚC hoặc CHÍNH LÀ đơn bom: Không gắn cờ bom tương lai
+          primaryBadOrder = null;
+        } else if (!hasPardonedSuccess) {
+          // CHƯA CÓ ĐƠN THÀNH CÔNG NÀO: Tất cả đơn sau bom đều bị treo án
+          hasActiveBombedRisk = true;
+          primaryBadOrder = lastBombedOrder;
+        } else {
+          // 👉 ĐÃ CÓ ĐƠN THÀNH CÔNG GIẢI ÁN (firstSuccessAfterBombIndex)
+          if (index < firstSuccessAfterBombIndex) {
+            // CÁC ĐƠN NẰM GIỮA ĐƠN BOM VÀ ĐƠN THÀNH CÔNG (Đơn 1, Đơn 2 trong câu hỏi của bạn)
+            // Được HỒI TỐ GỠ ÁN, không còn bị coi là "Đang treo bom"
+            isClearedPreSuccess = true;
+            hasActiveBombedRisk = false;
+            primaryBadOrder = lastBombedOrder; // Vẫn lưu vết để biết lý do vì sao bắt CK
+          } else if (index === firstSuccessAfterBombIndex) {
+            // CHÍNH LÀ ĐƠN THÀNH CÔNG ĐẦU TIÊN (Đơn 3)
+            isPardoned = true;
+            hasActiveBombedRisk = false;
+            primaryBadOrder = lastBombedOrder;
+          } else {
+            // CÁC ĐƠN PHÁT SINH SAU ĐƠN THÀNH CÔNG: Vào diện theo dõi nhẹ (Watchlist)
+            isWatchlist = true;
+            hasActiveBombedRisk = false;
+            primaryBadOrder = lastBombedOrder;
+          }
+        }
+      }
+
+      // Lấy lý do bom
       let reason = '';
       if (primaryBadOrder) {
         let rawReason = primaryBadOrder.cancel_reason || primaryBadOrder.cancelReason || primaryBadOrder.reason || '';
         const orderNote = primaryBadOrder.customer_note || primaryBadOrder.note || '';
-        
         if (!rawReason && orderNote) {
           const matchNote = String(orderNote).match(/\[(BOM HÀNG|LÝ DO HỦY):\s*([^\]]+)\]/i);
           rawReason = matchNote ? matchNote[2] : orderNote;
         }
-        reason = rawReason || (normalizeOrderStatus(primaryBadOrder.status) === ORDER_STATUS.BOMBED ? 'Không nhận hàng / Thuê bao chặn số' : 'Khách xin hủy đơn');
+        reason = rawReason || 'Thuê bao không liên lạc được / Chặn số';
       }
 
-      // Xây dựng thẻ Tag định danh nhanh
+      // Xây dựng thẻ Tag hiển thị
       let customerTag = null;
       if (hasActiveBombedRisk) {
         customerTag = {
           type: 'danger',
           label: 'Đang treo bom',
-          badgeClass: 'bg-rose-100 text-rose-800 border-rose-300 font-bold',
-          tooltip: 'Khách từng bom đơn trước đó. Tuyệt đối không gửi COD!'
+          badgeClass: 'bg-rose-600 text-white border-rose-700 animate-pulse font-bold',
+          tooltip: `Khách từng bom đơn #${primaryBadOrder?.code}. Bắt buộc chuyển khoản 100%!`
         };
       } else if (isPardoned) {
         customerTag = {
           type: 'pardoned',
           label: 'Đã hoàn lương',
           badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
-          tooltip: 'Từng có sự cố đơn cũ nhưng đơn gần nhất đã nhận hàng thành công.'
+          tooltip: `Đơn này nhận thành công, giải án cho đơn bom #${primaryBadOrder?.code}.`
         };
-      } else if (isVipCustomer) {
+      } else if (isClearedPreSuccess) {
+        customerTag = {
+          type: 'cleared',
+          label: 'Đã giải án (Chờ nhận)',
+          badgeClass: 'bg-blue-100 text-blue-900 border-blue-200 font-bold',
+          tooltip: `Khách đã hoàn thành đơn #${chronological[firstSuccessAfterBombIndex]?.code}, đơn này được cởi trói án bom.`
+        };
+      } else if (isWatchlist) {
+        customerTag = {
+          type: 'watchlist',
+          label: `Từng bom • Đã nhận ${completedCount} đơn`,
+          badgeClass: 'bg-amber-100 text-amber-950 border-amber-300 font-bold',
+          tooltip: `Khách từng bom đơn #${primaryBadOrder?.code}. Đã nhận ${completedCount} đơn. Cần gọi xác nhận kỹ trước khi cắt hàng.`
+        };
+      } else if (completedCount >= 2) {
         customerTag = {
           type: 'vip',
-          label: `Khách quen (${completedOrders.length} đơn)`,
-          badgeClass: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-          tooltip: `Đã hoàn thành ${completedOrders.length} đơn hàng trước đó.`
-        };
-      } else if (hasActiveCancelledRisk) {
-        customerTag = {
-          type: 'warning',
-          label: `Hủy ${cancelledOrders.length} lần`,
-          badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
-          tooltip: `Khách từng xin hủy ${cancelledOrders.length} đơn trong quá khứ.`
+          label: `Khách quen (${completedCount} đơn)`,
+          badgeClass: 'bg-stone-100 text-stone-800 border-stone-300 font-bold',
+          tooltip: `Đã hoàn thành ${completedCount} đơn hàng thuận lợi.`
         };
       }
 
-      const orderKey = currentOrd.code || currentOrd.orderId;
+      const orderKey = ord.code || ord.orderId;
       profileMap.set(`${key}_${orderKey}`, {
         isPardoned,
+        isClearedPreSuccess,
+        isWatchlist,
         hasActiveBombedRisk,
-        hasActiveCancelledRisk,
-        isVipCustomer,
-        completedCount: completedOrders.length,
+        completedCount,
         primaryBadOrder,
         badOrderReason: reason,
         customerTag
@@ -197,9 +237,6 @@ export function buildCustomerProfileMap(orders = []) {
   return profileMap;
 }
 
-/**
- * Helper lấy nhanh thẻ tag của một đơn hàng cụ thể
- */
 export function getOrderCustomerTag(ord, profileMap) {
   if (!ord || !profileMap) return null;
   const cleanP = String(ord.phone || ord.customer?.phone || '').replace(/\D/g, '');

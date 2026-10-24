@@ -85,7 +85,7 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn">
+        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn font-sans">
           <div className="p-2 border-b border-stone-100 bg-stone-50/60 flex items-center gap-1.5">
             <Search className="w-3.5 h-3.5 text-stone-400 shrink-0 ml-1" />
             <input
@@ -108,7 +108,7 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
             )}
           </div>
 
-          <ul className="max-h-52 overflow-y-auto text-xs divide-y divide-stone-50 p-1">
+          <ul className="max-h-52 overflow-y-auto text-xs divide-y divide-stone-50 p-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => {
                 const isSelected = opt === value;
@@ -147,14 +147,14 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
 }
 
 export default function AddressField({ value = '', onChange, error = '' }) {
-  // Nếu có địa chỉ truyền vào từ trước -> mở thẳng tab manual để không đè dữ liệu
-  const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'gps'));
+  // Mode: 'manual' (mặc định nếu đã có địa chỉ) hoặc 'gps'
+  const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'manual'));
 
   const provinces = useMemo(() => Object.keys(administrativeData), []);
   const defaultProv = useMemo(() => {
     return provinces.find((p) => p.includes('Hồ Chí Minh')) || 
+           provinces.find((p) => p.includes('Ninh Thuận')) || 
            provinces.find((p) => p.includes('Khánh Hòa')) || 
-           provinces.find((p) => p.includes('Đồng Nai')) || 
            provinces[0] || '';
   }, [provinces]);
 
@@ -178,7 +178,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
     return [];
   }, [selectedProvince]);
 
-  const [selectedWard, setSelectedWard] = useState(() => wards[0] || '');
+  const [selectedWard, setSelectedWard] = useState('');
   const [detailAddress, setDetailAddress] = useState('');
   const [detailTouched, setDetailTouched] = useState(false);
   const [autoDetectedText, setAutoDetectedText] = useState('');
@@ -186,14 +186,54 @@ export default function AddressField({ value = '', onChange, error = '' }) {
   const [locationError, setLocationError] = useState('');
 
   const lastEmittedValue = useRef('');
+  const isInitialParsed = useRef(false);
 
-  // Tự động phân rã nếu value ban đầu được truyền vào
+  // Phân tách địa chỉ thông minh khi có `value` truyền vào từ đầu
   useEffect(() => {
-    if (value && value !== lastEmittedValue.current && !detailAddress) {
-      setDetailAddress(value);
+    if (value && !isInitialParsed.current && provinces.length > 0) {
+      isInitialParsed.current = true;
       lastEmittedValue.current = value;
+
+      const parts = value.split(',').map((p) => p.trim()).filter(Boolean);
+      if (parts.length >= 3) {
+        // Dự kiến: [Số nhà tên đường, Phường/Xã, Quận/Huyện?, Tỉnh/Thành]
+        const rawProv = parts[parts.length - 1];
+        const matchedProv = provinces.find((p) => 
+          cleanAdministrativeName(p).includes(cleanAdministrativeName(rawProv)) ||
+          cleanAdministrativeName(rawProv).includes(cleanAdministrativeName(p))
+        );
+
+        if (matchedProv) {
+          setSelectedProvince(matchedProv);
+          const provWardsData = administrativeData[matchedProv];
+          let targetWards = [];
+          if (Array.isArray(provWardsData)) targetWards = provWardsData;
+          else if (typeof provWardsData === 'object') {
+            Object.values(provWardsData).forEach((item) => {
+              if (Array.isArray(item)) targetWards.push(...item);
+              else if (typeof item === 'string') targetWards.push(item);
+            });
+          }
+
+          // Tìm ward ở vị trí áp chót
+          const rawWard = parts[parts.length - 2];
+          const matchedWard = targetWards.find((w) =>
+            cleanAdministrativeName(w).includes(cleanAdministrativeName(rawWard)) ||
+            cleanAdministrativeName(rawWard).includes(cleanAdministrativeName(w))
+          );
+
+          if (matchedWard) {
+            setSelectedWard(matchedWard);
+            setDetailAddress(parts.slice(0, parts.length - 2).join(', '));
+            return;
+          }
+        }
+      }
+
+      // Fallback nếu không khớp regex: gán nguyên địa chỉ vào ô chi tiết
+      setDetailAddress(value);
     }
-  }, [value]);
+  }, [value, provinces]);
 
   // Cập nhật selectedWard khi danh sách wards thay đổi
   useEffect(() => {
@@ -208,7 +248,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
   // Kiểm tra tính hợp lệ của địa chỉ chi tiết
   const isDetailEmpty = !detailAddress.trim();
-  const isDetailTooShort = detailAddress.trim().length > 0 && detailAddress.trim().length < 5;
+  const isDetailTooShort = detailAddress.trim().length > 0 && detailAddress.trim().length < 4;
   const showDetailError = detailTouched && (isDetailEmpty || isDetailTooShort);
 
   // Đồng bộ giá trị trả về cho Checkout Form
@@ -217,16 +257,15 @@ export default function AddressField({ value = '', onChange, error = '' }) {
     if (inputMode === 'gps' && autoDetectedText) {
       full = autoDetectedText;
     } else if (inputMode === 'manual') {
-      // Chỉ phát ra địa chỉ hoàn chỉnh khi ĐÃ ĐIỀN ĐỊA CHỈ CHI TIẾT
       const cleanDetail = detailAddress.trim();
-      if (cleanDetail.length >= 4) {
+      if (cleanDetail.length >= 4 && selectedWard && selectedProvince) {
         full = [
           cleanDetail,
           selectedWard,
           selectedProvince
         ].filter(Boolean).join(', ');
       } else {
-        full = ''; // Chặn không cho tạo đơn nếu thiếu số nhà/tên đường
+        full = '';
       }
     }
 
@@ -337,19 +376,6 @@ export default function AddressField({ value = '', onChange, error = '' }) {
       <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100/90 rounded-2xl border border-stone-200">
         <button
           type="button"
-          onClick={() => setInputMode('gps')}
-          className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-            inputMode === 'gps'
-              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/60'
-              : 'text-stone-500 hover:text-stone-800'
-          }`}
-        >
-          <Navigation className={`w-3.5 h-3.5 ${inputMode === 'gps' ? 'text-amber-600 fill-amber-600/20' : 'text-stone-400'}`} />
-          <span>1. Lấy vị trí GPS</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setInputMode('manual')}
           className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
             inputMode === 'manual'
@@ -358,11 +384,87 @@ export default function AddressField({ value = '', onChange, error = '' }) {
           }`}
         >
           <Edit3 className={`w-3.5 h-3.5 ${inputMode === 'manual' ? 'text-amber-600' : 'text-stone-400'}`} />
-          <span>2. Tự chọn / Nhập tay</span>
+          <span>1. Tự chọn / Nhập tay</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setInputMode('gps')}
+          className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            inputMode === 'gps'
+              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/60'
+              : 'text-stone-500 hover:text-stone-800'
+          }`}
+        >
+          <Navigation className={`w-3.5 h-3.5 ${inputMode === 'gps' ? 'text-amber-600 fill-amber-600/20' : 'text-stone-400'}`} />
+          <span>2. Lấy vị trí GPS</span>
         </button>
       </div>
 
-      {/* KHỐI 1: LẤY VỊ TRÍ TỰ ĐỘNG BẰNG GPS */}
+      {/* KHỐI 1: TỰ NHẬP THỦ CÔNG (ĐẶT LÊN ĐẦU ĐỂ TỐI ƯU UX) */}
+      {inputMode === 'manual' && (
+        <div className="space-y-2.5 animate-fadeIn">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <SearchableSelect
+              label="Tỉnh / Thành phố *"
+              value={selectedProvince}
+              options={provinces}
+              placeholder="Chọn tỉnh / thành phố"
+              onSelect={(prov) => setSelectedProvince(prov)}
+            />
+
+            <SearchableSelect
+              label="Phường / Xã / Thị trấn *"
+              value={selectedWard}
+              options={wards}
+              placeholder={wards.length > 0 ? "Chọn phường / xã" : "(Chọn tỉnh trước)"}
+              disabled={wards.length === 0}
+              onSelect={(ward) => setSelectedWard(ward)}
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-stone-600 block mb-1">
+              Địa chỉ chi tiết / Điểm gửi xe <span className="text-rose-500 font-bold">*</span>
+            </label>
+            <div className="relative">
+              <MapPin className={`w-4 h-4 absolute left-3 top-3 transition-colors ${
+                showDetailError ? 'text-rose-500' : 'text-stone-400'
+              }`} />
+              <input
+                type="text"
+                required
+                placeholder="Số nhà, ngõ/hẻm, tên đường hoặc Bến xe / Nhà xe nhận hàng..."
+                value={detailAddress}
+                onBlur={() => setDetailTouched(true)}
+                onChange={(e) => {
+                  setDetailAddress(e.target.value);
+                  if (!detailTouched) setDetailTouched(true);
+                }}
+                className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border font-medium transition-all shadow-2xs focus:outline-none ${
+                  showDetailError
+                    ? 'border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-500 ring-2 ring-rose-500/10'
+                    : 'border-stone-200 bg-white text-stone-800 focus:border-amber-600 ring-2 ring-amber-500/10'
+                }`}
+              />
+            </div>
+
+            {/* Thông báo lỗi yêu cầu điền cụ thể */}
+            {showDetailError && (
+              <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1 animate-fadeIn">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {isDetailEmpty
+                    ? 'Bắt buộc điền số nhà, tên đường hoặc bến xe để gửi hàng.'
+                    : 'Địa chỉ quá ngắn, vui lòng nhập rõ ràng hơn (tối thiểu 4 ký tự).'}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* KHỐI 2: LẤY VỊ TRÍ TỰ ĐỘNG BẰNG GPS */}
       {inputMode === 'gps' && (
         <div className="space-y-2.5 animate-fadeIn">
           {!autoDetectedText ? (
@@ -438,69 +540,6 @@ export default function AddressField({ value = '', onChange, error = '' }) {
               <span>{locationError}</span>
             </div>
           )}
-        </div>
-      )}
-
-      {/* KHỐI 2: TỰ NHẬP THỦ CÔNG */}
-      {inputMode === 'manual' && (
-        <div className="space-y-2.5 animate-fadeIn">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <SearchableSelect
-              label="Tỉnh / Thành phố *"
-              value={selectedProvince}
-              options={provinces}
-              placeholder="Chọn tỉnh / thành phố"
-              onSelect={(prov) => setSelectedProvince(prov)}
-            />
-
-            <SearchableSelect
-              label="Phường / Xã / Thị trấn *"
-              value={selectedWard}
-              options={wards}
-              placeholder={wards.length > 0 ? "Chọn phường / xã" : "(Chọn tỉnh trước)"}
-              disabled={wards.length === 0}
-              onSelect={(ward) => setSelectedWard(ward)}
-            />
-          </div>
-
-          <div>
-            <label className="text-[11px] font-semibold text-stone-600 block mb-1">
-              Địa chỉ chi tiết / Điểm gửi xe <span className="text-rose-500 font-bold">*</span>
-            </label>
-            <div className="relative">
-              <MapPin className={`w-4 h-4 absolute left-3 top-3 transition-colors ${
-                showDetailError ? 'text-rose-500' : 'text-stone-400'
-              }`} />
-              <input
-                type="text"
-                required
-                placeholder="Số nhà, ngõ/hẻm, tên đường hoặc Bến xe / Nhà xe nhận hàng..."
-                value={detailAddress}
-                onBlur={() => setDetailTouched(true)}
-                onChange={(e) => {
-                  setDetailAddress(e.target.value);
-                  if (!detailTouched) setDetailTouched(true);
-                }}
-                className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border font-medium transition-all shadow-2xs focus:outline-none ${
-                  showDetailError
-                    ? 'border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-500 ring-2 ring-rose-500/10'
-                    : 'border-stone-200 bg-white text-stone-800 focus:border-amber-600 ring-2 ring-amber-500/10'
-                }`}
-              />
-            </div>
-
-            {/* Thông báo lỗi yêu cầu điền cụ thể */}
-            {showDetailError && (
-              <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1 animate-fadeIn">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>
-                  {isDetailEmpty
-                    ? 'Bắt buộc điền số nhà, tên đường hoặc bến xe để gửi hàng.'
-                    : 'Địa chỉ quá ngắn, vui lòng nhập rõ ràng hơn (tối thiểu 5 ký tự).'}
-                </span>
-              </p>
-            )}
-          </div>
         </div>
       )}
 

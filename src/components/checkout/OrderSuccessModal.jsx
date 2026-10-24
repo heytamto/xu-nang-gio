@@ -1,6 +1,7 @@
 // src/components/checkout/OrderSuccessModal.jsx
 import React, { useState, useEffect } from 'react';
-import { Printer, Phone, Truck } from 'lucide-react';
+import { Printer, Phone, Truck, Gift } from 'lucide-react';
+import { resolveDepositAmount } from '../../config/shopConfig';
 
 // Răng cưa siêu nhuyễn 1.8px sắc nét, dùng chung cho cả 2 đầu
 function MicroSawtoothEdge({ position = 'bottom' }) {
@@ -68,7 +69,9 @@ export default function OrderSuccessModal({
     || customer?.phone 
     || 'Chưa cung cấp';
 
-  const hotline = shopConfig?.hotline || '0848957345';
+  const hotline = shopConfig?.hotline || '0848.957.345';
+  const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
+  const tagline = shopConfig?.tagline || 'Đặc sản hái giàn chuẩn đất Ninh Thuận';
 
   const items = (Array.isArray(orderInfo.cart) && orderInfo.cart.length > 0)
     ? orderInfo.cart
@@ -84,19 +87,25 @@ export default function OrderSuccessModal({
   const isFullQr = paymentMethodRaw.includes('100%') || paymentMethodRaw === 'full_qr';
   const isDeposit = !isCod && !isFullQr;
 
-  const configuredDeposit = Number(shopConfig?.depositAmount) || 50000;
-  const depositPaidVal = Number(orderInfo.deposit_paid ?? 0);
+  // Lấy tiền cọc động theo config hoặc snapshot đơn hàng
+  const configuredDeposit = resolveDepositAmount(shopConfig);
+  const targetDepositExpected = Number(orderInfo.deposit_amount_expected || orderInfo.deposit_paid || configuredDeposit);
+  
   const actualDeposit = isFullQr 
     ? finalTotalNum 
-    : (isDeposit ? (depositPaidVal > 0 ? depositPaidVal : Math.min(configuredDeposit, finalTotalNum)) : 0);
+    : (isDeposit ? Math.min(targetDepositExpected, finalTotalNum) : 0);
 
   const remainingCod = isCod ? finalTotalNum : Math.max(0, finalTotalNum - actualDeposit);
 
   const getPaymentLabel = () => {
-    if (isDeposit) return 'Cọc giữ đơn (VietQR)';
+    if (isDeposit) return `Cọc giữ đơn (${actualDeposit.toLocaleString('vi-VN')}đ)`;
     if (isFullQr) return 'Chuyển khoản 100% (VietQR)';
     return 'Thanh toán khi nhận hàng (COD)';
   };
+
+  const giftTitle = orderInfo.giftTitle && orderInfo.giftTitle !== 'Không áp dụng (COD)' 
+    ? orderInfo.giftTitle 
+    : (orderInfo.payment_gift || null);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-stone-950/85 backdrop-blur-md p-4 font-mono select-none overflow-y-auto">
@@ -177,9 +186,9 @@ export default function OrderSuccessModal({
               {/* Header */}
               <div className="text-center border-b border-dashed border-stone-300 pb-2.5 space-y-0.5">
                 <h3 className="font-black text-base uppercase tracking-wider text-amber-950 font-sans">
-                  XỨ NẮNG GIÓ
+                  {brandName}
                 </h3>
-                <p className="text-[10px] text-stone-500 font-sans">Đặc sản hái giàn chuẩn đất Ninh Thuận</p>
+                <p className="text-[10px] text-stone-500 font-sans">{tagline}</p>
                 <p className="text-[9.5px] text-stone-400">Hotline: {hotline}</p>
               </div>
 
@@ -227,7 +236,7 @@ export default function OrderSuccessModal({
                       return (
                         <div key={item.id || idx} className="flex justify-between text-[11px] leading-snug">
                           <span className="truncate pr-2 font-sans">
-                            {item.name} {spec ? `[${spec}]` : ''} <span className="text-stone-500 font-mono">x{qty}</span>
+                            {item.name || item.title} {spec ? `[${spec}]` : ''} <span className="text-stone-500 font-mono">x{qty}</span>
                           </span>
                           <span className="font-bold shrink-0 font-mono">
                             {(price * qty).toLocaleString('vi-VN')}đ
@@ -241,6 +250,13 @@ export default function OrderSuccessModal({
                     </div>
                   )}
                 </div>
+
+                {giftTitle && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/80 font-sans font-medium mt-1">
+                    <Gift className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <span className="truncate">Tặng kèm: {giftTitle}</span>
+                  </div>
+                )}
               </div>
 
               {/* Tổng tiền & Chi tiết thanh toán */}

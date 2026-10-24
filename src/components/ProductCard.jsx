@@ -77,17 +77,14 @@ export default function ProductCard({ product, onAddToCart }) {
   const isOutOfStock = product?.inStock === false || product?.in_stock === false;
   const productImage = product?.image || product?.image_url || "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
   const productDesc = product?.desc || product?.description || '';
-  const campaignTag = product?.campaign_tag || product?.campaign_gift_title || null;
+  const campaignTag = product?.campaign_tag || product?.campaign_gift_title || product?.campaignGiftTitle || null;
 
   const activeWeight = selectedWeight || defaultWeight || { id: 'std', label: 'Tiêu chuẩn', multiplier: 1 };
   const base = Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0);
   const multiplier = Number(activeWeight.multiplier) || 1;
   const priceBonus = selectedFlavor?.priceBonus || 0;
 
-  // 3. Cơ chế tính giá phòng thủ:
-  // - Nếu priceOverride >= base * 0.4: là giá độc lập trọn gói hợp lệ.
-  // - Nếu priceOverride nhỏ bất thường (< 10.000đ trong khi base >= 20.000đ): là tiền chênh lệch (priceDiff) -> cộng vào base.
-  // - Ngược lại: tính theo công thức multiplier * base.
+  // 3. Cơ chế tính giá phòng thủ
   const currentPrice = useMemo(() => {
     if (activeWeight.priceOverride != null && activeWeight.priceOverride > 0) {
       if (activeWeight.priceOverride < 10000 && base >= 20000) {
@@ -105,12 +102,14 @@ export default function ProductCard({ product, onAddToCart }) {
     const weightId = activeWeight.id || 'std';
     const flavorStr = selectedFlavor?.label || null;
 
-    // Cart item payload chuẩn hóa
+    // Cart item payload chuẩn hóa đầy đủ trường cho giỏ hàng và Supabase
     const itemToAdd = {
       ...product,
       id: prodId,
       productId: prodId,
+      product_id: prodId,
       weightId: weightId,
+      weight_id: weightId,
       cartItemId: `${prodId}_${weightId}${flavorStr ? `_${flavorStr}` : ''}`,
       name: product?.name || product?.title,
       title: product?.title || product?.name,
@@ -118,10 +117,14 @@ export default function ProductCard({ product, onAddToCart }) {
       base_price: base,
       price: currentPrice,
       image: productImage,
+      image_url: productImage,
       weightLabel: activeWeight.label,
       weight_label: activeWeight.label,
       flavor: flavorStr,
       multiplier: multiplier,
+      // Đảm bảo quà tặng theo món được gửi đầy đủ vào giỏ hàng
+      campaign_gift_title: campaignTag,
+      campaignGiftTitle: campaignTag,
     };
 
     if (onAddToCart) {

@@ -1,18 +1,30 @@
 // src/components/checkout/ShippingPolicyCard.jsx
 import React from 'react';
-import { HeartHandshake, Sparkles, PackageCheck, ShieldCheck, Headphones, BadgeCheck } from 'lucide-react';
+import { HeartHandshake, Sparkles, PackageCheck, ShieldCheck, Headphones, BadgeCheck, Phone } from 'lucide-react';
 
-export default function ShippingPolicyCard({ shouldShowFullPolicy, hotline = '0848.957.345' }) {
+export default function ShippingPolicyCard({ 
+  shouldShowFullPolicy, 
+  hotline = '0848.957.345',
+  shopConfig = {}
+}) {
+  const activeHotline = shopConfig?.hotline || hotline;
+  const cleanPhone = String(activeHotline).replace(/\D/g, '');
+  const announcementText = shopConfig?.announcement || 'Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h';
+
   if (!shouldShowFullPolicy) {
     return (
       <div className="p-3 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/50 rounded-2xl border border-amber-200/80 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs animate-fadeIn font-sans">
         <span className="flex items-center gap-1.5 font-bold text-amber-950 text-xs min-w-0">
           <BadgeCheck className="w-4 h-4 text-amber-700 shrink-0" />
-          <span className="truncate">Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h</span>
+          <span className="truncate">{announcementText}</span>
         </span>
-        <span className="text-[10.5px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md shrink-0">
-          Hotline: {hotline}
-        </span>
+        <a
+          href={`tel:${cleanPhone}`}
+          className="text-[10.5px] font-mono font-bold text-amber-900 bg-amber-100/80 hover:bg-amber-200/90 px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1 transition-colors"
+        >
+          <Phone className="w-3 h-3 text-amber-700" />
+          <span>Hotline: {activeHotline}</span>
+        </a>
       </div>
     );
   }

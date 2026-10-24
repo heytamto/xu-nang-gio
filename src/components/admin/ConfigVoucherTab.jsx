@@ -28,7 +28,6 @@ import { VIETQR_BANKS } from "../../config/shopConfig";
 import { supabase } from "../../supabaseClient";
 import ConfirmModal from "./ConfirmModal";
 
-// COMPONENT DROPDOWN TỰ VIẾT ĐỒNG BỘ THEO FORM MẪU THƯ
 function CustomDropdown({
   label,
   headerLabel = "DANH SÁCH TÙY CHỌN:",
@@ -142,7 +141,6 @@ function CustomDropdown({
   );
 }
 
-// CÁC LỰA CHỌN LOẠI GIẢM VOUCHER
 const VOUCHER_TYPE_OPTIONS = [
   {
     value: "percent",
@@ -182,7 +180,13 @@ export default function ConfigVoucherTab({
     autoSendEmail:
       config.autoSendEmail !== false &&
       String(config.autoSendEmail).toUpperCase() !== "FALSE",
+    enablePaymentGifts:
+      config.enablePaymentGifts !== false &&
+      String(config.enablePaymentGifts).toUpperCase() !== "FALSE",
   }));
+
+  const [giftsList, setGiftsList] = useState([]);
+  const [isLoadingGifts, setIsLoadingGifts] = useState(false);
 
   const [vouchers, setVouchers] = useState([]);
   const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
@@ -216,6 +220,54 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 1. TẢI VÀ LẮNG NGHE REALTIME BẢNG GIFTS
+  const loadGiftsFromDb = useCallback(async () => {
+    setIsLoadingGifts(true);
+    try {
+      const { data, error } = await supabase
+        .from("gifts")
+        .select("*")
+        .order("id", { ascending: true });
+
+      if (error) throw error;
+      if (Array.isArray(data)) {
+        setGiftsList(data);
+      }
+    } catch (err) {
+      console.error("Lỗi tải danh mục quà từ bảng gifts:", err);
+    } finally {
+      setIsLoadingGifts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGiftsFromDb();
+
+    const giftsChannel = supabase
+      .channel("admin-gifts-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "gifts" },
+        (payload) => {
+          if (payload.eventType === "UPDATE") {
+            setGiftsList((prev) =>
+              prev.map((g) => (g.id === payload.new.id ? payload.new : g))
+            );
+          } else if (payload.eventType === "INSERT") {
+            setGiftsList((prev) => [...prev, payload.new]);
+          } else if (payload.eventType === "DELETE") {
+            setGiftsList((prev) => prev.filter((g) => g.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(giftsChannel);
+    };
+  }, [loadGiftsFromDb]);
+
+  // 2. TẢI EMAIL TEMPLATES
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
@@ -236,21 +288,7 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  const mapAndSetVouchers = (rows) => {
-    const formatted = rows.map((v) => ({
-      code: v.code,
-      type: v.type || "percent",
-      value: Number(v.value) || 0,
-      maxDiscount: Number(v.max_discount ?? v.maxDiscount ?? 0),
-      minOrder: Number(v.min_order ?? v.minOrder ?? 0),
-      canStack: v.can_stack ?? v.canStack ?? true,
-      usageLimit: Number(v.usage_limit ?? v.usageLimit ?? 0),
-      usedCount: Number(v.used_count ?? v.usedCount ?? 0),
-      desc: v.description || v.desc || `Ưu đãi mã ${v.code}`,
-    }));
-    setVouchers(formatted);
-  };
-
+  // 3. TẢI VOUCHERS
   const loadVouchersFromDb = useCallback(async () => {
     setIsLoadingVouchers(true);
     try {
@@ -259,14 +297,20 @@ export default function ConfigVoucherTab({
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        const { data: fallbackData, error: err2 } = await supabase
-          .from("vouchers")
-          .select("*");
-        if (err2) throw err2;
-        mapAndSetVouchers(fallbackData || []);
-      } else {
-        mapAndSetVouchers(data || []);
+      if (error) throw error;
+      if (Array.isArray(data)) {
+        const formatted = data.map((v) => ({
+          code: v.code,
+          type: v.type || "percent",
+          value: Number(v.value) || 0,
+          maxDiscount: Number(v.max_discount ?? v.maxDiscount ?? 0),
+          minOrder: Number(v.min_order ?? v.minOrder ?? 0),
+          canStack: v.can_stack ?? v.canStack ?? true,
+          usageLimit: Number(v.usage_limit ?? v.usageLimit ?? 0),
+          usedCount: Number(v.used_count ?? v.usedCount ?? 0),
+          desc: v.description || v.desc || `Ưu đãi mã ${v.code}`,
+        }));
+        setVouchers(formatted);
       }
     } catch (err) {
       console.error("Lỗi tải danh sách vouchers:", err);
@@ -275,6 +319,7 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
+  // 4. TẢI SHOP CONFIGS
   const loadShopConfigsFromDb = useCallback(async () => {
     try {
       const { data, error } = await supabase.from("shop_configs").select("*");
@@ -311,6 +356,13 @@ export default function ConfigVoucherTab({
           }
         });
 
+        const isGiftsActive =
+          merged.enablePaymentGifts !== undefined
+            ? merged.enablePaymentGifts !== false && String(merged.enablePaymentGifts) !== "false"
+            : merged.enableGifts !== undefined
+            ? merged.enableGifts !== false && String(merged.enableGifts) !== "false"
+            : true;
+
         setCfg((prev) => ({
           ...prev,
           bankBin: merged.bankBin || prev.bankBin,
@@ -339,9 +391,9 @@ export default function ConfigVoucherTab({
           loyaltyMaxDiscount:
             merged.loyaltyMaxDiscount ?? prev.loyaltyMaxDiscount,
           autoSendEmail:
-            merged.autoSendEmail !== undefined
-              ? merged.autoSendEmail
-              : prev.autoSendEmail,
+            merged.autoSendEmail !== false &&
+            String(merged.autoSendEmail).toUpperCase() !== "FALSE",
+          enablePaymentGifts: isGiftsActive,
           carrier: merged.carrier || prev.carrier,
         }));
       }
@@ -355,6 +407,31 @@ export default function ConfigVoucherTab({
     loadVouchersFromDb();
     loadShopConfigsFromDb();
   }, [loadTemplatesFromDb, loadVouchersFromDb, loadShopConfigsFromDb]);
+
+  // HÀM BẬT/TẮT TỪNG MÓN: CẬP NHẬT NGAY VÀO SUPABASE
+  const handleToggleGiftStock = async (giftId, currentStatus) => {
+    const nextStatus = !currentStatus;
+
+    setGiftsList((prev) =>
+      prev.map((g) => (g.id === giftId ? { ...g, is_active: nextStatus } : g))
+    );
+
+    try {
+      const { error } = await supabase
+        .from("gifts")
+        .update({ is_active: nextStatus })
+        .eq("id", giftId);
+
+      if (error) throw error;
+      onShowAlert?.(`Đã ${nextStatus ? "bật" : "tắt"} món quà thành công!`);
+    } catch (err) {
+      console.error("Lỗi cập nhật bảng gifts:", err);
+      onShowAlert?.("Lỗi cập nhật trạng thái quà: " + err.message);
+      setGiftsList((prev) =>
+        prev.map((g) => (g.id === giftId ? { ...g, is_active: currentStatus } : g))
+      );
+    }
+  };
 
   const activeTemplate = templates.find((t) => t.id === selectedTemplateId) ||
     templates[0] || {
@@ -714,6 +791,7 @@ export default function ConfigVoucherTab({
             autoSendEmail: cfg.autoSendEmail,
             shippingFee: cfg.shippingFee,
             freeShippingThreshold: cfg.freeShippingThreshold,
+            enablePaymentGifts: cfg.enablePaymentGifts,
           },
           description:
             "Thông tin liên hệ chung, phí vận chuyển và cấu hình vận hành",
@@ -729,6 +807,8 @@ export default function ConfigVoucherTab({
             depositAmount: cfg.depositAmount,
             shippingFee: cfg.shippingFee,
             freeShippingThreshold: cfg.freeShippingThreshold,
+            enablePaymentGifts: cfg.enablePaymentGifts,
+            enableGifts: cfg.enablePaymentGifts,
           },
           description:
             "Thông tin tài khoản VietQR, tiền cọc và cước vận chuyển",
@@ -789,7 +869,7 @@ export default function ConfigVoucherTab({
       }
 
       onShowAlert?.(
-        "Đã lưu thành công cấu hình vận hành, phí ship & Email templates!",
+        "Đã lưu thành công cấu hình vận hành & Email templates!",
       );
     } catch (err) {
       console.error("Lỗi lưu cấu hình:", err);
@@ -811,7 +891,6 @@ export default function ConfigVoucherTab({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
-          {/* CUSTOM DROPDOWN CHỌN NGÂN HÀNG VIETQR */}
           <div className="sm:col-span-2">
             <CustomDropdown
               label="Ngân hàng nhận tiền:"
@@ -889,7 +968,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* CẤU HÌNH PHÍ SHIP MẶC ĐỊNH */}
           <div>
             <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-amber-700" />
@@ -906,7 +984,6 @@ export default function ConfigVoucherTab({
             />
           </div>
 
-          {/* CẤU HÌNH MỐC MIỄN PHÍ VẬN CHUYỂN */}
           <div>
             <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
               <Truck className="w-3.5 h-3.5 text-emerald-600" />
@@ -1021,6 +1098,134 @@ export default function ConfigVoucherTab({
             />
           </div>
         </div>
+
+        {/* CÔNG TẮC BẬT/TẮT TỔNG: TỰ ĐỘNG GHI NGAY VÀO SUPABASE KHI GẠT CÔNG TẮC */}
+        <div className="pt-3 border-t border-stone-100 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                <Gift className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <strong className="text-xs font-bold text-stone-900 block">
+                  Chương Trình Tặng Quà Quê (Ưu đãi Chuyển khoản VietQR)
+                </strong>
+                <p className="text-[11px] text-stone-500 leading-relaxed">
+                  Bật công tắc này để kích hoạt khung quà tặng kèm tại trang Checkout khi khách thanh toán cọc hoặc trả trước 100%.
+                </p>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={Boolean(cfg.enablePaymentGifts)}
+                onChange={async (e) => {
+                  const nextVal = e.target.checked;
+                  // 1. Cập nhật state Admin ngay lập tức
+                  setCfg((prev) => ({ ...prev, enablePaymentGifts: nextVal }));
+
+                  // 2. Ghi trực tiếp vào Supabase để kích hoạt Realtime sang CheckoutPage
+                  try {
+                    const nowIso = new Date().toISOString();
+                    const { data: generalRow } = await supabase
+                      .from("shop_configs")
+                      .select("value")
+                      .eq("key", "general")
+                      .maybeSingle();
+
+                    let generalVal = generalRow?.value || {};
+                    if (typeof generalVal === "string") {
+                      try { generalVal = JSON.parse(generalVal); } catch {}
+                    }
+
+                    await supabase.from("shop_configs").upsert([
+                      {
+                        key: "general",
+                        value: { ...generalVal, enablePaymentGifts: nextVal },
+                        updated_at: nowIso,
+                      },
+                      {
+                        key: "payment",
+                        value: { ...cfg, enablePaymentGifts: nextVal, enableGifts: nextVal },
+                        updated_at: nowIso,
+                      }
+                    ], { onConflict: "key" });
+
+                    onShowAlert?.(`Đã ${nextVal ? "bật" : "tắt"} chương trình quà tặng thành công!`);
+                  } catch (err) {
+                    console.error("Lỗi cập nhật cấu hình quà:", err);
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+            </label>
+          </div>
+
+          {/* QUẢN LÝ TRẠNG THÁI TỪNG MÓN CỦA BẢNG GIFTS */}
+          {cfg.enablePaymentGifts && (
+            <div className="p-3.5 bg-stone-50/90 rounded-2xl border border-stone-200/80 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                  <Gift className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Danh Mục Quà Tặng ({giftsList.length} món)</span>
+                </span>
+                <span className="text-[10.5px] text-stone-400">
+                  Click nút để đổi trạng thái trực tiếp trong database
+                </span>
+              </div>
+
+              {isLoadingGifts ? (
+                <div className="p-4 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                  <span>Đang tải danh sách quà từ bảng gifts...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                  {giftsList.map((gift) => {
+                    const isAvailable = gift.is_active !== false;
+                    return (
+                      <div
+                        key={gift.id}
+                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2.5 shadow-2xs ${
+                          isAvailable
+                            ? "bg-white border-stone-200"
+                            : "bg-stone-100/80 border-stone-200/90 opacity-75"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span
+                            className={`font-bold block truncate ${
+                              isAvailable ? "text-stone-900" : "text-stone-500 line-through"
+                            }`}
+                          >
+                            {gift.title}
+                          </span>
+                          <span className="text-[10px] text-stone-500 block truncate mt-0.5">
+                            {gift.tag} • {gift.type}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGiftStock(gift.id, isAvailable)}
+                          className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer shrink-0 ${
+                            isAvailable
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                              : "bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
+                          }`}
+                        >
+                          {isAvailable ? "Đang bật" : "Đã tắt"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2. CẤU HÌNH VOUCHER */}
@@ -1042,16 +1247,14 @@ export default function ConfigVoucherTab({
           </div>
         ) : vouchers.length === 0 ? (
           <div className="p-6 text-center text-xs text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
-            Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu
-            tiên bên dưới!
+            Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu tiên bên dưới!
           </div>
         ) : (
           <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
             {vouchers.map((v) => {
               const limit = Number(v.usageLimit) || 0;
               const used = Number(v.usedCount) || 0;
-              const remaining =
-                limit > 0 ? Math.max(0, limit - used) : "Vô hạn";
+              const remaining = limit > 0 ? Math.max(0, limit - used) : "Vô hạn";
               const isOutOfStock = limit > 0 && remaining === 0;
 
               return (
@@ -1142,7 +1345,6 @@ export default function ConfigVoucherTab({
           </div>
         )}
 
-        {/* Form thêm voucher mới */}
         <form
           onSubmit={handleAddVoucher}
           className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3"
@@ -1171,7 +1373,6 @@ export default function ConfigVoucherTab({
               />
             </div>
 
-            {/* CUSTOM DROPDOWN CHỌN LOẠI GIẢM */}
             <div className="lg:col-span-2">
               <CustomDropdown
                 label="Loại giảm"
@@ -1339,7 +1540,6 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        {/* Khung chọn mẫu thư */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
           <div className="relative" ref={dropdownRef}>
             <label className="font-bold text-amber-900 mb-1.5 flex items-center justify-between text-xs">
@@ -1436,7 +1636,6 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        {/* Biến chèn tự động */}
         <div className="p-3 bg-stone-50/80 rounded-2xl border border-stone-200/70 text-xs space-y-1.5">
           <div className="flex items-center gap-1.5 font-bold text-stone-700 text-[11px]">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -1658,7 +1857,6 @@ export default function ConfigVoucherTab({
               className="space-y-3.5 text-xs"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* CUSTOM DROPDOWN CHỌN LOẠI GIẢM TRONG MODAL EDIT */}
                 <div>
                   <CustomDropdown
                     label="Loại giảm"

@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   User, Phone, Mail, FileText, AlertCircle, 
-  ShieldBan, UserCheck, X, Sparkles, MapPin, Plus
+  ShieldBan, UserCheck, X, Sparkles, MapPin, Plus, CheckCircle2
 } from 'lucide-react';
 import AddressField from '../AddressField';
 import { sanitizeVietnamesePhone, isValidVietnamesePhone } from '../../utils/checkoutValidation';
@@ -25,12 +25,15 @@ export default function CustomerInfoForm({
 }) {
   // Mode chọn địa chỉ: 'saved' (địa chỉ cũ) hoặc 'new' (nhập mới)
   const [addressMode, setAddressMode] = useState('saved');
+  // State lưu tạm địa chỉ mới để không bị mất khi chuyển qua lại giữa 2 lựa chọn
+  const [customAddress, setCustomAddress] = useState('');
 
   const isPhoneStrictlyValid = useMemo(() => {
     return isValidVietnamesePhone(customer.phone);
   }, [customer.phone]);
 
   const prevInfo = customerHistory?.previousInfo;
+  const isPardoned = Boolean(customerHistory?.isPardoned);
   const hasSavedAddress = Boolean(isPhoneStrictlyValid && customerHistory?.isOldCustomer && prevInfo?.address);
 
   // Tự động điền tên và địa chỉ cũ khi phát hiện khách quen
@@ -81,8 +84,29 @@ export default function CustomerInfoForm({
     }
   };
 
-  // Hàm trung gian nhận địa chỉ từ AddressField & xóa lỗi nếu đã điền
-  const handleAddressChange = (newAddr) => {
+  // Hàm chuyển đổi sang chế độ địa chỉ mới
+  const handleSelectNewAddressMode = () => {
+    setAddressMode('new');
+    setShippingAddress(customAddress);
+    if (formErrors?.address && customAddress.trim()) {
+      setFormErrors((prev) => ({ ...prev, address: '' }));
+    }
+  };
+
+  // Hàm chuyển đổi sang chế độ dùng lại địa chỉ cũ
+  const handleSelectSavedAddressMode = () => {
+    setAddressMode('saved');
+    if (prevInfo?.address) {
+      setShippingAddress(prevInfo.address);
+      if (formErrors?.address) {
+        setFormErrors((prev) => ({ ...prev, address: '' }));
+      }
+    }
+  };
+
+  // Hàm nhận địa chỉ gõ mới từ AddressField
+  const handleNewAddressInput = (newAddr) => {
+    setCustomAddress(newAddr);
     setShippingAddress(newAddr);
     if (newAddr && formErrors?.address) {
       setFormErrors((prev) => ({ ...prev, address: '' }));
@@ -198,13 +222,23 @@ export default function CustomerInfoForm({
         )}
       </div>
 
-      {/* Cảnh báo rủi ro Bom hàng */}
-      {isPhoneStrictlyValid && customerHistory?.hasBombedHistory && (
-        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 text-xs flex items-start gap-2.5">
+      {/* Cảnh báo rủi ro Bom hàng: Chỉ hiện khi ĐANG TREO BOM và CHƯA HOÀN LƯƠNG */}
+      {isPhoneStrictlyValid && customerHistory?.hasBombedHistory && !isPardoned && (
+        <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-950 text-xs flex items-start gap-2.5 animate-fadeIn">
           <ShieldBan className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <p className="text-[10.5px] text-rose-800">
-            Số điện thoại này từng có đơn hoàn về. Quý khách vui lòng <strong>thanh toán chuyển khoản 100%</strong> qua VietQR để nhà vườn tiến hành hái quả.
+          <p className="text-[10.5px] text-rose-800 leading-relaxed">
+            Số điện thoại này từng có đơn hoàn về. Quý khách vui lòng <strong>thanh toán chuyển khoản 100%</strong> qua VietQR để nhà vườn tiến hành cắt hái và gửi xe.
           </p>
+        </div>
+      )}
+
+      {/* Huy hiệu khôi phục uy tín thành công */}
+      {isPhoneStrictlyValid && isPardoned && (
+        <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs flex items-center gap-2 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span className="text-[10.5px] text-emerald-800 font-medium">
+            Cảm ơn quý khách đã tin tưởng nhận hàng ở đơn gần nhất. Chúc quý khách chọn được những chùm quả ưng ý!
+          </span>
         </div>
       )}
 
@@ -259,10 +293,7 @@ export default function CustomerInfoForm({
           <div className="space-y-2">
             {/* Thẻ 1: Địa chỉ cũ */}
             <div
-              onClick={() => {
-                setAddressMode('saved');
-                handleAddressChange(prevInfo.address);
-              }}
+              onClick={handleSelectSavedAddressMode}
               className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${
                 addressMode === 'saved'
                   ? 'bg-amber-50/80 border-amber-500 shadow-2xs ring-1 ring-amber-500/30'
@@ -273,10 +304,7 @@ export default function CustomerInfoForm({
                 type="radio"
                 name="addressChoice"
                 checked={addressMode === 'saved'}
-                onChange={() => {
-                  setAddressMode('saved');
-                  handleAddressChange(prevInfo.address);
-                }}
+                onChange={handleSelectSavedAddressMode}
                 className="mt-0.5 text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
               <div className="space-y-0.5 flex-1 min-w-0">
@@ -292,10 +320,7 @@ export default function CustomerInfoForm({
 
             {/* Thẻ 2: Tùy chọn nhập địa chỉ khác */}
             <div
-              onClick={() => {
-                setAddressMode('new');
-                handleAddressChange('');
-              }}
+              onClick={handleSelectNewAddressMode}
               className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center gap-2.5 ${
                 addressMode === 'new'
                   ? 'bg-white border-amber-500 shadow-2xs ring-1 ring-amber-500/30'
@@ -306,10 +331,7 @@ export default function CustomerInfoForm({
                 type="radio"
                 name="addressChoice"
                 checked={addressMode === 'new'}
-                onChange={() => {
-                  setAddressMode('new');
-                  handleAddressChange('');
-                }}
+                onChange={handleSelectNewAddressMode}
                 className="text-amber-600 focus:ring-amber-500 cursor-pointer"
               />
               <div className="flex items-center gap-1.5 font-bold text-[11px] text-stone-800">
@@ -322,8 +344,8 @@ export default function CustomerInfoForm({
             {addressMode === 'new' && (
               <div className="pt-1 animate-fadeIn">
                 <AddressField 
-                  value={shippingAddress} 
-                  onChange={handleAddressChange}
+                  value={customAddress} 
+                  onChange={handleNewAddressInput}
                   error={formErrors?.address}
                 />
               </div>
@@ -340,7 +362,12 @@ export default function CustomerInfoForm({
         ) : (
           <AddressField 
             value={shippingAddress} 
-            onChange={handleAddressChange}
+            onChange={(newAddr) => {
+              setShippingAddress(newAddr);
+              if (newAddr && formErrors?.address) {
+                setFormErrors((prev) => ({ ...prev, address: '' }));
+              }
+            }}
             error={formErrors?.address}
           />
         )}

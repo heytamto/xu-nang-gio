@@ -1,6 +1,6 @@
 // src/components/admin/ImageUploadField.jsx
 import React, { useState } from 'react';
-import { Loader2, UploadCloud, X, Check, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Loader2, UploadCloud, X, Check, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 // Hàm nén ảnh về JPEG max 1200px dưới dạng Blob nhị phân
@@ -46,12 +46,14 @@ function compressImageToBlob(file, maxWidth = 1200, quality = 0.8) {
 
 // Chuẩn hóa tên file không dấu tiếng Việt
 function sanitizeFileName(fileName) {
-  return fileName
+  return String(fileName || 'image')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
     .replace(/[^a-z0-9.]/g, '-')
-    .replace(/-+/g, '-');
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 export default function ImageUploadField({ 
@@ -61,7 +63,8 @@ export default function ImageUploadField({
   bucket = "images",
   multiple = false,
   maxFiles = 3,
-  placeholder = "Hoặc dán URL ảnh trực tiếp vào đây..."
+  placeholder = "Hoặc dán URL ảnh trực tiếp vào đây...",
+  hideManualUrl = false // Hỗ trợ ẩn ô nhập link thủ công khi dùng cho form khách hàng
 }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -199,33 +202,35 @@ export default function ImageUploadField({
           />
         </label>
 
-        {/* Ô nhập URL thủ công */}
-        <div className="relative flex-1">
-          <input
-            type="url"
-            value={multiple ? manualInput : (value || '')}
-            onChange={(e) => {
-              if (multiple) {
-                setManualInput(e.target.value);
-              } else {
-                onChange(e.target.value);
-              }
-            }}
-            onKeyDown={multiple ? handleAddManualUrl : undefined}
-            placeholder={multiple ? "Dán link ảnh rồi nhấn Enter..." : placeholder}
-            className="w-full pl-3 pr-8 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-mono text-stone-700 focus:outline-none focus:border-amber-600 transition-all shadow-2xs"
-          />
-          {!multiple && value && (
-            <button
-              type="button"
-              onClick={() => onChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
-              title="Xóa link ảnh"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+        {/* Ô nhập URL thủ công (Ẩn nếu hideManualUrl = true) */}
+        {!hideManualUrl && (
+          <div className="relative flex-1">
+            <input
+              type="url"
+              value={multiple ? manualInput : (value || '')}
+              onChange={(e) => {
+                if (multiple) {
+                  setManualInput(e.target.value);
+                } else {
+                  onChange(e.target.value);
+                }
+              }}
+              onKeyDown={multiple ? handleAddManualUrl : undefined}
+              placeholder={multiple ? "Dán link ảnh rồi nhấn Enter..." : placeholder}
+              className="w-full pl-3 pr-8 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-mono text-stone-700 focus:outline-none focus:border-amber-600 transition-all shadow-2xs"
+            />
+            {!multiple && value && (
+              <button
+                type="button"
+                onClick={() => onChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer p-0.5"
+                title="Xóa link ảnh"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {uploadError && (

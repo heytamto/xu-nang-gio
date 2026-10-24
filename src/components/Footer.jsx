@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_SHOP_CONFIG } from '../config/shopConfig';
 
-// Link nhúng Google Maps chính xác từ tọa độ vườn nhà bạn
+// Link nhúng Google Maps chính xác từ tọa độ vườn
 const DEFAULT_MAP_EMBED_URL = "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d251.61865863961202!2d108.93089242170359!3d11.563539363791506!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1svi!2s!4v1792144018447!5m2!1svi!2s";
 
 function FacebookIcon({ className = "w-3 h-3" }) {
@@ -34,7 +34,6 @@ function TikTokIcon({ className = "w-3 h-3" }) {
   );
 }
 
-// 👉 Icon Telegram
 function TelegramIcon({ className = "w-3 h-3" }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -51,6 +50,10 @@ export default function Footer({
   config = DEFAULT_SHOP_CONFIG 
 }) {
   const mapEmbedSrc = config?.mapEmbedUrl || DEFAULT_MAP_EMBED_URL;
+  const brandName = config?.brandName || 'Xứ Nắng Gió';
+  const hotline = config?.hotline || '0848.957.345';
+  const cleanPhone = String(config?.phoneNumber || hotline).replace(/\D/g, '');
+  const storeAddress = config?.address || 'Thôn Trường Sanh, Xã Phước Hậu, Huyện Ninh Phước, Tỉnh Ninh Thuận';
 
   return (
     <footer id="shop-footer" className="bg-stone-900 text-stone-300 pt-12 pb-8 border-t border-stone-800 transition-all font-sans">
@@ -63,10 +66,10 @@ export default function Footer({
           <div className="space-y-4">
             <div className="space-y-2">
               <h3 className="text-lg font-black text-white tracking-wide flex items-center gap-2">
-                <span className="text-amber-500 font-serif text-xl">☀</span> Xứ Nắng Gió
+                <span className="text-amber-500 font-serif text-xl">☀</span> {brandName}
               </h3>
               <p className="text-xs text-stone-400 leading-relaxed font-light">
-                Nông sản & Đặc sản nắng gió Ninh Thuận - Thu hoạch tận vườn, phơi ráo tự nhiên.
+                {config?.tagline || 'Nông sản & Đặc sản nắng gió Ninh Thuận - Thu hoạch tận vườn, phơi ráo tự nhiên.'}
               </p>
               <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium pt-0.5">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
@@ -136,14 +139,14 @@ export default function Footer({
             <div className="space-y-3 text-stone-400">
               <div className="flex items-center gap-2 text-stone-200">
                 <Phone className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>Hotline / Zalo: <strong className="font-mono text-white text-sm">{config.hotline || '0848.957.345'}</strong></span>
+                <span>Hotline / Zalo: <strong className="font-mono text-white text-sm">{hotline}</strong></span>
               </div>
 
-              {/* Các nút hành động nhanh & Mạng xã hội (đã bổ sung Telegram) */}
+              {/* Các nút hành động nhanh & Mạng xã hội */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                {config.phoneNumber && (
+                {cleanPhone && (
                   <a
-                    href={`tel:${config.phoneNumber}`}
+                    href={`tel:${cleanPhone}`}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 font-bold text-[11px] transition-colors"
                   >
                     <Phone className="w-3 h-3" />
@@ -189,18 +192,19 @@ export default function Footer({
                     <ExternalLink className="w-2.5 h-2.5 opacity-60" />
                   </a>
                 )}
+
                 {config.telegramUrl && (
-                <a
-                  href={config.telegramUrl} 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 font-bold text-[11px] transition-colors"
-                  title="Nhắn tin qua Telegram"
-                >
-                  <TelegramIcon className="w-3 h-3" />
-                  <span>Telegram</span>
-                  <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                </a>
+                  <a
+                    href={config.telegramUrl} 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 border border-sky-500/30 font-bold text-[11px] transition-colors"
+                    title="Nhắn tin qua Telegram"
+                  >
+                    <TelegramIcon className="w-3 h-3" />
+                    <span>Telegram</span>
+                    <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                  </a>
                 )}
               </div>
 
@@ -252,15 +256,17 @@ export default function Footer({
 
             <div className="w-full aspect-16/9 rounded-2xl overflow-hidden border border-stone-800 bg-stone-800 relative shadow-inner group">
               <iframe
-                title="Bản đồ Google Maps Xứ Nắng Gió"
+                title={`Bản đồ Google Maps ${brandName}`}
                 src={mapEmbedSrc}
                 className="w-full h-full border-0 transition-opacity duration-300 opacity-90 group-hover:opacity-100"
                 loading="lazy"
                 referrerPolicy="strict-origin-when-cross-origin"
               />
             </div>
-            <p className="text-[10.5px] text-stone-500 font-light">
-              Đón khách ghé thăm giàn nho và chọn quà tại vườn.
+            
+            <p className="text-[10.5px] text-stone-400 font-light flex items-start gap-1 leading-relaxed">
+              <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <span>{storeAddress}</span>
             </p>
           </div>
 
@@ -268,7 +274,7 @@ export default function Footer({
 
         {/* DÒNG BẢN QUYỀN */}
         <div className="pt-6 border-t border-stone-800 text-center text-xs text-stone-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© {new Date().getFullYear()} Xứ Nắng Gió. Bảo lưu mọi quyền.</p>
+          <p>© {new Date().getFullYear()} {brandName}. Bảo lưu mọi quyền.</p>
           <p className="flex items-center gap-1">
             <span>Gói trọn tình quê</span>
             <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500 inline" />
