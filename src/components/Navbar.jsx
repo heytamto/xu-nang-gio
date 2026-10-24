@@ -185,12 +185,12 @@ export default function Navbar({
             )}
           </button>
 
-          {/* Nút Toggle Menu Mobile */}
+          {/* Nút Toggle Menu Mobile trên Header */}
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden p-2.5 rounded-2xl bg-stone-800 hover:bg-stone-700 text-stone-200 transition-colors cursor-pointer"
-            title="Mở menu"
+            title={isMobileMenuOpen ? "Đóng menu" : "Mở menu"}
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -199,23 +199,41 @@ export default function Navbar({
 
       {/* Menu thả xuống trên Mobile */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-stone-900 border-b border-stone-800 px-4 sm:px-6 py-3.5 space-y-1.5 animate-fadeIn">
-          {navItems.map((item) => (
+        <div className="md:hidden bg-stone-900/98 border-b border-stone-800 px-4 sm:px-6 py-4 space-y-2 animate-fadeIn shadow-2xl">
+          {/* Header phụ của Menu: Tiêu đề & Nút bấm X đóng nhanh */}
+          <div className="flex items-center justify-between pb-2 border-b border-stone-800/80 text-xs font-bold text-stone-400 uppercase tracking-wider">
+            <span>Danh mục điều hướng</span>
             <button
-              key={item.id}
               type="button"
-              onClick={() => handleNavClick(item.id)}
-              className={`w-full text-left px-4 py-3 rounded-2xl text-sm sm:text-base font-bold transition-all flex items-center justify-between cursor-pointer ${
-                currentPage === item.id
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'text-stone-200 hover:bg-stone-800'
-              }`}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+              title="Đóng menu"
             >
-              <span>{item.label}</span>
-              {currentPage === item.id && <span className="w-2 h-2 rounded-full bg-white"></span>}
+              <span>Đóng</span>
+              <X className="w-4 h-4" />
             </button>
-          ))}
+          </div>
 
+          {/* Danh sách các tab */}
+          <div className="space-y-1 pt-1">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNavClick(item.id)}
+                className={`w-full text-left px-4 py-3 rounded-2xl text-sm sm:text-base font-bold transition-all flex items-center justify-between cursor-pointer ${
+                  currentPage === item.id
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'text-stone-200 hover:bg-stone-800'
+                }`}
+              >
+                <span>{item.label}</span>
+                {currentPage === item.id && <span className="w-2 h-2 rounded-full bg-white"></span>}
+              </button>
+            ))}
+          </div>
+
+          {/* Nút Tra cứu đơn hàng */}
           <button
             type="button"
             onClick={handleLookupClick}

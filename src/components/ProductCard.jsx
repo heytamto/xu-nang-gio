@@ -136,69 +136,71 @@ export default function ProductCard({ product, onAddToCart }) {
   return (
     <div className="bg-white rounded-3xl border border-stone-200/90 shadow-2xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden group font-sans text-stone-800 h-full">
       
-      {/* 1. KHỐI TRÊN: ẢNH + NGUỒN GỐC + TIÊU ĐỀ + MÔ TẢ + QUY CÁCH */}
-      <div>
-        {/* Ảnh sản phẩm (tỉ lệ 4/3 cố định) */}
-        <div className="relative aspect-4/3 overflow-hidden bg-stone-100 shrink-0">
-          <img
-            src={productImage}
-            alt={product?.name || "Đặc sản Ninh Thuận"}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-            onError={(e) => {
-              e.currentTarget.src = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
-            }}
-          />
-          
-          {/* Badge Loại / Nổi bật */}
-          {product?.badge && (
-            <span className="absolute top-2.5 left-2.5 bg-stone-900/90 backdrop-blur-md text-amber-300 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
-              {product.badge}
-            </span>
-          )}
-
-          {/* Badge Quà tặng kèm */}
-          {campaignTag && (
-            <span className="absolute top-2.5 right-2.5 bg-emerald-700/95 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-              <Gift className="w-3.5 h-3.5 text-emerald-200" />
-              <span>{campaignTag}</span>
-            </span>
-          )}
-
-          {/* Nguồn gốc xuất xứ ghim chân ảnh */}
-          {product?.source && (
-            <span className="absolute bottom-2.5 left-2.5 right-2.5 bg-white/95 backdrop-blur-md text-stone-700 text-xs font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1.5 truncate shadow-2xs">
-              <MapPin className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-              <span className="truncate">{product.source}</span>
-            </span>
-          )}
-
-          {/* Trạng thái hết hàng */}
-          {isOutOfStock && (
-            <div className="absolute inset-0 bg-stone-900/70 backdrop-blur-2xs flex items-center justify-center">
-              <span className="px-4 py-1.5 bg-rose-600 text-white font-bold text-sm rounded-full shadow-md">
-                Tạm hết lứa
+      {/* 1. KHỐI TRÊN: ẢNH + NGUỒN GỐC */}
+      <div className="relative aspect-4/3 overflow-hidden bg-stone-100 shrink-0">
+        <img
+          src={productImage}
+          alt={product?.name || "Đặc sản Ninh Thuận"}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
+          onError={(e) => {
+            e.currentTarget.src = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
+          }}
+        />
+        
+{/* Cụm Badge trên đỉnh ảnh: Tự do hiển thị toàn bộ nội dung, tự xuống dòng khi cần */}
+          <div className="absolute top-2.5 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-1.5 pointer-events-none z-10">
+            {product?.badge ? (
+              <span className="bg-stone-900/90 backdrop-blur-md text-amber-300 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm shrink-0 whitespace-nowrap">
+                {product.badge}
               </span>
-            </div>
+            ) : <span />}
+
+            {campaignTag ? (
+              <span className="bg-emerald-700/95 backdrop-blur-md text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap">
+                <Gift className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                <span>{campaignTag}</span>
+              </span>
+            ) : <span />}
+          </div>
+
+        {/* Nguồn gốc xuất xứ ghim chân ảnh */}
+        {product?.source && (
+          <span className="absolute bottom-2.5 left-2.5 right-2.5 bg-white/95 backdrop-blur-md text-stone-700 text-xs font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1.5 truncate shadow-2xs z-10">
+            <MapPin className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+            <span className="truncate">{product.source}</span>
+          </span>
+        )}
+
+        {/* Trạng thái hết hàng */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-stone-900/70 backdrop-blur-2xs flex items-center justify-center z-20">
+            <span className="px-4 py-1.5 bg-rose-600 text-white font-bold text-sm rounded-full shadow-md">
+              Tạm hết lứa
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 2. KHỐI THÂN: TIÊU ĐỀ + MÔ TẢ 4 DÒNG + TÙY CHỌN */}
+      <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
+        {/* Tiêu đề & Mô tả 4 dòng lấp đầy không gian trống */}
+        <div className="space-y-1.5">
+          <h3 className="font-black text-stone-900 text-base sm:text-lg leading-snug line-clamp-2 min-h-[3rem] group-hover:text-amber-800 transition-colors">
+            {product?.name || product?.title}
+          </h3>
+          {productDesc && (
+            <p className="text-xs sm:text-sm text-stone-500 leading-relaxed font-normal line-clamp-4 min-h-[5rem]">
+              {productDesc}
+            </p>
           )}
         </div>
 
-        {/* Nội dung thông tin món */}
-        <div className="p-4 sm:p-5 space-y-3">
-          <div>
-            <h3 className="font-black text-stone-900 text-base sm:text-lg leading-snug line-clamp-2 min-h-[3rem] group-hover:text-amber-800 transition-colors">
-              {product?.name || product?.title}
-            </h3>
-            {productDesc && (
-              <p className="text-xs sm:text-sm text-stone-500 mt-1 line-clamp-2 leading-relaxed min-h-[2.5rem] font-normal">
-                {productDesc}
-              </p>
-            )}
-          </div>
-
+        {/* Cụm tùy chọn (Hương vị & Quy cách) ghim tự nhiên */}
+        <div className="space-y-2.5 pt-1">
           {/* Lựa chọn Hương vị */}
           {flavorsList.length > 1 && (
-            <div className="space-y-1.5 pt-1">
+            <div className="space-y-1.5">
               <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
                 Chọn vị:
               </span>
@@ -224,9 +226,9 @@ export default function ProductCard({ product, onAddToCart }) {
             </div>
           )}
 
-          {/* Lựa chọn quy cách (weights) */}
+          {/* Lựa chọn Quy cách */}
           {weightsList.length > 1 && (
-            <div className="space-y-1.5 pt-1">
+            <div className="space-y-1.5">
               <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block">
                 Chọn quy cách:
               </span>
@@ -238,10 +240,10 @@ export default function ProductCard({ product, onAddToCart }) {
                       key={w.id}
                       type="button"
                       onClick={() => setSelectedWeight(w)}
-                      className={`text-xs px-3 py-1.5 rounded-xl font-bold transition-all border cursor-pointer ${
+                      className={`text-xs px-3.5 py-2 rounded-2xl font-bold transition-all border cursor-pointer ${
                         isWeightActive
-                          ? 'bg-amber-100 text-amber-950 border-amber-500 shadow-2xs ring-1 ring-amber-500'
-                          : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                          ? 'bg-amber-100/90 text-amber-950 border-amber-500 shadow-2xs ring-1 ring-amber-500'
+                          : 'bg-stone-50 text-stone-700 border-stone-200/90 hover:bg-stone-100 hover:border-stone-300'
                       }`}
                     >
                       {w.label}
@@ -254,9 +256,9 @@ export default function ProductCard({ product, onAddToCart }) {
         </div>
       </div>
 
-      {/* 2. KHỐI DƯỚI CÙNG: GHIM CHẶT ĐƠN GIÁ & NÚT THÊM GIỎ HÀNG */}
+      {/* 3. KHỐI CHÂN TRANG: ĐƠN GIÁ & NÚT THÊM GIỎ HÀNG CHUẨN h-11 */}
       <div className="p-4 sm:p-5 pt-0">
-        <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-2">
+        <div className="pt-3 border-t border-stone-100 flex items-center justify-between gap-3">
           <div>
             <span className="text-[11px] text-stone-400 font-semibold block leading-tight">Đơn giá:</span>
             <span className="font-mono font-black text-amber-950 text-lg sm:text-xl leading-none">
@@ -268,7 +270,7 @@ export default function ProductCard({ product, onAddToCart }) {
             type="button"
             disabled={isOutOfStock}
             onClick={handleAddToCartClick}
-            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-xs cursor-pointer ${
+            className={`h-11 px-5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all active:scale-95 shadow-xs cursor-pointer ${
               isJustAdded
                 ? 'bg-emerald-600 text-white'
                 : 'bg-stone-900 hover:bg-amber-800 text-white disabled:bg-stone-300 disabled:cursor-not-allowed'

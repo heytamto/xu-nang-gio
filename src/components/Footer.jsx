@@ -41,11 +41,19 @@ function TelegramIcon({ className = "w-3.5 h-3.5" }) {
   );
 }
 
+function XIcon({ className = "w-3.5 h-3.5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 export default function Footer({ 
   onNavigateAdmin, 
   onNavigatePacking, 
-  onOpenLookup,
-  onNavigatePolicy,
+  onOpenLookup, 
+  onNavigatePolicy, 
   config = DEFAULT_SHOP_CONFIG 
 }) {
   const mapEmbedSrc = config?.mapEmbedUrl || DEFAULT_MAP_EMBED_URL;
@@ -202,6 +210,21 @@ export default function Footer({
                   >
                     <TelegramIcon className="w-3.5 h-3.5" />
                     <span>Telegram</span>
+                    <ExternalLink className="w-3 h-3 opacity-70" />
+                  </a>
+                )}
+  
+                {/* Nút nền tảng X (Twitter) */}
+                {config.twitterUrl && (
+                  <a
+                    href={config.twitterUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-700/40 hover:bg-stone-700/60 text-stone-200 border border-stone-600/50 font-bold text-xs sm:text-sm transition-colors active:scale-95"
+                    title="Theo dõi trên X"
+                  >
+                    <XIcon className="w-3.5 h-3.5 text-stone-300" />
+                    <span>X</span>
                     <ExternalLink className="w-3 h-3 opacity-70" />
                   </a>
                 )}

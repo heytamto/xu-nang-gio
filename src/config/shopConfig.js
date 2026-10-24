@@ -16,7 +16,7 @@ export const DEFAULT_SHOP_CONFIG = {
   accountName: import.meta.env.VITE_ACCOUNT_NAME || 'TO THANH TAM',
   depositAmount: 50000,
   enablePaymentGifts: true,
-  
+
   payment: {
     bankBin: String(import.meta.env.VITE_BANK_BIN || '970422'),
     bankName: import.meta.env.VITE_BANK_NAME || 'MBBank',
@@ -57,6 +57,7 @@ export const DEFAULT_SHOP_CONFIG = {
   facebookUrl: import.meta.env.VITE_FACEBOOK_URL || 'https://facebook.com/xunanggio',
   tiktokUrl: import.meta.env.VITE_TIKTOK_URL || 'https://tiktok.com/@xunanggio',
   telegramUrl: import.meta.env.VITE_TELEGRAM_URL || 'https://t.me/xunanggio',
+  twitterUrl: import.meta.env.VITE_TWITTER_URL || 'https://twitter.com/xunanggio',
 
   // 5. Google Maps (Tọa độ giàn vườn)
   mapDirectionsUrl: import.meta.env.VITE_MAP_DIRECTIONS_URL || 'https://www.google.com/maps/dir/?api=1&destination=11.563539,108.930892',

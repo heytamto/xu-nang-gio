@@ -2,14 +2,27 @@
 import React from 'react';
 import { HeartHandshake, Sparkles, PackageCheck, ShieldCheck, Headphones, BadgeCheck, Phone } from 'lucide-react';
 
+// Helper bóc tách an toàn mọi object {text} từ Supabase config
+function extractText(val, fallback = '') {
+  if (!val) return fallback;
+  if (typeof val === 'string' || typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    return val.text || val.label || val.content || val.title || fallback;
+  }
+  return fallback;
+}
+
 export default function ShippingPolicyCard({ 
   shouldShowFullPolicy, 
   hotline = '0848.957.345',
   shopConfig = {}
 }) {
-  const activeHotline = shopConfig?.hotline || hotline;
+  const activeHotline = extractText(shopConfig?.hotline, hotline);
   const cleanPhone = String(activeHotline).replace(/\D/g, '');
-  const announcementText = shopConfig?.announcement || 'Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h';
+  const announcementText = extractText(
+    shopConfig?.announcement,
+    'Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h'
+  );
 
   if (!shouldShowFullPolicy) {
     return (

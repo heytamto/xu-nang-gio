@@ -1,5 +1,5 @@
 // src/components/checkout/PaymentGiftSelector.jsx
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Gift, Check } from 'lucide-react';
 
 export default function PaymentGiftSelector({ 
@@ -8,7 +8,15 @@ export default function PaymentGiftSelector({
   onSelectGift,
   isEnabled = true 
 }) {
-  // 1. Hook useMemo: Luôn chạy đầu tiên
+  const scrollRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragState = useRef({
+    startX: 0,
+    scrollLeft: 0,
+    hasMoved: false,
+  });
+
+  // 1. Hook useMemo: Lọc danh sách quà khả dụng
   const activeGifts = useMemo(() => {
     if (!Array.isArray(paymentGifts)) return [];
     return paymentGifts.filter((g) => {
@@ -16,7 +24,7 @@ export default function PaymentGiftSelector({
     });
   }, [paymentGifts]);
 
-  // 2. Hook useEffect: Luôn chạy thứ hai
+  // 2. Hook useEffect: Tự động chọn quà đầu tiên nếu chưa chọn
   useEffect(() => {
     if (isEnabled && activeGifts.length > 0 && onSelectGift) {
       const isCurrentSelectionValid = activeGifts.some((g) => g.id === selectedGiftId);
@@ -26,7 +34,58 @@ export default function PaymentGiftSelector({
     }
   }, [isEnabled, activeGifts, selectedGiftId, onSelectGift]);
 
-  // 3. Kiểm tra điều kiện render
+  // 3. Xử lý lăn chuột (Mouse Wheel) để cuộn ngang
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleWheel = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY * 0.9;
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
+
+  // 4. Xử lý kéo thả bằng chuột (Mouse Drag to Scroll)
+  const handleMouseDown = useCallback((e) => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    setIsDragging(true);
+    dragState.current = {
+      startX: e.pageX - el.offsetLeft,
+      scrollLeft: el.scrollLeft,
+      hasMoved: false,
+    };
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const x = e.pageX - el.offsetLeft;
+    const walk = (x - dragState.current.startX) * 1.3;
+    if (Math.abs(walk) > 4) {
+      dragState.current.hasMoved = true;
+    }
+    el.scrollLeft = dragState.current.scrollLeft - walk;
+  }, [isDragging]);
+
+  const handleMouseUpOrLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handleCardClick = (giftId) => {
+    if (dragState.current.hasMoved) return;
+    if (onSelectGift) onSelectGift(giftId);
+  };
+
   if (!isEnabled || activeGifts.length === 0) {
     return null;
   }
@@ -45,21 +104,31 @@ export default function PaymentGiftSelector({
         </span>
       </div>
 
-      <div className="flex items-stretch gap-3 overflow-x-auto pb-2 pt-1 scroll-smooth snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:thin]">
+      {/* Danh sách thẻ quà: Ẩn thanh cuộn, hỗ trợ kéo chuột & lăn chuột mượt mà */}
+      <div 
+        ref={scrollRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUpOrLeave}
+        onMouseLeave={handleMouseUpOrLeave}
+        className={`flex items-stretch gap-3 overflow-x-auto pb-2 pt-1 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+      >
         {activeGifts.map((gift) => {
           const isSelected = selectedGiftId === gift.id;
 
           return (
             <div
               key={gift.id}
-              onClick={() => onSelectGift && onSelectGift(gift.id)}
-              className={`min-w-[240px] sm:min-w-[260px] max-w-[270px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 snap-start shrink-0 select-none cursor-pointer ${
+              onClick={() => handleCardClick(gift.id)}
+              className={`min-w-[240px] sm:min-w-[260px] max-w-[270px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none ${
                 isSelected
                   ? 'bg-white border-amber-600 ring-2 ring-amber-600/25 shadow-sm'
                   : 'bg-white/85 border-amber-200/80 hover:bg-white hover:border-amber-400'
               }`}
             >
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pointer-events-none">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg truncate max-w-[160px] bg-amber-100 text-amber-900">
                     {gift.tag || 'Quà Quê'}
@@ -81,7 +150,7 @@ export default function PaymentGiftSelector({
                 </strong>
               </div>
 
-              <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed font-normal">
+              <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed font-normal pointer-events-none">
                 {gift.description || gift.desc || 'Gửi kèm thùng xốp hái tươi'}
               </p>
             </div>

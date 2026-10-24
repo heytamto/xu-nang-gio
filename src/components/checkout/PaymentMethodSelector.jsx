@@ -13,6 +13,9 @@ export default function PaymentMethodSelector({
   const safeDeposit = Number(depositAmount) || 50000;
   const totalAmount = Number(finalTotalAmount) || 0;
 
+  // Tính chính xác số tiền COD còn lại cần đưa nhà xe
+  const remainingCod = Math.max(0, totalAmount - safeDeposit);
+
   // Khi tổng đơn nhỏ hơn hoặc bằng mức cọc
   const isTotalLowerThanDeposit = totalAmount > 0 && totalAmount <= safeDeposit;
 
@@ -101,7 +104,7 @@ export default function PaymentMethodSelector({
           />
         </label>
 
-        {/* 2. Cọc giữ đơn */}
+        {/* 2. Cọc giữ đơn (Nói rõ số tiền cọc và số tiền gửi nhà xe) */}
         {!isTotalLowerThanDeposit && (
           !isLastOrderBombed ? (
             <label className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center justify-between ${
@@ -113,7 +116,9 @@ export default function PaymentMethodSelector({
                 <ShieldCheck className={`w-5 h-5 shrink-0 ${paymentMethod === 'deposit' ? 'text-amber-700' : 'text-stone-400'}`} />
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <strong className="text-sm sm:text-base text-stone-900 font-bold">Cọc {safeDeposit.toLocaleString('vi-VN')}đ</strong>
+                    <strong className="text-sm sm:text-base text-stone-900 font-bold">
+                      Cọc trước {safeDeposit.toLocaleString('vi-VN')}đ
+                    </strong>
 
                     {/* Hiển thị khi bật quà tặng */}
                     {isPaymentGiftsEnabled && (
@@ -123,7 +128,7 @@ export default function PaymentMethodSelector({
                     )}
                   </div>
                   <span className="text-xs sm:text-sm text-stone-600 block leading-relaxed font-normal">
-                    Giữ đơn hái tươi sáng sớm • Số tiền còn lại gửi tài xế khi nhận thùng xốp
+                    Chuyển khoản <strong className="font-mono text-stone-900 font-bold">{safeDeposit.toLocaleString('vi-VN')}đ</strong> giữ đơn • Gửi nhà xe <strong className="font-mono text-amber-950 font-bold">{remainingCod.toLocaleString('vi-VN')}đ</strong> khi nhận hàng
                   </span>
                 </div>
               </div>
@@ -142,7 +147,7 @@ export default function PaymentMethodSelector({
                 <Ban className="w-5 h-5 text-rose-500 shrink-0" />
                 <div className="space-y-0.5">
                   <strong className="block text-sm sm:text-base font-bold text-stone-500 line-through">
-                    Cọc {safeDeposit.toLocaleString('vi-VN')}đ
+                    Cọc trước {safeDeposit.toLocaleString('vi-VN')}đ
                   </strong>
                   <span className="text-xs sm:text-sm text-rose-800 block leading-relaxed font-normal">
                     Đơn hàng gần nhất bị hủy giao (bom hàng). Vui lòng thanh toán toàn bộ qua VietQR.
@@ -166,9 +171,11 @@ export default function PaymentMethodSelector({
             <div className="flex items-center gap-3">
               <Truck className={`w-5 h-5 shrink-0 ${paymentMethod === 'cod' ? 'text-amber-700' : 'text-stone-400'}`} />
               <div className="space-y-0.5">
-                <strong className="block text-sm sm:text-base text-stone-900 font-bold">Trả sau (COD Toàn Phần)</strong>
+                <strong className="block text-sm sm:text-base text-stone-900 font-bold">
+                  Trả sau (COD Toàn Phần)
+                </strong>
                 <span className="text-xs sm:text-sm text-stone-600 block leading-relaxed font-normal">
-                  Vườn gọi xác nhận trước khi hái • Thanh toán 100% cho nhà xe khi nhận hàng
+                  Vườn gọi xác nhận trước khi hái • Gửi trọn gói <strong className="font-mono text-stone-900 font-bold">{totalAmount.toLocaleString('vi-VN')}đ</strong> cho nhà xe khi nhận hàng
                 </span>
               </div>
             </div>
