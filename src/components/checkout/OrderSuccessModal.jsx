@@ -162,7 +162,7 @@ export default function OrderSuccessModal({
         }
       `}</style>
 
-      <div className="w-[340px] sm:w-[380px] flex flex-col items-center relative my-auto">
+      <div className="w-[360px] sm:w-[420px] flex flex-col items-center relative my-auto">
 
         {/* ================= 1. TỜ GIẤY HÓA ĐƠN ================= */}
         <div className={`w-full overflow-hidden transition-all duration-700 ${printStep === 'torn' || printStep === 'tearing' ? 'overflow-visible' : ''}`}>
@@ -181,125 +181,125 @@ export default function OrderSuccessModal({
             <MicroSawtoothEdge position="top" />
 
             {/* THÂN GIẤY */}
-            <div className="w-full bg-[#fffefb] text-stone-900 px-6 pt-5 pb-5 border-x border-stone-200/90 shadow-2xl space-y-3.5 text-xs">
+            <div className="w-full bg-[#fffefb] text-stone-900 px-6 sm:px-7 pt-6 pb-6 border-x border-stone-200/90 shadow-2xl space-y-4 text-xs sm:text-sm">
               
               {/* Header */}
-              <div className="text-center border-b border-dashed border-stone-300 pb-2.5 space-y-0.5">
-                <h3 className="font-black text-base uppercase tracking-wider text-amber-950 font-sans">
+              <div className="text-center border-b border-dashed border-stone-300 pb-3 space-y-1">
+                <h3 className="font-black text-lg sm:text-xl uppercase tracking-wider text-amber-950 font-sans">
                   {brandName}
                 </h3>
-                <p className="text-[10px] text-stone-500 font-sans">{tagline}</p>
-                <p className="text-[9.5px] text-stone-400">Hotline: {hotline}</p>
+                <p className="text-xs text-stone-600 font-sans font-medium">{tagline}</p>
+                <p className="text-xs text-stone-500 font-sans font-semibold">Hotline: {hotline}</p>
               </div>
 
               {/* Thông tin đơn hàng & Khách hàng */}
-              <div className="space-y-1.5 text-[11px] text-stone-700 border-b border-dashed border-stone-300 pb-2.5">
+              <div className="space-y-2 text-xs sm:text-sm text-stone-800 border-b border-dashed border-stone-300 pb-3">
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Mã đơn hàng:</span>
-                  <span className="font-mono font-bold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded text-xs">
+                  <span className="font-mono font-black text-amber-950 bg-amber-100/90 px-2.5 py-1 rounded-md text-xs sm:text-sm border border-amber-300/60">
                     {orderCode}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Khách hàng:</span>
-                  <strong className="text-stone-900 font-sans text-right truncate max-w-[180px]">
+                  <strong className="text-stone-900 font-sans text-right truncate max-w-[200px]">
                     {customerName}
                   </strong>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Số ĐT:</span>
-                  <strong className="text-stone-900 font-mono">
+                  <strong className="text-stone-900 font-mono font-bold">
                     {customerPhone}
                   </strong>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Phương thức:</span>
-                  <span className="font-semibold text-stone-800 text-[10.5px] font-sans">
+                  <span className="font-bold text-stone-800 text-xs sm:text-sm font-sans">
                     {getPaymentLabel()}
                   </span>
                 </div>
               </div>
 
               {/* Danh sách món */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between font-bold text-[10px] text-stone-400 border-b border-stone-200 pb-1">
+              <div className="space-y-2">
+                <div className="flex justify-between font-bold text-xs text-stone-400 border-b border-stone-200 pb-1.5 uppercase tracking-wider">
                   <span>TÊN MÓN</span>
                   <span>THÀNH TIỀN</span>
                 </div>
 
-                <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
                   {items.length > 0 ? (
                     items.map((item, idx) => {
                       const price = Number(item.price || item.base_price || 0);
                       const qty = Number(item.quantity || 1);
                       const spec = item.weightLabel || item.weight_label || '';
                       return (
-                        <div key={item.id || idx} className="flex justify-between text-[11px] leading-snug">
-                          <span className="truncate pr-2 font-sans">
-                            {item.name || item.title} {spec ? `[${spec}]` : ''} <span className="text-stone-500 font-mono">x{qty}</span>
+                        <div key={item.id || idx} className="flex justify-between text-xs sm:text-sm leading-snug">
+                          <span className="truncate pr-2 font-sans font-medium text-stone-900">
+                            {item.name || item.title} {spec ? `[${spec}]` : ''} <span className="text-stone-500 font-mono font-bold">x{qty}</span>
                           </span>
-                          <span className="font-bold shrink-0 font-mono">
+                          <span className="font-black shrink-0 font-mono text-stone-900">
                             {(price * qty).toLocaleString('vi-VN')}đ
                           </span>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="text-[11px] text-stone-500 italic py-1 font-sans">
+                    <div className="text-xs sm:text-sm text-stone-500 italic py-1 font-sans">
                       Đặc sản Ninh Thuận hái tươi đóng thùng
                     </div>
                   )}
                 </div>
 
                 {giftTitle && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/80 font-sans font-medium mt-1">
-                    <Gift className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80 font-sans mt-1 shadow-2xs">
+                    <Gift className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span className="truncate">Tặng kèm: {giftTitle}</span>
                   </div>
                 )}
               </div>
 
               {/* Tổng tiền & Chi tiết thanh toán */}
-              <div className="border-t border-dashed border-stone-300 pt-2 space-y-1.5">
+              <div className="border-t border-dashed border-stone-300 pt-2.5 space-y-2">
                 {/* Phí vận chuyển */}
-                <div className="flex justify-between text-[11px] text-stone-600">
-                  <span className="flex items-center gap-1 font-sans">
-                    <Truck className="w-3 h-3 text-stone-400" />
+                <div className="flex justify-between text-xs sm:text-sm text-stone-600">
+                  <span className="flex items-center gap-1.5 font-sans font-medium">
+                    <Truck className="w-4 h-4 text-stone-400" />
                     <span>Phí gửi xe:</span>
                   </span>
-                  <span className="font-mono font-bold">
+                  <span className="font-mono font-bold text-stone-800">
                     {shippingFeeNum === 0 ? '0đ (Freeship)' : `+${shippingFeeNum.toLocaleString('vi-VN')}đ`}
                   </span>
                 </div>
 
                 {/* Giảm giá */}
                 {discountNum > 0 && (
-                  <div className="flex justify-between text-[11px] text-emerald-700 font-mono">
+                  <div className="flex justify-between text-xs sm:text-sm text-emerald-700 font-mono font-bold">
                     <span>Giảm ưu đãi:</span>
                     <span>-{discountNum.toLocaleString('vi-VN')}đ</span>
                   </div>
                 )}
 
                 {/* Tổng thanh toán */}
-                <div className="flex justify-between text-xs font-black text-stone-900 pt-0.5 border-t border-stone-100">
+                <div className="flex justify-between text-sm sm:text-base font-black text-stone-900 pt-1 border-t border-stone-200">
                   <span>TỔNG CỘNG:</span>
-                  <span className="text-base text-amber-900 font-mono font-black">
+                  <span className="text-lg sm:text-xl text-amber-950 font-mono font-black">
                     {finalTotalNum.toLocaleString('vi-VN')}đ
                   </span>
                 </div>
 
                 {/* Phân tách thanh toán trước & COD */}
-                <div className="bg-stone-50 p-2 rounded-xl border border-stone-200/60 space-y-1 text-[10.5px]">
-                  <div className="flex justify-between text-stone-600">
-                    <span>Thanh toán ngay (VietQR):</span>
-                    <span className="font-mono font-bold text-emerald-700">
+                <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200/70 space-y-1.5 text-xs sm:text-sm">
+                  <div className="flex justify-between text-stone-700">
+                    <span className="font-medium">Thanh toán ngay (VietQR):</span>
+                    <span className="font-mono font-black text-emerald-700">
                       {isCod ? '0đ' : `${actualDeposit.toLocaleString('vi-VN')}đ`}
                     </span>
                   </div>
                   {remainingCod > 0 && (
-                    <div className="flex justify-between text-stone-600">
-                      <span>Gửi nhà xe khi nhận:</span>
-                      <span className="font-mono font-bold text-stone-800">
+                    <div className="flex justify-between text-stone-700 pt-1 border-t border-stone-200/60">
+                      <span className="font-medium">Gửi nhà xe khi nhận:</span>
+                      <span className="font-mono font-black text-amber-950">
                         {remainingCod.toLocaleString('vi-VN')}đ
                       </span>
                     </div>
@@ -310,17 +310,17 @@ export default function OrderSuccessModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full mt-2 py-3 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
+                  className="w-full mt-2.5 py-3.5 bg-stone-900 hover:bg-stone-800 text-white font-black rounded-2xl text-xs sm:text-sm uppercase tracking-wider transition-all active:scale-[0.98] shadow-md cursor-pointer font-sans"
                 >
                   Tiếp Tục Xem Vườn
                 </button>
 
-                <div className="text-center pt-0.5 font-sans">
+                <div className="text-center pt-1 font-sans">
                   <a 
                     href={`tel:${hotline.replace(/[^0-9]/g, '')}`} 
-                    className="inline-flex items-center gap-1 text-[10px] text-stone-500 hover:text-amber-800 font-medium"
+                    className="inline-flex items-center gap-1.5 text-xs text-stone-600 hover:text-amber-800 font-medium transition-colors"
                   >
-                    <Phone className="w-3 h-3 text-amber-600" />
+                    <Phone className="w-3.5 h-3.5 text-amber-600" />
                     <span>Hotline nhà vườn: <strong>{hotline}</strong></span>
                   </a>
                 </div>
@@ -344,22 +344,22 @@ export default function OrderSuccessModal({
 
         {/* ================= 2. ĐẦU MÁY IN NHIỆT (DƯỚI ĐÁY) ================= */}
         <div 
-          className={`w-full bg-gradient-to-t from-stone-900 to-stone-800 border-2 border-stone-600 rounded-b-3xl p-3.5 shadow-2xl relative z-30 transition-all duration-700 ease-out ${
+          className={`w-full bg-gradient-to-t from-stone-900 to-stone-800 border-2 border-stone-600 rounded-b-3xl p-4 shadow-2xl relative z-30 transition-all duration-700 ease-out ${
             printStep === 'torn' || printStep === 'tearing'
               ? 'translate-y-14 opacity-0 pointer-events-none scale-95'
               : 'translate-y-0 opacity-100'
           } ${printStep === 'shaking' ? 'animate-bottom-shake' : ''}`}
         >
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-400 flex items-center justify-center shadow-inner">
-                <Printer className="w-4 h-4 stroke-[2.2]" />
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-400 flex items-center justify-center shadow-inner">
+                <Printer className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2]" />
               </div>
               <div>
-                <span className="font-sans text-[11px] font-black text-amber-300 uppercase tracking-widest block leading-tight">
+                <span className="font-sans text-xs sm:text-sm font-black text-amber-300 uppercase tracking-widest block leading-tight">
                   Xứ Nắng POS
                 </span>
-                <span className="text-[9px] text-stone-400 font-mono tracking-wider">
+                <span className="text-[10px] sm:text-xs text-stone-400 font-mono tracking-wider">
                   MODEL: XNG-MINI
                 </span>
               </div>
@@ -367,7 +367,7 @@ export default function OrderSuccessModal({
 
             <div className="flex items-center gap-2">
               <span className={`w-2.5 h-2.5 rounded-full ${printStep === 'waiting' ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'}`}></span>
-              <span className="text-[9px] text-stone-300 font-mono font-bold tracking-wider animate-pulse">
+              <span className="text-[10px] sm:text-xs text-stone-300 font-mono font-bold tracking-wider animate-pulse">
                 {printStep === 'waiting' && 'NHẬN ĐƠN...'}
                 {printStep === 'shaking' && 'CUỐN GIẤY...'}
                 {printStep === 'feeding' && 'FEEDING...'}

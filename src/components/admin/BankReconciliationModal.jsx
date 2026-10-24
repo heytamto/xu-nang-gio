@@ -221,36 +221,41 @@ export default function BankReconciliationModal({
   }, [reconData, filterTab]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-stone-200 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
+      {/* Khung modal chuẩn rộng max-w-5xl (1024px) */}
+      <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 flex flex-col max-h-[92vh] space-y-5">
         
-        {/* Header */}
+        {/* Header Modal */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200 shadow-2xs">
-              <FileSpreadsheet className="w-5 h-5" />
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center border border-amber-200/80 shadow-2xs shrink-0">
+              <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-base font-black text-stone-900">Kiểm Tra Chéo Sao Kê Ngân Hàng</h3>
-              <p className="text-xs text-stone-500">Chỉ đọc & đối chiếu số tiền thực nhận với đơn hàng trong kỳ sao kê</p>
+              <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
+                Kiểm Tra Chéo Sao Kê Ngân Hàng
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-500 font-medium mt-0.5">
+                Chỉ đọc & đối chiếu số tiền thực nhận với đơn hàng trong kỳ sao kê
+              </p>
             </div>
           </div>
           <button 
             type="button" 
             onClick={onClose} 
-            className="p-2 text-stone-400 hover:text-stone-700 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+            className="w-10 h-10 rounded-2xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Thân Modal */}
-        <div className="py-4 space-y-4 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+        <div className="space-y-5 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
           
           {/* Khu vực Upload file */}
           <div 
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-stone-300 hover:border-amber-600 rounded-2xl p-5 text-center cursor-pointer bg-stone-50/60 hover:bg-amber-50/30 transition-colors"
+            className="border-2 border-dashed border-stone-300 hover:border-amber-600 rounded-3xl p-6 sm:p-8 text-center cursor-pointer bg-stone-50/60 hover:bg-amber-50/30 transition-all shadow-2xs group"
           >
             <input 
               ref={fileInputRef} 
@@ -260,15 +265,17 @@ export default function BankReconciliationModal({
               onChange={handleFileUpload} 
             />
             {isProcessing ? (
-              <div className="flex flex-col items-center gap-2 text-amber-700">
-                <Loader2 className="w-7 h-7 animate-spin" />
-                <span className="text-xs font-bold">Đang phân tích giao dịch theo mốc thời gian...</span>
+              <div className="flex flex-col items-center gap-2.5 text-amber-700">
+                <Loader2 className="w-8 h-8 animate-spin" />
+                <span className="text-xs sm:text-sm font-bold">Đang phân tích giao dịch theo mốc thời gian...</span>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-1.5 text-stone-600">
-                <Upload className="w-7 h-7 text-amber-700" />
-                <span className="text-xs font-bold">Tải lên file sao kê MB Bank (.xlsx, .csv)</span>
-                <span className="text-[11px] text-stone-400">Hệ thống sẽ tự lọc và so sánh với các đơn trong khoảng thời gian này</span>
+              <div className="flex flex-col items-center gap-2 text-stone-600">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100/70 text-amber-800 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs">
+                  <Upload className="w-6 h-6 text-amber-800" />
+                </div>
+                <span className="text-sm sm:text-base font-bold text-stone-800">Tải lên file sao kê MB Bank (.xlsx, .csv)</span>
+                <span className="text-xs text-stone-400 font-normal">Hệ thống sẽ tự lọc và so sánh với các đơn trong khoảng thời gian này</span>
               </div>
             )}
           </div>
@@ -278,24 +285,24 @@ export default function BankReconciliationModal({
             <div className="space-y-4 animate-fadeIn">
               
               {/* Thẻ tóm tắt thông số kỳ sao kê */}
-              <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/80 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2 text-stone-700">
+              <div className="p-4 sm:p-5 bg-stone-50 rounded-2xl border border-stone-200/80 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-2.5 text-stone-700">
                   <Calendar className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>Kỳ sao kê: <strong className="font-semibold text-stone-900">{reconData.timeRangeText}</strong></span>
+                  <span>Kỳ sao kê: <strong className="font-bold text-stone-900">{reconData.timeRangeText}</strong></span>
                 </div>
-                <div className="flex items-center gap-4 text-[11px] text-stone-600">
-                  <span>Tổng tiền vào: <strong className="font-mono font-bold text-stone-900">{reconData.totalBankAmount.toLocaleString('vi-VN')}đ</strong></span>
-                  <span>Khớp đơn: <strong className="font-mono font-bold text-emerald-700">{reconData.totalMatchedAmount.toLocaleString('vi-VN')}đ</strong></span>
+                <div className="flex items-center gap-5 text-xs sm:text-sm text-stone-600 font-medium">
+                  <span>Tổng tiền vào: <strong className="font-mono font-black text-stone-900">{reconData.totalBankAmount.toLocaleString('vi-VN')}đ</strong></span>
+                  <span>Khớp đơn: <strong className="font-mono font-black text-emerald-700">{reconData.totalMatchedAmount.toLocaleString('vi-VN')}đ</strong></span>
                 </div>
               </div>
 
-              {/* Bộ lọc tab */}
-              <div className="flex items-center gap-2 border-b border-stone-100 pb-2 text-xs">
+              {/* Bộ lọc tab chuẩn h-11 */}
+              <div className="flex items-center gap-2 border-b border-stone-100 pb-3 text-xs sm:text-sm overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setFilterTab('all')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                    filterTab === 'all' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  className={`h-11 px-4 rounded-2xl font-bold transition-all cursor-pointer shrink-0 shadow-2xs active:scale-95 ${
+                    filterTab === 'all' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
                   }`}
                 >
                   Tất cả khớp mã ({reconData.matched.length})
@@ -303,45 +310,45 @@ export default function BankReconciliationModal({
                 <button
                   type="button"
                   onClick={() => setFilterTab('discrepancy')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer flex items-center gap-1 ${
-                    filterTab === 'discrepancy' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                  className={`h-11 px-4 rounded-2xl font-bold transition-all cursor-pointer flex items-center gap-2 shrink-0 shadow-2xs active:scale-95 ${
+                    filterTab === 'discrepancy' ? 'bg-amber-700 text-white shadow-xs' : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
                   }`}
                 >
-                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <AlertTriangle className="w-4 h-4" />
                   <span>Lệch số tiền ({reconData.discrepancies.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilterTab('unmatched')}
-                  className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
-                    filterTab === 'unmatched' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
+                  className={`h-11 px-4 rounded-2xl font-bold transition-all cursor-pointer shrink-0 shadow-2xs active:scale-95 ${
+                    filterTab === 'unmatched' ? 'bg-rose-700 text-white shadow-xs' : 'bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200'
                   }`}
                 >
                   Không có mã XNG ({reconData.unmatched.length})
                 </button>
               </div>
 
-              {/* Bảng chi tiết */}
-              <div className="border border-stone-200 rounded-2xl overflow-hidden max-h-64 overflow-y-auto text-xs">
+              {/* Bảng chi tiết mở rộng */}
+              <div className="border border-stone-200 rounded-3xl overflow-hidden max-h-80 overflow-y-auto text-xs sm:text-sm shadow-2xs">
                 {filterTab === 'unmatched' ? (
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-stone-100 text-stone-600 font-bold text-[11px] sticky top-0">
+                    <thead className="bg-stone-100 text-stone-700 font-bold text-xs sticky top-0 border-b border-stone-200">
                       <tr>
-                        <th className="p-2.5">Thời gian</th>
-                        <th className="p-2.5">Số tiền</th>
-                        <th className="p-2.5">Nội dung chi tiết</th>
+                        <th className="p-3.5">Thời gian</th>
+                        <th className="p-3.5">Số tiền</th>
+                        <th className="p-3.5">Nội dung chi tiết</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100">
+                    <tbody className="divide-y divide-stone-100 bg-white">
                       {reconData.unmatched.map((tx, idx) => (
-                        <tr key={idx} className="hover:bg-stone-50">
-                          <td className="p-2.5 text-stone-500 font-mono text-[11px] whitespace-nowrap">
+                        <tr key={idx} className="hover:bg-stone-50/80 transition-colors">
+                          <td className="p-3.5 text-stone-500 font-mono text-xs whitespace-nowrap">
                             {tx.date ? tx.date.toLocaleString('vi-VN') : '—'}
                           </td>
-                          <td className="p-2.5 font-bold font-mono text-stone-900">
+                          <td className="p-3.5 font-bold font-mono text-emerald-800 text-xs sm:text-sm whitespace-nowrap">
                             +{tx.amount.toLocaleString('vi-VN')}đ
                           </td>
-                          <td className="p-2.5 text-stone-600 font-mono text-[11px]">
+                          <td className="p-3.5 text-stone-700 font-mono text-xs leading-relaxed">
                             {tx.content}
                           </td>
                         </tr>
@@ -350,41 +357,43 @@ export default function BankReconciliationModal({
                   </table>
                 ) : (
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-stone-100 text-stone-600 font-bold text-[11px] sticky top-0">
+                    <thead className="bg-stone-100 text-stone-700 font-bold text-xs sticky top-0 border-b border-stone-200">
                       <tr>
-                        <th className="p-2.5">Mã đơn</th>
-                        <th className="p-2.5">Khách hàng</th>
-                        <th className="p-2.5">Tiền vào</th>
-                        <th className="p-2.5">Cần thu</th>
-                        <th className="p-2.5">Đối chiếu chênh lệch</th>
+                        <th className="p-3.5">Mã đơn</th>
+                        <th className="p-3.5">Khách hàng</th>
+                        <th className="p-3.5">Tiền vào</th>
+                        <th className="p-3.5">Cần thu</th>
+                        <th className="p-3.5">Đối chiếu chênh lệch</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100">
+                    <tbody className="divide-y divide-stone-100 bg-white">
                       {displayedList.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-stone-50">
-                          <td className="p-2.5 font-mono font-bold text-stone-900">{item.orderCode}</td>
-                          <td className="p-2.5 text-stone-700">
-                            <div>{item.customerName}</div>
-                            <span className="text-[10px] text-stone-400 font-mono">{item.phone}</span>
+                        <tr key={idx} className="hover:bg-stone-50/80 transition-colors">
+                          <td className="p-3.5 font-mono font-black text-amber-950 text-xs sm:text-sm whitespace-nowrap">
+                            {item.orderCode}
                           </td>
-                          <td className="p-2.5 font-bold font-mono text-emerald-700">
+                          <td className="p-3.5 text-stone-800">
+                            <div className="font-bold text-stone-900">{item.customerName}</div>
+                            <span className="text-xs text-stone-500 font-mono font-medium">{item.phone}</span>
+                          </td>
+                          <td className="p-3.5 font-black font-mono text-emerald-700 text-xs sm:text-sm whitespace-nowrap">
                             +{item.txAmount.toLocaleString('vi-VN')}đ
                           </td>
-                          <td className="p-2.5 font-mono text-stone-600">
+                          <td className="p-3.5 font-mono font-bold text-stone-700 text-xs sm:text-sm whitespace-nowrap">
                             {item.expectedAmount.toLocaleString('vi-VN')}đ
                           </td>
-                          <td className="p-2.5">
+                          <td className="p-3.5 whitespace-nowrap">
                             {item.status === 'exact' ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-bold border border-emerald-200">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 px-3 py-1 rounded-xl font-bold border border-emerald-200 shadow-2xs">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                 Chuẩn 100%
                               </span>
                             ) : item.status === 'over' ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-bold border border-blue-200">
+                              <span className="inline-flex items-center gap-1.5 text-xs text-blue-800 bg-blue-50 px-3 py-1 rounded-xl font-bold border border-blue-200 shadow-2xs">
                                 Thừa +{item.diff.toLocaleString('vi-VN')}đ
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md font-bold border border-rose-200">
+                              <span className="inline-flex items-center gap-1.5 text-xs text-rose-800 bg-rose-50 px-3 py-1 rounded-xl font-bold border border-rose-200 shadow-2xs">
                                 Thiếu {Math.abs(item.diff).toLocaleString('vi-VN')}đ
                               </span>
                             )}
@@ -400,14 +409,14 @@ export default function BankReconciliationModal({
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
-          <span className="text-[11px] text-stone-400 italic">
+        <div className="pt-4 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-xs text-stone-400 italic font-medium">
             * Dữ liệu chỉ dùng để kiểm tra sổ sách kế toán, không làm thay đổi trạng thái đơn hàng.
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-xs font-bold text-white cursor-pointer transition-colors"
+            className="h-11 px-6 rounded-2xl bg-stone-900 hover:bg-stone-800 text-xs sm:text-sm font-bold text-white cursor-pointer transition-all shadow-xs active:scale-95"
           >
             Đóng
           </button>

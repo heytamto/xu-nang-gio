@@ -52,7 +52,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-orange-400/10 blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-xs text-amber-900 border border-amber-300/60 text-xs font-bold shadow-2xs tracking-wide">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-xs text-amber-900 border border-amber-300/60 text-xs sm:text-sm font-bold shadow-2xs tracking-wide">
             <Sprout className="w-4 h-4 text-amber-600" />
             <span>Ký Sự Người Làm Vườn Xứ Nắng</span>
           </div>
@@ -64,11 +64,11 @@ export default function StoryPage({ stories = [], onNavigate }) {
             </span>
           </h1>
 
-          <p className="text-xs sm:text-base text-stone-600 leading-relaxed font-light max-w-2xl mx-auto pt-2">
-            Ninh Thuận — nơi quanh năm chỉ có hai mùa: <strong className="font-semibold text-stone-800">mùa nắng</strong> và <strong className="font-semibold text-stone-800">mùa rất nắng</strong>. Nhưng cũng chính cái nắng rát da cùng gió biển hào sảng ấy đã chắt lọc mật ngọt cho từng chùm nho đỏ mọng, từng trái táo giòn ngọt đậm sâu.
+          <p className="text-sm sm:text-lg text-stone-700 leading-relaxed font-normal max-w-2xl mx-auto pt-2">
+            Ninh Thuận — nơi quanh năm chỉ có hai mùa: <strong className="font-bold text-stone-900">mùa nắng</strong> và <strong className="font-bold text-stone-900">mùa rất nắng</strong>. Nhưng cũng chính cái nắng rát da cùng gió biển hào sảng ấy đã chắt lọc mật ngọt cho từng chùm nho đỏ mọng, từng trái táo giòn ngọt đậm sâu.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 pt-4 text-xs font-medium text-stone-500">
+          <div className="flex flex-wrap items-center justify-center gap-6 pt-4 text-xs sm:text-sm font-semibold text-stone-600">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Thu hái mộc tại giàn
             </span>
@@ -85,10 +85,10 @@ export default function StoryPage({ stories = [], onNavigate }) {
       {/* ================= 2. BA NGUYÊN BẢN CỦA NÔNG SẢN XỨ NẮNG ================= */}
       <section className="space-y-6">
         <div className="text-center space-y-1">
-          <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
             Ba Thước Đo Cho Từng Mẻ Quà Quê
           </h2>
-          <p className="text-xs sm:text-sm text-stone-500">
+          <p className="text-sm sm:text-base text-stone-500 font-normal">
             Tỉ mỉ từ lúc cắt cành, chọn trái đến khi đóng gói gửi đi khắp mọi miền
           </p>
         </div>
@@ -99,10 +99,10 @@ export default function StoryPage({ stories = [], onNavigate }) {
               <Sun className="w-6 h-6 text-amber-600" />
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-mono font-bold text-amber-700 uppercase tracking-widest">Gốc Vườn 01</span>
-              <h3 className="font-black text-stone-900 text-base">Hái Sớm Khi Sương Chưa Tan</h3>
+              <span className="text-xs font-mono font-bold text-amber-700 uppercase tracking-widest">Gốc Vườn 01</span>
+              <h3 className="font-black text-stone-900 text-lg sm:text-xl">Hái Sớm Khi Sương Chưa Tan</h3>
             </div>
-            <p className="text-xs text-stone-500 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Táo gió và nho tươi chỉ được cắt cành từ 5h30 đến 7h sáng khi vỏ trái còn mát lạnh và giữ trọn lớp phấn tự nhiên. Tuyệt đối không hái giữa nắng trưa làm héo cuống hay nẫu ruột.
             </p>
           </div>
@@ -112,10 +112,10 @@ export default function StoryPage({ stories = [], onNavigate }) {
               <Clock className="w-6 h-6 text-orange-600" />
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-mono font-bold text-orange-700 uppercase tracking-widest">Gốc Vườn 02</span>
-              <h3 className="font-black text-stone-900 text-base">Sấy Lạnh Thong Thả 28 Tiếng</h3>
+              <span className="text-xs font-mono font-bold text-orange-700 uppercase tracking-widest">Gốc Vườn 02</span>
+              <h3 className="font-black text-stone-900 text-lg sm:text-xl">Sấy Lạnh Thong Thả 28 Tiếng</h3>
             </div>
-            <p className="text-xs text-stone-500 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Táo sấy dẻo không dùng lò nhiệt cao gấp gáp. Chúng mình thái lát mộc, sấy tuần hoàn 45°C ròng rã hơn một ngày một đêm để đường tự nhiên cô đọng lại, dẻo dai và thơm thoang thoảng mùi tắc tươi.
             </p>
           </div>
@@ -125,10 +125,10 @@ export default function StoryPage({ stories = [], onNavigate }) {
               <Flame className="w-6 h-6 text-rose-600" />
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-mono font-bold text-rose-700 uppercase tracking-widest">Gốc Vườn 03</span>
-              <h3 className="font-black text-stone-900 text-base">Ủ Chum Sành Đất Nung 365 Ngày</h3>
+              <span className="text-xs font-mono font-bold text-rose-700 uppercase tracking-widest">Gốc Vườn 03</span>
+              <h3 className="font-black text-stone-900 text-lg sm:text-xl">Ủ Chum Sành Đất Nung 365 Ngày</h3>
             </div>
-            <p className="text-xs text-stone-500 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Nho đỏ chín tới được ủ men tự nhiên trong chum sành mộc mạc suốt một năm. Men đất nung thở nhịp nhàng giúp mật nho lên sắc hổ phách sóng sánh, vị đậm êm, không gây đau đầu hay khé cổ.
             </p>
           </div>
@@ -139,22 +139,22 @@ export default function StoryPage({ stories = [], onNavigate }) {
       <section className="space-y-10">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
-            <div className="flex items-center gap-2 text-amber-700 text-xs font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-amber-700 text-xs sm:text-sm font-bold uppercase tracking-wider">
               <Sparkles className="w-4 h-4" />
               <span>Chuyện Người - Chuyện Nghề</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight mt-1">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-stone-900 tracking-tight mt-1">
               Nhật Ký Mùa Vụ & Đời Sống Giàn Vườn
             </h2>
           </div>
-          <span className="text-xs text-stone-500 font-mono">
+          <span className="text-xs sm:text-sm text-stone-500 font-mono font-medium">
             {sortedStories.length} câu chuyện được lưu lại
           </span>
         </div>
 
         {sortedStories.length === 0 ? (
-          <div className="bg-white rounded-3xl border border-dashed border-stone-300 p-12 text-center text-stone-400 text-xs space-y-2">
-            <Compass className="w-8 h-8 mx-auto text-stone-300 stroke-[1.5]" />
+          <div className="bg-white rounded-3xl border border-dashed border-stone-300 p-12 text-center text-stone-500 text-sm space-y-2">
+            <Compass className="w-8 h-8 mx-auto text-stone-400 stroke-[1.5]" />
             <p>Các mẩu chuyện về giàn nho đang được người làm vườn chép lại...</p>
           </div>
         ) : (
@@ -169,8 +169,8 @@ export default function StoryPage({ stories = [], onNavigate }) {
                   key={storyItem.id || index}
                   className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-6 sm:p-8 items-center group"
                 >
-                  {/* CỘT ẢNH: KHÓA CHIỀU CAO ĐỒNG NHẤT (h-72 sm:h-80 lg:h-88) BẤT KỂ ẢNH DỌC HAY NGANG */}
-                  <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-88 w-full rounded-2xl overflow-hidden relative shadow-inner bg-stone-100 shrink-0 ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
+                  {/* CỘT ẢNH: KHÓA CHIỀU CAO ĐỒNG NHẤT */}
+                  <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-96 w-full rounded-2xl overflow-hidden relative shadow-inner bg-stone-100 shrink-0 ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
                     <img
                       src={storyItem.image || storyItem.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
                       alt={storyItem.title}
@@ -182,7 +182,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
                     />
                     
                     {storyItem.season && (
-                      <span className="absolute top-3.5 left-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider border border-white/10 shadow-sm">
+                      <span className="absolute top-3.5 left-3.5 bg-stone-900/85 backdrop-blur-md text-amber-300 font-bold text-xs px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-white/10 shadow-sm">
                         {storyItem.season}
                       </span>
                     )}
@@ -190,37 +190,37 @@ export default function StoryPage({ stories = [], onNavigate }) {
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
 
-                  {/* CỘT NỘI DUNG: TRẢI ĐỀU, TỰ ĐỘNG THU GỌN HỢP LÝ */}
-                  <div className={`lg:col-span-7 space-y-3.5 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-400">
-                      <span className="flex items-center gap-1.5 font-medium text-stone-600 bg-stone-100 px-2.5 py-1 rounded-lg">
-                        <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  {/* CỘT NỘI DUNG: CHỮ TO RÕ, ĐỘ DÀI VỪA VẶN */}
+                  <div className={`lg:col-span-7 space-y-4 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
+                    <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-stone-500">
+                      <span className="flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-3 py-1.5 rounded-xl">
+                        <Calendar className="w-4 h-4 text-amber-600" />
                         <span>{displayDate}</span>
                       </span>
                       
-                      <span className="flex items-center gap-1 font-medium text-stone-500">
-                        <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                      <span className="flex items-center gap-1.5 font-medium text-stone-600">
+                        <MapPin className="w-4 h-4 text-stone-400" />
                         <span>{storyItem.location || 'Phan Rang - Ninh Thuận'}</span>
                       </span>
                     </div>
 
-                    <h3 className="text-xl sm:text-2xl font-black text-stone-900 leading-snug group-hover:text-amber-800 transition-colors">
+                    <h3 className="text-xl sm:text-2xl lg:text-3xl font-black text-stone-900 leading-snug group-hover:text-amber-800 transition-colors">
                       {storyItem.title}
                     </h3>
 
                     {displayContent && (
-                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-light whitespace-pre-line line-clamp-5 sm:line-clamp-6">
+                      <p className="text-sm sm:text-base text-stone-700 leading-relaxed font-normal whitespace-pre-line line-clamp-5 sm:line-clamp-6">
                         {displayContent}
                       </p>
                     )}
 
-                    <div className="pt-2 flex items-center justify-between border-t border-stone-100">
-                      <span className="text-[11px] font-bold text-amber-900/80 font-mono">
+                    <div className="pt-3 flex items-center justify-between border-t border-stone-100">
+                      <span className="text-xs sm:text-sm font-bold text-amber-900 font-mono">
                         — {storyItem.author || 'Tâm Xứ Nắng Gió'}
                       </span>
 
-                      <div className="flex items-center gap-1 text-[11px] font-semibold text-stone-400">
-                        <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500/20" />
+                      <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-stone-500">
+                        <Heart className="w-4 h-4 text-rose-500 fill-rose-500/20" />
                         <span>Chân thật từ vườn</span>
                       </div>
                     </div>
@@ -233,12 +233,12 @@ export default function StoryPage({ stories = [], onNavigate }) {
       </section>
 
       {/* ================= 4. KHỐI TÂM TÌNH VƯỜN NHÀ ================= */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white rounded-3xl p-8 sm:p-12 shadow-2xl border border-stone-800">
+      <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-stone-800">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-stone-800 text-amber-400 text-xs font-bold border border-amber-500/30">
-            <Heart className="w-3.5 h-3.5 text-red-400 fill-red-400" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-stone-800 text-amber-400 text-xs sm:text-sm font-bold border border-amber-500/30">
+            <Heart className="w-4 h-4 text-red-400 fill-red-400" />
             <span>Gửi Gắm Chân Tình</span>
           </div>
 
@@ -247,7 +247,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
             Chỉ Gửi Đi Thức Quà Thật Của Mảnh Đất Quê."
           </h2>
 
-          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light">
+          <p className="text-sm sm:text-base lg:text-lg text-stone-200 leading-relaxed font-normal">
             Mỗi hũ táo sấy dẻo, mỗi chùm nho tươi hay chai mật nho gửi tới tay bạn và gia đình đều mang theo vị mặn mòi của gió biển, cái gắt nồng của nắng khô và sự chân chất của những người cả đời gắn bó với đất đai Ninh Thuận. Cảm ơn bạn đã đồng hành và san sẻ cùng nông sản quê hương.
           </p>
 
@@ -256,7 +256,7 @@ export default function StoryPage({ stories = [], onNavigate }) {
               <button
                 type="button"
                 onClick={handleGoToShop}
-                className="group px-7 py-4 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold rounded-2xl flex items-center gap-2.5 transition-all shadow-lg shadow-amber-950/40 active:scale-95 cursor-pointer"
+                className="group px-7 py-4 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm sm:text-base font-bold rounded-2xl flex items-center gap-2.5 transition-all shadow-lg shadow-amber-950/40 active:scale-95 cursor-pointer"
               >
                 <span>Ghé Xem Đặc Sản Tươi Vừa Thu Hái</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

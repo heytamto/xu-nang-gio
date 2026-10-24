@@ -69,16 +69,16 @@ export default function BlogPage({ posts = [] }) {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-12 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
       
       {/* ================= 1. HEADER CHÍNH ================= */}
       {!activePost && (
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-amber-500/10 via-amber-100/20 to-transparent border border-amber-200/50 p-8 sm:p-12 text-center">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-60 h-60 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-60 h-60 rounded-full bg-orange-400/10 blur-3xl pointer-events-none" />
+        <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-b from-amber-500/10 via-amber-100/20 to-transparent border border-amber-200/50 p-8 sm:p-14 text-center">
+          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-orange-400/10 blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 max-w-3xl mx-auto space-y-3.5">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-xs text-amber-900 border border-amber-300/60 text-xs font-bold shadow-2xs">
+          <div className="relative z-10 max-w-3xl mx-auto space-y-4">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-xs text-amber-900 border border-amber-300/60 text-xs sm:text-sm font-bold shadow-2xs">
               <ChefHat className="w-4 h-4 text-amber-600" />
               <span>Góc Bếp & Mẹo Hay Xứ Nắng</span>
             </div>
@@ -90,14 +90,14 @@ export default function BlogPage({ posts = [] }) {
               </span>
             </h1>
 
-            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-light max-w-2xl mx-auto">
+            <p className="text-sm sm:text-base text-stone-700 leading-relaxed font-normal max-w-2xl mx-auto">
               Bí quyết phân biệt nho mộc không tẩm ướp, mẹo ủ giòn táo gió và các công thức thức uống giải nhiệt mộc mạc từ vườn nhà Phan Rang.
             </p>
           </div>
         </section>
       )}
 
-      {/* ================= 2. GIAO DIỆN XEM CHI TIẾT BÀI VIẾT (CÂN THẲNG HÀNG VỚI NAVBAR) ================= */}
+      {/* ================= 2. GIAO DIỆN XEM CHI TIẾT BÀI VIẾT ================= */}
       {activePost ? (
         <article className="w-full space-y-8 sm:space-y-10 animate-fadeIn">
           
@@ -109,10 +109,10 @@ export default function BlogPage({ posts = [] }) {
                 setActivePost(null);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="group inline-flex items-center gap-2.5 text-xs sm:text-sm font-bold text-stone-600 hover:text-amber-800 transition-colors cursor-pointer"
+              className="group inline-flex items-center gap-2.5 text-sm sm:text-base font-bold text-stone-700 hover:text-amber-800 transition-colors cursor-pointer"
             >
               <div className="p-2 sm:p-2.5 rounded-2xl bg-white border border-stone-200/80 group-hover:bg-amber-100 group-hover:border-amber-300 transition-all shadow-2xs">
-                <ArrowLeft className="w-4 h-4 text-stone-700 group-hover:text-amber-800" />
+                <ArrowLeft className="w-5 h-5 text-stone-700 group-hover:text-amber-800" />
               </div>
               <span>Quay lại tất cả bài viết</span>
             </button>
@@ -120,7 +120,7 @@ export default function BlogPage({ posts = [] }) {
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-2xs"
               title="Sao chép liên kết bài viết"
             >
               {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-stone-600" />}
@@ -130,20 +130,20 @@ export default function BlogPage({ posts = [] }) {
 
           {/* TIÊU ĐỀ & METADATA */}
           <div className="space-y-4 w-full">
-            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm">
-              <span className="font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-3.5 py-1 rounded-full uppercase text-[11px] tracking-wider">
+            <div className="flex flex-wrap items-center gap-3.5 text-xs sm:text-sm">
+              <span className="font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-3.5 py-1 rounded-full uppercase text-xs tracking-wider">
                 {CATEGORY_LABELS[normalizeCategory(activePost.category || activePost.tag)] || activePost.category || 'Cẩm nang'}
               </span>
 
               {(activePost.created_at || activePost.date) && (
-                <span className="flex items-center gap-1.5 text-stone-500 font-medium">
+                <span className="flex items-center gap-1.5 text-stone-600 font-medium">
                   <Calendar className="w-4 h-4 text-amber-600" />
                   <span>{formatDate(activePost.created_at || activePost.date)}</span>
                 </span>
               )}
 
               {(activePost.read_time || activePost.readTime) && (
-                <span className="flex items-center gap-1.5 text-stone-500 font-medium">
+                <span className="flex items-center gap-1.5 text-stone-600 font-medium">
                   <Clock className="w-4 h-4 text-stone-400" />
                   <span>{activePost.read_time || activePost.readTime}</span>
                 </span>
@@ -155,17 +155,17 @@ export default function BlogPage({ posts = [] }) {
             </h1>
 
             <div className="flex items-center gap-3.5 pt-2">
-              <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-base border border-amber-200 shadow-2xs">
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center font-bold text-lg border border-amber-200 shadow-2xs">
                 {activePost.author ? activePost.author.charAt(0) : 'T'}
               </div>
-              <div className="text-xs sm:text-sm">
-                <span className="font-bold text-stone-900 block">{activePost.author || 'Tâm (Vườn Xứ Nắng Gió)'}</span>
-                <span className="text-stone-400 font-light">Người kể chuyện vườn Phan Rang</span>
+              <div className="text-sm">
+                <span className="font-bold text-stone-900 block text-base">{activePost.author || 'Tâm (Vườn Xứ Nắng Gió)'}</span>
+                <span className="text-stone-500 font-normal">Người kể chuyện vườn Phan Rang</span>
               </div>
             </div>
           </div>
 
-          {/* ẢNH BÌA BÀI VIẾT: RỘNG ĐẦY ĐỦ KHUNG 100% CÂN VỚI BANNER */}
+          {/* ẢNH BÌA BÀI VIẾT */}
           <div className="relative aspect-16/9 sm:aspect-21/9 w-full rounded-3xl overflow-hidden bg-stone-100 border border-stone-200 shadow-sm">
             <img
               src={activePost.image || activePost.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
@@ -179,24 +179,24 @@ export default function BlogPage({ posts = [] }) {
 
           {/* TRÍCH DẪN NGẮN (EXCERPT) */}
           {(activePost.excerpt || activePost.summary || activePost.desc) && (
-            <div className="p-6 sm:p-7 rounded-3xl bg-amber-50/80 border-l-4 border-amber-600 text-stone-800 font-medium text-base sm:text-lg leading-relaxed italic shadow-2xs">
+            <div className="p-6 sm:p-8 rounded-3xl bg-amber-50/80 border-l-4 border-amber-600 text-stone-900 font-medium text-lg sm:text-xl leading-relaxed italic shadow-2xs">
               "{activePost.excerpt || activePost.summary || activePost.desc}"
             </div>
           )}
 
           {/* NỘI DUNG CHI TIẾT */}
-          <div className="text-base sm:text-lg text-stone-700 leading-relaxed font-light whitespace-pre-line space-y-6 pt-2">
+          <div className="text-base sm:text-lg text-stone-800 leading-relaxed font-normal whitespace-pre-line space-y-6 pt-2">
             {activePost.content || activePost.excerpt || activePost.summary}
           </div>
 
           {/* BANNER HỖ TRỢ CHÂN TRANG */}
-          <div className="mt-14 p-6 sm:p-8 rounded-3xl bg-stone-900 text-white flex flex-col sm:flex-row items-center gap-5 shadow-xl border border-stone-800 w-full">
-            <div className="w-12 h-12 rounded-2xl bg-amber-600/30 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
-              <HeartHandshake className="w-6 h-6" />
+          <div className="mt-14 p-7 sm:p-9 rounded-[2rem] bg-stone-900 text-white flex flex-col sm:flex-row items-center gap-5 shadow-xl border border-stone-800 w-full">
+            <div className="w-14 h-14 rounded-2xl bg-amber-600/30 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+              <HeartHandshake className="w-7 h-7" />
             </div>
-            <div className="space-y-1 text-center sm:text-left flex-1">
-              <h4 className="font-bold text-base sm:text-lg text-white">Bạn cần tư vấn thêm về cách chọn và bảo quản?</h4>
-              <p className="text-xs sm:text-sm text-stone-400 font-light leading-relaxed">
+            <div className="space-y-1.5 text-center sm:text-left flex-1">
+              <h4 className="font-bold text-lg sm:text-xl text-white">Bạn cần tư vấn thêm về cách chọn và bảo quản?</h4>
+              <p className="text-sm sm:text-base text-stone-300 font-normal leading-relaxed">
                 Đừng ngại nhắn cho vườn qua Hotline hoặc Zalo nếu hoa quả nhận về gặp bất kỳ sự cố dập nát nào trong quá trình chuyển xe nhé.
               </p>
             </div>
@@ -208,7 +208,7 @@ export default function BlogPage({ posts = [] }) {
         <div className="space-y-10">
           
           {/* Thanh Filter chuyên mục */}
-          <div className="flex items-center justify-center gap-2 flex-wrap">
+          <div className="flex items-center justify-center gap-2.5 flex-wrap">
             {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
               const count = key === 'all' 
                 ? rawPostList.length 
@@ -219,15 +219,15 @@ export default function BlogPage({ posts = [] }) {
                   key={key}
                   type="button"
                   onClick={() => setSelectedCategory(key)}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
                     selectedCategory === key 
-                      ? 'bg-amber-800 text-white shadow-sm' 
-                      : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50 hover:border-stone-300'
+                      ? 'bg-amber-900 text-white shadow-sm' 
+                      : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 hover:border-stone-300'
                   }`}
                 >
                   <span>{label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    selectedCategory === key ? 'bg-amber-900 text-amber-200' : 'bg-stone-100 text-stone-500'
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                    selectedCategory === key ? 'bg-amber-950 text-amber-200' : 'bg-stone-100 text-stone-600'
                   }`}>
                     {count}
                   </span>
@@ -237,8 +237,8 @@ export default function BlogPage({ posts = [] }) {
           </div>
 
           {filteredPosts.length === 0 ? (
-            <div className="p-16 text-center text-stone-400 text-xs bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
-              <BookOpen className="w-8 h-8 mx-auto text-stone-300 stroke-[1.5]" />
+            <div className="p-16 text-center text-stone-500 text-sm bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
+              <BookOpen className="w-8 h-8 mx-auto text-stone-400 stroke-[1.5]" />
               <p>Chưa có bài viết nào thuộc chuyên mục này...</p>
             </div>
           ) : (
@@ -251,7 +251,7 @@ export default function BlogPage({ posts = [] }) {
                     setActivePost(featuredPost);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="group bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-5 sm:p-8 items-center"
+                  className="group bg-white rounded-[2rem] border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-6 sm:p-8 items-center"
                 >
                   <div className="lg:col-span-7 h-64 sm:h-80 lg:h-96 rounded-2xl overflow-hidden bg-stone-100 relative shadow-inner">
                     <img
@@ -263,40 +263,40 @@ export default function BlogPage({ posts = [] }) {
                         e.currentTarget.src = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80";
                       }}
                     />
-                    <div className="absolute top-3.5 left-3.5 bg-amber-600 text-white font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1">
+                    <div className="absolute top-3.5 left-3.5 bg-amber-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Bài viết nổi bật</span>
                     </div>
                   </div>
 
-                  <div className="lg:col-span-5 space-y-3.5">
-                    <div className="flex items-center gap-3 text-xs text-stone-400">
-                      <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md uppercase text-[10px]">
+                  <div className="lg:col-span-5 space-y-4">
+                    <div className="flex items-center gap-3 text-xs sm:text-sm text-stone-500">
+                      <span className="font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md uppercase text-xs">
                         {CATEGORY_LABELS[normalizeCategory(featuredPost.category || featuredPost.tag)] || 'Cẩm nang'}
                       </span>
                       {(featuredPost.created_at || featuredPost.date) && (
-                        <span className="flex items-center gap-1 font-medium text-stone-500">
-                          <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="flex items-center gap-1.5 font-medium text-stone-600">
+                          <Calendar className="w-4 h-4 text-amber-600" />
                           <span>{formatDate(featuredPost.created_at || featuredPost.date)}</span>
                         </span>
                       )}
                       {(featuredPost.read_time || featuredPost.readTime) && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-stone-400" />
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-4 h-4 text-stone-400" />
                           <span>{featuredPost.read_time || featuredPost.readTime}</span>
                         </span>
                       )}
                     </div>
 
-                    <h2 className="text-xl sm:text-3xl font-black text-stone-900 leading-snug group-hover:text-amber-800 transition-colors">
+                    <h2 className="text-2xl sm:text-3xl font-black text-stone-900 leading-snug group-hover:text-amber-800 transition-colors">
                       {featuredPost.title}
                     </h2>
 
-                    <p className="text-xs sm:text-sm text-stone-500 line-clamp-3 leading-relaxed font-light">
+                    <p className="text-sm sm:text-base text-stone-600 line-clamp-3 leading-relaxed font-normal">
                       {featuredPost.excerpt || featuredPost.summary || featuredPost.desc || featuredPost.content}
                     </p>
 
-                    <div className="pt-2 flex items-center gap-2 text-xs font-bold text-amber-800 group-hover:translate-x-1 transition-transform">
+                    <div className="pt-2 flex items-center gap-2 text-sm font-bold text-amber-800 group-hover:translate-x-1 transition-transform">
                       <span>Đọc bài viết tiêu điểm</span>
                       <ArrowRight className="w-4 h-4" />
                     </div>
@@ -304,7 +304,7 @@ export default function BlogPage({ posts = [] }) {
                 </div>
               )}
 
-              {/* LƯỚI BÀI VIẾT */}
+              {/* LƯỚI BÀI VIẾT THƯỜNG */}
               {regularPosts.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {regularPosts.map((post) => (
@@ -314,7 +314,7 @@ export default function BlogPage({ posts = [] }) {
                         setActivePost(post);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="bg-white rounded-3xl border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 cursor-pointer flex flex-col justify-between group"
+                      className="bg-white rounded-[2rem] border border-stone-200/90 overflow-hidden shadow-xs hover:shadow-xl hover:border-amber-300 transition-all duration-300 cursor-pointer flex flex-col justify-between group"
                     >
                       <div>
                         <div className="relative aspect-16/10 overflow-hidden bg-stone-100">
@@ -327,42 +327,42 @@ export default function BlogPage({ posts = [] }) {
                               e.currentTarget.src = "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80";
                             }}
                           />
-                          <span className="absolute bottom-3 left-3 bg-stone-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">
+                          <span className="absolute bottom-3 left-3 bg-stone-900/85 backdrop-blur-xs text-white text-xs font-bold px-3 py-1 rounded-full uppercase">
                             {CATEGORY_LABELS[normalizeCategory(post.category || post.tag)] || 'Cẩm nang'}
                           </span>
                         </div>
 
-                        <div className="p-5 sm:p-6 space-y-2.5">
-                          <div className="flex items-center gap-3 text-[11px] text-stone-400">
+                        <div className="p-6 space-y-3">
+                          <div className="flex items-center gap-3 text-xs sm:text-sm text-stone-500">
                             {(post.created_at || post.date) && (
-                              <span className="flex items-center gap-1 font-medium text-stone-500">
-                                <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                              <span className="flex items-center gap-1.5 font-medium text-stone-600">
+                                <Calendar className="w-4 h-4 text-amber-600" />
                                 <span>{formatDate(post.created_at || post.date)}</span>
                               </span>
                             )}
                             {(post.read_time || post.readTime) && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-stone-400" />
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="w-4 h-4 text-stone-400" />
                                 <span>{post.read_time || post.readTime}</span>
                               </span>
                             )}
                           </div>
 
-                          <h3 className="font-bold text-stone-900 text-sm sm:text-base line-clamp-2 leading-snug group-hover:text-amber-800 transition-colors">
+                          <h3 className="font-bold text-stone-900 text-base sm:text-lg line-clamp-2 leading-snug group-hover:text-amber-800 transition-colors">
                             {post.title}
                           </h3>
 
-                          <p className="text-xs text-stone-500 line-clamp-2 leading-relaxed font-light">
+                          <p className="text-sm text-stone-600 line-clamp-2 leading-relaxed font-normal">
                             {post.excerpt || post.summary || post.desc || post.content}
                           </p>
                         </div>
                       </div>
 
-                      <div className="p-5 sm:p-6 pt-0 flex items-center justify-between text-xs border-t border-stone-50">
-                        <span className="font-bold text-amber-800 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                          Đọc tiếp <ArrowRight className="w-3.5 h-3.5" />
+                      <div className="p-6 pt-0 flex items-center justify-between text-sm border-t border-stone-50">
+                        <span className="font-bold text-amber-800 flex items-center gap-1.5 group-hover:translate-x-1 transition-transform">
+                          Đọc tiếp <ArrowRight className="w-4 h-4" />
                         </span>
-                        <span className="text-[11px] text-stone-400 font-mono">
+                        <span className="text-xs text-stone-500 font-mono">
                           {post.author || 'Tâm Xứ Nắng'}
                         </span>
                       </div>

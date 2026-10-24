@@ -1,10 +1,11 @@
 // src/pages/PackingPage.jsx
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   PackageCheck, Printer, 
   CheckCircle2, Lock, ArrowLeft, Banknote, 
   ShieldCheck, AlertCircle, Gift, Check, RotateCcw,
-  Layers, Package, LogOut, RefreshCw, Loader2
+  Layers, Package, LogOut, RefreshCw, Loader2,
+  Camera, Image as ImageIcon, X, ExternalLink
 } from 'lucide-react';
 import { 
   ORDER_STATUS, 
@@ -33,10 +34,15 @@ export default function PackingPage({
   const [warehouseOrders, setWarehouseOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // State quản lý upload ảnh cho từng đơn
+  const [uploadingOrderCode, setUploadingOrderCode] = useState(null);
+  const [previewImages, setPreviewImages] = useState({});
+  const fileInputRefs = useRef({});
+
   const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
   const configuredDeposit = Number(shopConfig?.depositAmount) || 50000;
 
-  // Map tra cứu quà tặng từ catalog (Fallback nếu đơn chỉ lưu ID quà)
+  // Map tra cứu quà tặng từ catalog
   const giftCatalogMap = useMemo(() => {
     const map = new Map();
     const giftsList = [
@@ -75,7 +81,6 @@ export default function PackingPage({
         return;
       }
 
-      // Kéo chi tiết order_items tương ứng theo order_code
       const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
       let itemsMap = {};
 
@@ -110,7 +115,6 @@ export default function PackingPage({
     }
   }, [isAuthenticated, propOrders]);
 
-  // Realtime subscription từ Supabase
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchPackableOrders();
@@ -131,7 +135,55 @@ export default function PackingPage({
     };
   }, [isAuthenticated, fetchPackableOrders]);
 
-  // Cập nhật trạng thái đơn hàng (Tự map qua getOrderStatusLabel)
+  // Xử lý tải ảnh chụp thùng xốp lên Supabase Storage
+  const handleUploadPackingPhoto = async (orderCode, file) => {
+    if (!file) return;
+
+    setUploadingOrderCode(orderCode);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${orderCode}_${Date.now()}.${fileExt}`;
+      const filePath = `packing/${fileName}`;
+
+      // 1. Upload lên bucket
+      const { error: uploadErr } = await supabase.storage
+        .from('order-deliveries')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      // 2. Lấy link public
+      const { data: publicUrlData } = supabase.storage
+        .from('order-deliveries')
+        .getPublicUrl(filePath);
+
+      const imageUrl = publicUrlData?.publicUrl;
+
+      // 3. Cập nhật URL ảnh vào bảng orders
+      const { error: updateErr } = await supabase
+        .from('orders')
+        .update({
+          packing_image: imageUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('code', orderCode);
+
+      if (updateErr) throw updateErr;
+
+      setWarehouseOrders((prev) =>
+        prev.map((o) => (o.code === orderCode ? { ...o, packing_image: imageUrl } : o))
+      );
+
+      setPreviewImages((prev) => ({ ...prev, [orderCode]: imageUrl }));
+    } catch (err) {
+      console.error('Lỗi upload ảnh đóng hàng:', err);
+      alert('Không thể tải ảnh lên: ' + err.message);
+    } finally {
+      setUploadingOrderCode(null);
+    }
+  };
+
+  // Cập nhật trạng thái đơn hàng
   const handleUpdateStatus = async (orderCode, targetStatusCode) => {
     const finalLabel = getOrderStatusLabel(targetStatusCode);
     try {
@@ -150,7 +202,6 @@ export default function PackingPage({
     }
   };
 
-  // State lưu vết checklist
   const [pickedItems, setPickedItems] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem('warehouse_picked_items') || '{}');
@@ -214,7 +265,6 @@ export default function PackingPage({
     setPickedItems({});
   };
 
-  // Lọc chính xác các đơn "Đã xác nhận" và "Đang đóng gói" bằng normalizeOrderStatus
   const packableOrders = useMemo(() => {
     return warehouseOrders.filter((o) => {
       const statusCode = normalizeOrderStatus(o.status);
@@ -222,26 +272,23 @@ export default function PackingPage({
     });
   }, [warehouseOrders]);
 
-  // Tính số tiền cần thu khi giao hàng chuẩn xác theo deposit_paid và payment_verified
   const getCollectInfo = (order) => {
     const method = String(order.payment_method || order.paymentMethod || '').toLowerCase();
     const rawTotal = Number(order.final_total ?? order.total ?? order.totalAmount ?? 0);
     const depositPaidFromDb = Number(order.deposit_paid ?? 0);
     const isVerified = Boolean(order.payment_verified);
 
-    // 1. Đơn chuyển khoản 100%
     if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
         type: 'PAID_FULL',
         collectAmount: 0,
         badgeText: 'ĐÃ CHUYỂN 100% (Thu 0đ)',
-        badgeStyle: 'text-emerald-800 bg-emerald-50 border-emerald-300',
+        badgeStyle: 'text-emerald-900 bg-emerald-100 border-emerald-300 font-bold',
         printTitle: '✓ ĐÃ THANH TOÁN ĐỦ 100%',
         printSub: 'TUYỆT ĐỐI KHÔNG THU THÊM TIỀN'
       };
     }
 
-    // 2. Đơn đặt cọc (Deposit)
     if (method.includes('cọc') || method.includes('deposit')) {
       const actualDeposit = depositPaidFromDb > 0 
         ? depositPaidFromDb 
@@ -253,29 +300,26 @@ export default function PackingPage({
         type: 'DEPOSIT_REMAINING',
         collectAmount: remaining,
         depositAmount: actualDeposit,
-        badgeText: `ĐÃ CỌC ${actualDeposit.toLocaleString('vi-VN')}đ • THU: ${remaining.toLocaleString('vi-VN')}đ`,
-        badgeStyle: 'text-amber-900 bg-amber-50 border-amber-300',
+        badgeText: `ĐÃ CỌC ${actualDeposit.toLocaleString('vi-VN')}đ • THU CÒN LẠI: ${remaining.toLocaleString('vi-VN')}đ`,
+        badgeStyle: 'text-amber-950 bg-amber-100 border-amber-300 font-bold',
         printTitle: `ĐÃ CỌC ${actualDeposit.toLocaleString('vi-VN')} đ (THU CÒN LẠI):`,
         printSub: `Tổng đơn: ${rawTotal.toLocaleString('vi-VN')}đ - Khách đã cọc: ${actualDeposit.toLocaleString('vi-VN')}đ`
       };
     }
 
-    // 3. Đơn trả sau (COD 100%)
     return {
       type: 'COD_FULL',
       collectAmount: rawTotal,
       badgeText: `THU HỘ COD 100%: ${rawTotal.toLocaleString('vi-VN')}đ`,
-      badgeStyle: 'text-rose-900 bg-rose-50 border-rose-300',
+      badgeStyle: 'text-rose-950 bg-rose-100 border-rose-300 font-bold',
       printTitle: 'TIỀN THU HỘ TOÀN BỘ (COD):',
       printSub: 'Khách thanh toán 100% khi nhận kiện'
     };
   };
 
-  // Phân tích chi tiết danh sách món kèm quà tặng
   const parseOrderItems = (order) => {
     const items = [];
 
-    // 1. Mảng quan hệ order_items
     if (Array.isArray(order.order_items) && order.order_items.length > 0) {
       order.order_items.forEach((oi) => {
         items.push({
@@ -294,9 +338,7 @@ export default function PackingPage({
           });
         }
       });
-    }
-    // 2. Mảng cart từ client
-    else if (Array.isArray(order.cart) && order.cart.length > 0) {
+    } else if (Array.isArray(order.cart) && order.cart.length > 0) {
       order.cart.forEach((c) => {
         items.push({
           name: c.name || c.product_name || 'Đặc sản Ninh Thuận',
@@ -316,9 +358,7 @@ export default function PackingPage({
           });
         }
       });
-    }
-    // 3. Fallback chuỗi itemsSummary
-    else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
+    } else if (order.itemsSummary && typeof order.itemsSummary === 'string') {
       const parts = order.itemsSummary.split(',');
       parts.forEach((str) => {
         const trimmed = str.trim();
@@ -347,7 +387,6 @@ export default function PackingPage({
       });
     }
 
-    // Quà tặng thanh toán
     const giftTitle = order.payment_gift || order.giftTitle || order.paymentGift;
     if (giftTitle && giftTitle !== 'Không áp dụng (COD)' && giftTitle.trim() !== '') {
       const resolvedPaymentGift = giftCatalogMap.get(giftTitle) || giftTitle;
@@ -362,7 +401,6 @@ export default function PackingPage({
       }
     }
 
-    // Quà combo chiến dịch
     const rawCampGifts = order.campaign_gifts || order.campaignGifts;
     if (rawCampGifts && typeof rawCampGifts === 'string') {
       const campGifts = rawCampGifts.split('|');
@@ -426,9 +464,9 @@ export default function PackingPage({
         <td style="text-align: center; font-weight: bold; border-right: 1px solid #000; padding: 4px 2px;">${idx + 1}</td>
         <td style="padding: 4px 6px; border-right: 1px solid #000; font-weight: bold;">
           ${it.name}
-          <div style="font-size: 10px; font-weight: normal; color: ${it.isGift ? '#b45309' : '#333'};">${it.spec}</div>
+          <div style="font-size: 11px; font-weight: normal; color: ${it.isGift ? '#b45309' : '#333'};">${it.spec}</div>
         </td>
-        <td style="text-align: center; font-weight: 900; font-family: monospace; font-size: 15px; padding: 4px 2px;">
+        <td style="text-align: center; font-weight: 900; font-family: monospace; font-size: 16px; padding: 4px 2px;">
           x${it.quantity}
         </td>
       </tr>
@@ -455,7 +493,7 @@ export default function PackingPage({
             </div>
 
             <div class="recipient-box">
-              <div style="font-size: 9.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
+              <div style="font-size: 10.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
               <div class="recipient-name-phone">
                 <span class="recipient-name">${order.customer_name || order.name || order.customerName || ''}</span>
                 <span class="recipient-phone">${order.phone || ''}</span>
@@ -474,9 +512,9 @@ export default function PackingPage({
             <table class="items-table">
               <thead>
                 <tr>
-                  <th style="width: 28px; border-right: 1px solid #000;">STT</th>
+                  <th style="width: 32px; border-right: 1px solid #000;">STT</th>
                   <th style="text-align: left; padding-left: 6px; border-right: 1px solid #000;">Tên Sản Phẩm / Quy Cách</th>
-                  <th style="width: 45px;">SL</th>
+                  <th style="width: 50px;">SL</th>
                 </tr>
               </thead>
               <tbody>
@@ -499,8 +537,8 @@ export default function PackingPage({
 
           ${collectInfo.type === 'PAID_FULL' ? `
             <div class="payment-block paid-block">
-              <div style="font-size: 14px; font-weight: 900;">${collectInfo.printTitle}</div>
-              <div style="font-size: 11px; color: #444; margin-top: 2px;">${collectInfo.printSub}</div>
+              <div style="font-size: 15px; font-weight: 900;">${collectInfo.printTitle}</div>
+              <div style="font-size: 12px; color: #444; margin-top: 2px;">${collectInfo.printSub}</div>
             </div>
           ` : `
             <div class="payment-block cod-block">
@@ -588,14 +626,14 @@ export default function PackingPage({
               justify-content: center;
             }
             .shop-title {
-              font-size: 14px;
+              font-size: 15px;
               font-weight: 900;
               text-transform: uppercase;
               margin: 0;
               letter-spacing: 0.5px;
             }
             .shop-sub {
-              font-size: 9.5px;
+              font-size: 10.5px;
               color: #333;
               margin-top: 2px;
               font-weight: 600;
@@ -609,13 +647,13 @@ export default function PackingPage({
             }
             .order-code {
               font-family: "Courier New", Courier, monospace;
-              font-size: 19px;
+              font-size: 20px;
               font-weight: 900;
               letter-spacing: 1.5px;
             }
             .barcode-line {
               font-family: "Courier New", monospace;
-              font-size: 15px;
+              font-size: 16px;
               font-weight: 900;
               letter-spacing: 3px;
               line-height: 1;
@@ -627,9 +665,9 @@ export default function PackingPage({
               border-bottom: 2px solid #000;
             }
             .sender-box {
-              padding: 4px 8px;
+              padding: 5px 8px;
               border-bottom: 1px dashed #777;
-              font-size: 11px;
+              font-size: 11.5px;
               line-height: 1.35;
               background: #fafafa;
             }
@@ -643,12 +681,12 @@ export default function PackingPage({
               margin-bottom: 3px;
             }
             .recipient-name {
-              font-size: 16px;
+              font-size: 17px;
               font-weight: 900;
             }
             .recipient-phone {
               font-family: "Courier New", Courier, monospace;
-              font-size: 17px;
+              font-size: 18px;
               font-weight: 900;
               background: #000;
               color: #fff;
@@ -656,7 +694,7 @@ export default function PackingPage({
               border-radius: 4px;
             }
             .recipient-address {
-              font-size: 12px;
+              font-size: 12.5px;
               font-weight: 600;
               line-height: 1.35;
             }
@@ -669,7 +707,7 @@ export default function PackingPage({
             }
             .items-title {
               padding: 4px 8px;
-              font-size: 10px;
+              font-size: 11px;
               font-weight: 800;
               text-transform: uppercase;
               background: #f0f0f0;
@@ -680,29 +718,29 @@ export default function PackingPage({
             .items-table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 11.5px;
+              font-size: 12px;
             }
             .items-table th {
               border-bottom: 1px solid #000;
-              font-size: 10px;
-              padding: 3px;
+              font-size: 10.5px;
+              padding: 4px;
               background: #fafafa;
             }
             .items-table td {
               border-bottom: 1px dashed #ddd;
             }
             .alert-hidden {
-              font-size: 10px;
+              font-size: 10.5px;
               color: #b91c1c;
               font-style: italic;
               font-weight: bold;
-              padding: 3px 6px;
+              padding: 4px 6px;
               text-align: center;
               background: #fef2f2;
             }
             .note-box {
-              padding: 3px 8px;
-              font-size: 10.5px;
+              padding: 4px 8px;
+              font-size: 11px;
               font-style: italic;
               color: #1e3a8a;
               background: #eff6ff;
@@ -718,19 +756,19 @@ export default function PackingPage({
               color: #fff;
             }
             .cod-label {
-              font-size: 11px;
+              font-size: 11.5px;
               font-weight: 800;
               letter-spacing: 0.5px;
             }
             .cod-price {
-              font-size: 26px;
+              font-size: 27px;
               font-weight: 900;
               font-family: "Courier New", Courier, monospace;
               line-height: 1.1;
               margin: 2px 0;
             }
             .cod-sub {
-              font-size: 10px;
+              font-size: 10.5px;
               opacity: 0.9;
             }
             .paid-block {
@@ -740,7 +778,7 @@ export default function PackingPage({
             .footer-box {
               padding: 5px;
               text-align: center;
-              font-size: 10.5px;
+              font-size: 11px;
               font-weight: 900;
               text-transform: uppercase;
               background: #fff;
@@ -767,12 +805,14 @@ export default function PackingPage({
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4 font-sans animate-fadeIn">
-        <form onSubmit={handlePinSubmit} className="bg-white p-7 rounded-3xl border border-stone-200/90 shadow-xl max-w-sm w-full text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
-            <Lock className="w-6 h-6" />
+        <form onSubmit={handlePinSubmit} className="bg-white p-8 rounded-3xl border border-stone-200/90 shadow-xl max-w-md w-full text-center space-y-5">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
+            <Lock className="w-7 h-7" />
           </div>
-          <h2 className="text-base font-black text-stone-900">Mã PIN Kho Đóng Hàng</h2>
-          <p className="text-xs text-stone-500">Nhập mã PIN kho để mở bảng gom nông sản & in tem giao nhà xe</p>
+          <div className="space-y-1">
+            <h2 className="text-xl font-black text-stone-900">Mã PIN Kho Đóng Hàng</h2>
+            <p className="text-sm text-stone-600 font-normal">Nhập mã PIN kho để mở bảng gom nông sản & in tem giao nhà xe</p>
+          </div>
           <input
             type="password"
             maxLength={8}
@@ -783,12 +823,12 @@ export default function PackingPage({
               if (pinError) setPinError(false);
             }}
             placeholder="Nhập mã PIN kho"
-            className="w-full text-center text-lg tracking-widest font-mono py-2.5 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:border-amber-600 focus:outline-none font-black"
+            className="w-full text-center text-2xl tracking-widest font-mono py-3.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white focus:border-amber-600 focus:outline-none font-black text-stone-900"
           />
-          {pinError && <p className="text-xs text-rose-600 font-semibold">Mã PIN không đúng, thử lại!</p>}
+          {pinError && <p className="text-sm text-rose-600 font-bold">Mã PIN không đúng, thử lại!</p>}
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-stone-900 hover:bg-amber-800 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+            className="w-full py-3.5 rounded-2xl bg-stone-900 hover:bg-amber-800 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
           >
             Mở Bảng Đóng Hàng
           </button>
@@ -797,90 +837,88 @@ export default function PackingPage({
     );
   }
 
-  // GIAO DIỆN KHO ĐÓNG GÓI KHI ĐÃ ĐĂNG NHẬP
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">
       <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
-        <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
+        <header className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-md space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3.5">
               <button
                 type="button"
                 onClick={onNavigateHome}
-                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+                className="p-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
                 title="Về Trang Chủ"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
-              <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                <PackageCheck className="w-5 h-5" />
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <PackageCheck className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
-                  {isLoading && <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />}
+                  <h1 className="text-lg sm:text-2xl font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
+                  {isLoading && <Loader2 className="w-5 h-5 text-amber-600 animate-spin" />}
                 </div>
-                <p className="text-xs text-stone-500">
-                  Có <strong className="text-amber-800 font-mono">{packableOrders.length}</strong> đơn hợp lệ chờ đóng thùng
+                <p className="text-xs sm:text-sm text-stone-600 font-normal mt-0.5">
+                  Có <strong className="text-amber-800 font-mono text-base">{packableOrders.length}</strong> đơn hợp lệ chờ đóng thùng
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               {packableOrders.length > 0 && (
                 <button
                   type="button"
                   onClick={() => executeFastPrint(packableOrders, `In ${packableOrders.length} Tem Gửi Hàng`)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-stone-900 hover:bg-amber-800 text-white text-xs font-bold rounded-2xl shadow-sm active:scale-95 cursor-pointer transition-colors"
+                  className="flex items-center gap-2 px-5 py-3 bg-stone-900 hover:bg-amber-800 text-white text-xs sm:text-sm font-bold rounded-2xl shadow-sm active:scale-95 cursor-pointer transition-colors"
                   title="In hàng loạt tất cả tem chờ đóng"
                 >
-                  <Layers className="w-3.5 h-3.5" />
+                  <Layers className="w-4 h-4" />
                   <span>In Hết ({packableOrders.length} Tem)</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={fetchPackableOrders}
-                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 active:scale-95 cursor-pointer transition-colors"
+                className="p-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 active:scale-95 cursor-pointer transition-colors"
                 title="Làm mới dữ liệu từ Supabase"
               >
-                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
 
               <button
                 type="button"
                 onClick={handleLogoutWarehouse}
-                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
+                className="p-3 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
                 title="Khóa lại giao diện kho"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* 2 Tab chuyển đổi */}
           <div className="bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 gap-2 border border-stone-200/50">
             <button
               type="button"
               onClick={() => setActiveTab('picking')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-colors ${
+              className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold cursor-pointer flex items-center justify-center gap-2 transition-colors ${
                 activeTab === 'picking' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
               <span>📋 Bảng Soạn Hàng Tổng Hợp</span>
-              <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-xs font-mono bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
                 {completedPickingCount}/{pickingSummary.length}
               </span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('orders')}
-              className={`py-2 px-3 rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 transition-colors ${
+              className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold cursor-pointer flex items-center justify-center gap-2 transition-colors ${
                 activeTab === 'orders' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
               <span>📦 Danh Sách Đóng Kiện</span>
-              <span className="text-[10.5px] font-mono bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+              <span className="text-xs font-mono bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
                 {packableOrders.length}
               </span>
             </button>
@@ -890,27 +928,27 @@ export default function PackingPage({
 
       <div className="space-y-6 pt-3">
         {activeTab === 'picking' && (
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between border-b border-stone-100 pb-3 gap-2">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-stone-200/90 shadow-xs space-y-5">
+            <div className="flex flex-wrap items-center justify-between border-b border-stone-100 pb-4 gap-2">
               <div>
-                <h3 className="text-sm font-black text-stone-900">Nông Sản & Quà Tặng Cần Gom</h3>
-                <p className="text-xs text-stone-500">
+                <h3 className="text-base sm:text-lg font-black text-stone-900">Nông Sản & Quà Tặng Cần Gom</h3>
+                <p className="text-xs sm:text-sm text-stone-500 font-normal">
                   Bấm vào món để đánh dấu đã gom đủ số lượng ngoài giàn / trong kho
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
+                <span className="font-mono text-xs sm:text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-xl">
                   Đã gom: {completedPickingCount}/{pickingSummary.length} món
                 </span>
                 {completedPickingCount > 0 && (
                   <button
                     type="button"
                     onClick={handleResetPickingTicks}
-                    className="px-2.5 py-1 text-xs font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 text-xs sm:text-sm font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
                     title="Bỏ chọn tất cả"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
+                    <RotateCcw className="w-4 h-4" />
                     <span>Reset</span>
                   </button>
                 )}
@@ -918,9 +956,9 @@ export default function PackingPage({
             </div>
 
             {pickingSummary.length === 0 ? (
-              <p className="text-xs text-stone-400 py-10 text-center italic">Hiện không có đơn nào cần chuẩn bị hàng.</p>
+              <p className="text-sm text-stone-500 py-12 text-center italic">Hiện không có đơn nào cần chuẩn bị hàng.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {pickingSummary.map((item) => {
                   const isPicked = !!pickedItems[item.key];
 
@@ -928,41 +966,41 @@ export default function PackingPage({
                     <div 
                       key={item.key} 
                       onClick={() => togglePickedItem(item.key)}
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between shadow-2xs cursor-pointer select-none active:scale-[0.98] ${
+                      className={`p-4 rounded-2xl border flex items-center justify-between shadow-2xs cursor-pointer select-none active:scale-[0.98] ${
                         isPicked 
-                          ? 'bg-emerald-50/70 border-emerald-300 ring-1 ring-emerald-300' 
+                          ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-300' 
                           : item.isGift 
-                            ? 'bg-amber-50/70 border-amber-200 hover:border-amber-400' 
+                            ? 'bg-amber-50/80 border-amber-300 hover:border-amber-400' 
                             : 'bg-stone-50 border-stone-200/80 hover:border-stone-300'
                       }`}
                     >
-                      <div className="flex items-start gap-2.5 pr-2 min-w-0">
-                        <div className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${
+                      <div className="flex items-start gap-3 pr-2 min-w-0">
+                        <div className={`w-6 h-6 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${
                           isPicked 
                             ? 'bg-emerald-600 border-emerald-600 text-white' 
                             : 'border-stone-300 bg-white'
                         }`}>
-                          {isPicked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          {isPicked && <Check className="w-4 h-4 stroke-[3]" />}
                         </div>
 
-                        <div className="space-y-0.5 min-w-0">
-                          <span className={`font-bold text-xs block leading-snug line-clamp-2 ${
+                        <div className="space-y-1 min-w-0">
+                          <span className={`font-bold text-sm sm:text-base block leading-snug line-clamp-2 ${
                             isPicked 
-                              ? 'text-emerald-950 line-through opacity-80' 
+                              ? 'text-emerald-950 line-through opacity-75' 
                               : item.isGift 
-                                ? 'text-amber-950 flex items-center gap-1' 
+                                ? 'text-amber-950 flex items-center gap-1.5' 
                                 : 'text-stone-900'
                           }`}>
-                            {item.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+                            {item.isGift && <Gift className="w-4 h-4 text-amber-700 shrink-0" />}
                             <span>{item.name}</span>
                           </span>
                           
-                          <div className="flex items-center gap-1.5 text-[10.5px]">
-                            <span className={`${isPicked ? 'text-emerald-700' : 'text-stone-500'} font-medium`}>
+                          <div className="flex items-center gap-2 text-xs sm:text-sm">
+                            <span className={`${isPicked ? 'text-emerald-700' : 'text-stone-500'} font-normal`}>
                               {item.spec}
                             </span>
                             {isPicked && (
-                              <span className="font-bold text-emerald-700 text-[10px]">
+                              <span className="font-bold text-emerald-700 text-xs">
                                 • Đã gom đủ
                               </span>
                             )}
@@ -971,10 +1009,10 @@ export default function PackingPage({
                       </div>
 
                       <div className="text-right shrink-0">
-                        <span className={`text-base font-black font-mono px-2.5 py-1 rounded-xl border ${
+                        <span className={`text-lg sm:text-xl font-black font-mono px-3 py-1.5 rounded-xl border ${
                           isPicked 
                             ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
-                            : 'text-amber-900 bg-amber-100/90 border-amber-200'
+                            : 'text-amber-900 bg-amber-100/90 border-amber-300'
                         }`}>
                           x{item.quantity}
                         </span>
@@ -988,9 +1026,9 @@ export default function PackingPage({
         )}
 
         {activeTab === 'orders' && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             {packableOrders.length === 0 ? (
-              <div className="p-12 text-center bg-white rounded-3xl border border-stone-200 text-stone-400 text-xs">
+              <div className="p-16 text-center bg-white rounded-3xl border border-stone-200 text-stone-500 text-sm">
                 Hiện không có đơn nào ở trạng thái chờ đóng.
               </div>
             ) : (
@@ -1002,66 +1040,69 @@ export default function PackingPage({
                 const items = parseOrderItems(ord);
                 const cleanNote = String(ord.customer_note || ord.note || '').trim();
 
+                const packingImageUrl = previewImages[orderCode] || ord.packing_image;
+                const isUploadingThis = uploadingOrderCode === orderCode;
+
                 return (
                   <div 
                     key={orderCode} 
-                    className={`bg-white rounded-3xl border shadow-xs p-5 sm:p-6 space-y-4 ${
+                    className={`bg-white rounded-3xl border shadow-xs p-6 sm:p-7 space-y-5 ${
                       isPackingNow 
-                        ? 'border-purple-300 ring-1 ring-purple-200 bg-purple-50/10' 
+                        ? 'border-purple-300 ring-2 ring-purple-200/80 bg-purple-50/15' 
                         : 'border-stone-200/90'
                     }`}
                   >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-black text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md text-xs">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="font-mono font-black text-amber-900 bg-amber-100 px-3 py-1 rounded-xl text-sm">
                             {orderCode}
                           </span>
-                          <strong className="text-stone-900 text-sm">{ord.customer_name || ord.name || ord.customerName || ''}</strong>
+                          <strong className="text-stone-900 text-base sm:text-lg">{ord.customer_name || ord.name || ord.customerName || ''}</strong>
                           {ord.phone && (
-                            <span className="text-xs font-mono font-bold text-stone-600 bg-stone-100 px-2 py-0.5 rounded-lg">
+                            <span className="text-xs sm:text-sm font-mono font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-xl">
                               {ord.phone}
                             </span>
                           )}
 
                           {isPackingNow ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-900 border-purple-300">
-                              <Package className="w-3.5 h-3.5 text-purple-700" />
+                            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold border px-3 py-1 rounded-xl bg-purple-100 text-purple-900 border-purple-300">
+                              <Package className="w-4 h-4 text-purple-700" />
                               <span>Đang đóng gói</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-900 border-blue-300">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-700" />
+                            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold border px-3 py-1 rounded-xl bg-blue-100 text-blue-900 border-blue-300">
+                              <CheckCircle2 className="w-4 h-4 text-blue-700" />
                               <span>Đã xác nhận (Chờ kho gói)</span>
                             </span>
                           )}
 
-                          <span className={`inline-flex items-center gap-1 text-[11px] font-bold border px-2.5 py-0.5 rounded-md ${collectInfo.badgeStyle}`}>
-                            {collectInfo.type === 'PAID_FULL' && <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />}
-                            {collectInfo.type === 'DEPOSIT_REMAINING' && <AlertCircle className="w-3.5 h-3.5 text-amber-600" />}
-                            {collectInfo.type === 'COD_FULL' && <Banknote className="w-3.5 h-3.5 text-rose-600" />}
+                          <span className={`inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold border px-3 py-1 rounded-xl ${collectInfo.badgeStyle}`}>
+                            {collectInfo.type === 'PAID_FULL' && <ShieldCheck className="w-4 h-4 text-emerald-600" />}
+                            {collectInfo.type === 'DEPOSIT_REMAINING' && <AlertCircle className="w-4 h-4 text-amber-600" />}
+                            {collectInfo.type === 'COD_FULL' && <Banknote className="w-4 h-4 text-rose-600" />}
                             <span>{collectInfo.badgeText}</span>
                           </span>
                         </div>
 
-                        <p className="text-stone-600 text-xs">
+                        <p className="text-stone-700 text-sm sm:text-base font-normal">
                           📍 <strong>Điểm giao / Bến xe:</strong> {ord.address}
                         </p>
 
                         {cleanNote && (
-                          <p className="text-rose-700 italic text-xs">
+                          <p className="text-rose-700 italic text-sm font-medium">
                             * Ghi chú khách: {cleanNote}
                           </p>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2.5 shrink-0">
                         <button
                           type="button"
                           onClick={() => executeFastPrint([ord], `Tem_${orderCode}`)}
-                          className="px-3.5 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                          className="px-4 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                         >
-                          <Printer className="w-3.5 h-3.5 text-stone-500" />
+                          <Printer className="w-4 h-4 text-stone-500" />
                           <span>In Tem</span>
                         </button>
 
@@ -1069,7 +1110,7 @@ export default function PackingPage({
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.PACKING)}
-                            className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                            className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer"
                           >
                             <Package className="w-4 h-4" />
                             <span>Bắt Đầu Đóng</span>
@@ -1078,7 +1119,7 @@ export default function PackingPage({
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(orderCode, ORDER_STATUS.SHIPPING)}
-                            className="px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                            className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer"
                           >
                             <CheckCircle2 className="w-4 h-4" />
                             <span>Đã Gói Xong ➔ Giao Xe</span>
@@ -1087,11 +1128,95 @@ export default function PackingPage({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5 bg-stone-50/70 p-4 rounded-2xl border border-stone-200/60">
-                      <span className="text-[11px] font-extrabold uppercase text-stone-500 tracking-wider block mb-1">
+                    {/* KHU VỰC CHỤP & ĐÍNH KÈM ẢNH THÙNG HÀNG THỰC TẾ TRƯỚC KHI GIAO */}
+                    <div className="p-4 sm:p-5 rounded-2xl border border-stone-200/80 bg-stone-50/80 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                          <Camera className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <strong className="text-sm sm:text-base text-stone-900 block font-bold">Ảnh Thùng Hàng Đã Đóng & Dán Tem:</strong>
+                          <span className="text-xs sm:text-sm text-stone-500 block font-normal">
+                            Chụp ảnh thực tế kiện hàng trước khi chuyển giao cho tài xế/nhà xe
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          ref={(el) => (fileInputRefs.current[orderCode] = el)}
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              handleUploadPackingPhoto(orderCode, e.target.files[0]);
+                            }
+                          }}
+                        />
+
+                        {packingImageUrl ? (
+                          <div className="flex items-center gap-3">
+                            <a
+                              href={packingImageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative group block w-16 h-16 rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-sm shrink-0 cursor-pointer"
+                            >
+                              <img
+                                src={packingImageUrl}
+                                alt="Ảnh đóng thùng"
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                                <ExternalLink className="w-4 h-4" />
+                              </div>
+                            </a>
+
+                            <div className="space-y-1">
+                              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-1 rounded-xl flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>Đã có ảnh kiện</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => fileInputRefs.current[orderCode]?.click()}
+                                disabled={isUploadingThis}
+                                className="text-xs text-stone-600 hover:text-amber-800 underline font-medium block cursor-pointer"
+                              >
+                                {isUploadingThis ? 'Đang tải lên...' : 'Chụp lại ảnh'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isUploadingThis}
+                            onClick={() => fileInputRefs.current[orderCode]?.click()}
+                            className="px-4 py-2.5 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                          >
+                            {isUploadingThis ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-700" />
+                                <span>Đang tải ảnh lên...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-4 h-4 text-amber-700" />
+                                <span>Chụp / Tải Ảnh Kiện</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 bg-stone-50/70 p-4 sm:p-5 rounded-2xl border border-stone-200/60">
+                      <span className="text-xs font-extrabold uppercase text-stone-500 tracking-wider block mb-1">
                         Món cần bỏ vào thùng xốp ({items.length} món):
                       </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         {items.map((it, idx) => {
                           const boxKey = `${orderCode}_${idx}`;
                           const isBoxChecked = !!checkedBoxItems[boxKey];
@@ -1100,7 +1225,7 @@ export default function PackingPage({
                             <div 
                               key={idx} 
                               onClick={() => toggleBoxItem(orderCode, idx)}
-                              className={`p-3 rounded-xl border flex items-center justify-between gap-2 shadow-2xs cursor-pointer select-none ${
+                              className={`p-3.5 rounded-2xl border flex items-center justify-between gap-2.5 shadow-2xs cursor-pointer select-none ${
                                 isBoxChecked 
                                   ? 'bg-emerald-50/80 border-emerald-300' 
                                   : it.isGift 
@@ -1108,8 +1233,8 @@ export default function PackingPage({
                                     : 'bg-white border-stone-200/80 hover:border-stone-300'
                               }`}
                             >
-                              <div className="flex items-start gap-2.5 min-w-0">
-                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
+                              <div className="flex items-start gap-3 min-w-0">
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 mt-0.5 ${
                                   isBoxChecked 
                                     ? 'bg-emerald-600 border-emerald-600 text-white' 
                                     : 'border-stone-300 bg-white'
@@ -1118,23 +1243,23 @@ export default function PackingPage({
                                 </div>
 
                                 <div className="min-w-0">
-                                  <div className={`font-bold text-xs truncate ${
+                                  <div className={`font-bold text-xs sm:text-sm truncate ${
                                     isBoxChecked 
-                                      ? 'text-emerald-950 line-through opacity-80' 
+                                      ? 'text-emerald-950 line-through opacity-75' 
                                       : it.isGift 
-                                        ? 'text-amber-950 flex items-center gap-1' 
+                                        ? 'text-amber-950 flex items-center gap-1.5' 
                                         : 'text-stone-900'
                                   }`}>
-                                    {it.isGift && <Gift className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+                                    {it.isGift && <Gift className="w-4 h-4 text-amber-700 shrink-0" />}
                                     <span>{it.name}</span>
                                   </div>
-                                  <div className="text-[10.5px] text-stone-500 font-medium">
+                                  <div className="text-xs text-stone-500 font-medium">
                                     Quy cách: {it.spec}
                                   </div>
                                 </div>
                               </div>
 
-                              <span className={`font-mono font-black text-sm px-2.5 py-0.5 rounded-lg border shrink-0 ${
+                              <span className={`font-mono font-black text-sm sm:text-base px-3 py-1 rounded-xl border shrink-0 ${
                                 isBoxChecked 
                                   ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
                                   : it.isGift 

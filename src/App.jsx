@@ -723,12 +723,12 @@ export default function App() {
 
   if (isLoadingMasterData) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#faf8f5] text-stone-800 space-y-3 font-sans">
-        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center animate-bounce shadow-inner">
-          <ShoppingBag className="w-6 h-6" />
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#faf8f5] text-stone-800 space-y-4 font-sans">
+        <div className="w-16 h-16 rounded-3xl bg-amber-100/90 text-amber-800 flex items-center justify-center animate-bounce shadow-inner border border-amber-200">
+          <ShoppingBag className="w-8 h-8 stroke-[2.2]" />
         </div>
-        <div className="flex items-center gap-2 text-stone-700 font-bold text-xs">
-          <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+        <div className="flex items-center gap-2.5 text-stone-800 font-bold text-sm sm:text-base">
+          <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
           <span>Đang đồng bộ nông sản tươi từ giàn...</span>
         </div>
       </div>
@@ -807,8 +807,8 @@ export default function App() {
 
         {currentPage === 'admin' && (
           <Suspense fallback={
-            <div className="min-h-[60vh] flex items-center justify-center text-xs font-bold text-stone-500 gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+            <div className="min-h-[65vh] flex items-center justify-center text-sm font-bold text-stone-600 gap-2.5">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-700" />
               <span>Đang tải bảng quản trị...</span>
             </div>
           }>
@@ -845,8 +845,8 @@ export default function App() {
 
         {currentPage === 'packing' && (
           <Suspense fallback={
-            <div className="min-h-[60vh] flex items-center justify-center text-xs font-bold text-stone-500 gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+            <div className="min-h-[65vh] flex items-center justify-center text-sm font-bold text-stone-600 gap-2.5">
+              <Loader2 className="w-6 h-6 animate-spin text-amber-700" />
               <span>Đang tải giao diện đóng gói...</span>
             </div>
           }>
@@ -892,37 +892,38 @@ export default function App() {
         />
       )}
 
+      {/* HIỆU ỨNG THÊM VÀO GIỎ TO BẢN, SẮC NÉT & CÂN ĐỐI */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 
           className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4"
         >
-          <div className="animate-center-splash flex flex-col items-center justify-center p-5 rounded-3xl bg-stone-900/95 text-white shadow-2xl backdrop-blur-md border border-amber-500/40 text-center will-change-transform">
+          <div className="animate-center-splash flex flex-col items-center justify-center p-6 sm:p-7 rounded-3xl bg-stone-900/95 text-white shadow-2xl backdrop-blur-md border border-amber-500/40 text-center will-change-transform">
             <div className="relative">
               {centerSplash.image ? (
                 <img 
                   src={centerSplash.image} 
                   alt="Đặc sản" 
-                  className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl object-cover border-2 border-amber-400 shadow-lg" 
+                  className="w-40 h-40 sm:w-44 sm:h-44 rounded-2xl object-cover border-2 border-amber-400 shadow-xl" 
                 />
               ) : (
-                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl bg-amber-600 flex items-center justify-center shadow-lg">
-                  <ShoppingBag className="w-14 h-14 text-white stroke-[2]" />
+                <div className="w-40 h-40 sm:w-44 sm:h-44 rounded-2xl bg-amber-600 flex items-center justify-center shadow-xl">
+                  <ShoppingBag className="w-16 h-16 text-white stroke-[2]" />
                 </div>
               )}
 
-              <span className="absolute -top-2.5 -right-2.5 bg-amber-500 text-stone-950 font-black text-sm px-2.5 py-0.5 rounded-full border-2 border-stone-900 shadow-md font-mono">
+              <span className="absolute -top-3 -right-3 bg-amber-500 text-stone-950 font-black text-base px-3 py-1 rounded-full border-2 border-stone-900 shadow-md font-mono">
                 x{centerSplash.totalQuantity}
               </span>
             </div>
 
-            <div className="mt-3 flex flex-col items-center gap-1">
-              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <div className="mt-4 flex flex-col items-center gap-1.5">
+              <div className="flex items-center gap-2 text-amber-400 font-black text-sm sm:text-base">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>Đã thêm (+{centerSplash.addedQuantity})</span>
               </div>
-              <span className="text-[11px] text-stone-300 font-medium">
-                Trong giỏ đang có: <strong className="text-white font-mono font-bold">{centerSplash.totalQuantity}</strong>
+              <span className="text-xs sm:text-sm text-stone-300 font-medium">
+                Trong giỏ đang có: <strong className="text-white font-mono font-black">{centerSplash.totalQuantity}</strong>
               </span>
             </div>
           </div>

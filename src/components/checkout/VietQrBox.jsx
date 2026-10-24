@@ -71,31 +71,31 @@ export default function VietQrBox({
   };
 
   return (
-    <div className="p-4 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-3.5 text-center font-sans animate-fadeIn">
+    <div className="p-5 sm:p-6 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-4 text-center font-sans animate-fadeIn text-stone-800">
       {/* Tiêu đề & Số tiền */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
-          <QrCode className="w-4 h-4 text-amber-700" />
+      <div className="flex items-center justify-between px-1 flex-wrap gap-2">
+        <span className="text-sm sm:text-base font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
+          <QrCode className="w-5 h-5 text-amber-700" />
           <span>{paymentMethod === 'deposit' ? 'Quét VietQR Đặt Cọc' : 'Quét VietQR Thanh Toán'}</span>
         </span>
-        <span className="text-xs font-black font-mono text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+        <span className="text-sm sm:text-base font-black font-mono text-amber-950 bg-amber-100/90 px-3 py-1 rounded-xl border border-amber-300 shadow-2xs">
           {qrTransferAmount.toLocaleString('vi-VN')}đ
         </span>
       </div>
 
       {/* Trạng thái nổ tiền Realtime từ Supabase / Webhook */}
       {isPaymentVerified ? (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-2 animate-fadeIn">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
-            <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+        <div className="p-5 rounded-3xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-2.5 animate-fadeIn shadow-2xs">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
+            <CheckCircle2 className="w-7 h-7 stroke-[2.5]" />
           </div>
           <div>
-            <strong className="block text-sm font-black text-emerald-900">
+            <strong className="block text-base sm:text-lg font-black text-emerald-900">
               ĐÃ XÁC NHẬN CHUYỂN KHOẢN!
             </strong>
-            <p className="text-[11px] text-emerald-700 mt-0.5">
+            <p className="text-xs sm:text-sm text-emerald-800 mt-1 leading-relaxed font-normal">
               Tài khoản đã nhận{' '}
-              <strong className="font-mono text-emerald-900">
+              <strong className="font-mono font-bold text-emerald-950">
                 {(verifiedAmount || qrTransferAmount).toLocaleString('vi-VN')}đ
               </strong>
               . Đơn hàng sẵn sàng được hái và giao xe.
@@ -104,21 +104,21 @@ export default function VietQrBox({
         </div>
       ) : (
         /* Khung ảnh QR khi chưa thanh toán */
-        <div className="inline-flex p-3 bg-white rounded-2xl border border-stone-200 shadow-inner relative group">
+        <div className="inline-flex p-3 sm:p-4 bg-white rounded-3xl border border-stone-200/90 shadow-inner relative group">
           <img
             src={qrImageUrl}
             alt="Mã VietQR Chuyển Khoản"
             loading="lazy"
-            className="w-48 h-48 sm:w-52 sm:h-52 object-contain mx-auto rounded-xl"
+            className="w-52 h-52 sm:w-60 sm:h-60 object-contain mx-auto rounded-2xl"
           />
         </div>
       )}
 
       {/* Thông tin tài khoản kèm nút sao chép */}
-      <div className="bg-stone-50/90 p-3 rounded-2xl border border-stone-200/80 space-y-2 text-xs text-left">
+      <div className="bg-stone-50/90 p-4 rounded-2xl border border-stone-200/80 space-y-2.5 text-xs sm:text-sm text-left">
         <div className="flex items-center justify-between">
           <span className="text-stone-500 font-medium">Ngân hàng:</span>
-          <strong className="text-stone-800 font-semibold">{currentBankName}</strong>
+          <strong className="text-stone-800 font-bold">{currentBankName}</strong>
         </div>
 
         <div className="flex items-center justify-between">
@@ -126,36 +126,36 @@ export default function VietQrBox({
           <strong className="text-stone-900 font-mono font-bold uppercase">{accountName}</strong>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-0.5">
           <span className="text-stone-500 font-medium">Số tài khoản:</span>
           <button
             type="button"
             onClick={() => handleCopy(safeAccountNo, 'stk')}
-            className="flex items-center gap-1 font-mono font-bold text-stone-900 hover:text-amber-700 bg-white px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs cursor-pointer active:scale-95 transition-all"
+            className="flex items-center gap-1.5 font-mono font-black text-xs sm:text-sm text-stone-900 hover:text-amber-800 bg-white px-3 py-1.5 rounded-xl border border-stone-200 shadow-2xs cursor-pointer active:scale-95 transition-all"
             title="Bấm để sao chép"
           >
             <span>{safeAccountNo}</span>
             {copiedField === 'stk' ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
             ) : (
-              <Copy className="w-3.5 h-3.5 text-stone-400" />
+              <Copy className="w-4 h-4 text-stone-400" />
             )}
           </button>
         </div>
 
-        <div className="flex items-center justify-between pt-1 border-t border-stone-200/60">
+        <div className="flex items-center justify-between pt-2 border-t border-stone-200/70">
           <span className="text-stone-500 font-medium">Nội dung CK:</span>
           <button
             type="button"
             onClick={() => handleCopy(rawTransferMemo, 'memo')}
-            className="flex items-center gap-1 font-mono font-bold text-amber-900 hover:text-amber-700 bg-amber-100/90 px-2 py-0.5 rounded-md border border-amber-300 shadow-2xs cursor-pointer active:scale-95 transition-all"
+            className="flex items-center gap-1.5 font-mono font-black text-xs sm:text-sm text-amber-950 hover:text-amber-800 bg-amber-100/90 px-3 py-1.5 rounded-xl border border-amber-300 shadow-2xs cursor-pointer active:scale-95 transition-all"
             title="Bấm để sao chép"
           >
             <span>{rawTransferMemo}</span>
             {copiedField === 'memo' ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
             ) : (
-              <Copy className="w-3.5 h-3.5 text-amber-600" />
+              <Copy className="w-4 h-4 text-amber-700" />
             )}
           </button>
         </div>

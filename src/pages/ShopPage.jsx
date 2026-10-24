@@ -195,43 +195,43 @@ export default function ShopPage({
   }, [sortBy]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-8 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6 sm:space-y-10 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
       
       {/* 1. BANNER TIÊU ĐỀ */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-5 sm:p-10 shadow-xl border border-stone-800">
-        <div className="relative z-10 max-w-3xl space-y-2.5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-[11px] font-bold border border-amber-400/20 shadow-2xs">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+      <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-6 sm:p-12 shadow-xl border border-stone-800">
+        <div className="relative z-10 max-w-3xl space-y-3">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-xs text-amber-300 text-xs sm:text-sm font-bold border border-amber-400/20 shadow-2xs">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Nông Sản Tươi Hái Mỗi Sáng • Đóng Thùng Xốp Gửi Xe</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
             Gian Hàng Đặc Sản <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
               Chính Gốc Xứ Nắng Gió
             </span>
           </h1>
 
-          <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light max-w-2xl">
+          <p className="text-sm sm:text-base text-stone-200 leading-relaxed font-normal max-w-2xl">
             Tất cả táo gió, nho mộc, rượu nho và hải sản phơi ráo đều được chuẩn bị kỹ lưỡng tại Phan Rang, gửi xe khách trong đêm vào TP.HCM và các tỉnh toàn quốc.
           </p>
         </div>
       </section>
 
       {/* 2. BỘ LỌC TÌM KIẾM, SẮP XẾP & DANH MỤC */}
-      <section className="bg-white rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs space-y-2.5">
+      <section className="bg-white rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-xs space-y-3.5">
         
         {/* HÀNG 1: Ô TÌM KIẾM + SẮP XẾP */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div ref={searchBoxRef} className="relative flex-1">
-            <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-5 h-5 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Tìm táo gió, nho xanh, chả cá, mật nho..."
+              placeholder="Tìm kiếm táo gió, nho xanh, chả cá, mật nho, tỏi mồ côi..."
               value={searchInput}
               onFocus={() => setIsSearchFocused(true)}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full text-xs pl-9 pr-8 py-2.5 rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 transition-all shadow-2xs"
+              className="w-full text-sm pl-11 pr-10 py-3 rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white focus:outline-none focus:border-amber-600 font-medium text-stone-800 transition-all shadow-2xs"
             />
             {searchInput && (
               <button
@@ -240,20 +240,20 @@ export default function ShopPage({
                   setSearchInput('');
                   setDebouncedQuery('');
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-0.5 cursor-pointer"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 p-1 cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             )}
 
             {/* DROPDOWN GỢI Ý */}
             {isSearchFocused && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-stone-200 shadow-xl p-3 z-30 animate-fadeIn space-y-2 text-xs">
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl border border-stone-200 shadow-xl p-3.5 z-30 animate-fadeIn space-y-2.5 text-sm">
                 {searchInput.trim() ? (
                   searchSuggestions.length > 0 ? (
                     <div>
-                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-1 pb-1">Gợi ý món phù hợp:</span>
-                      <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block px-1 pb-1.5">Gợi ý món phù hợp:</span>
+                      <div className="space-y-1">
                         {searchSuggestions.map((item, idx) => (
                           <div
                             key={idx}
@@ -262,26 +262,26 @@ export default function ShopPage({
                               setDebouncedQuery(item);
                               setIsSearchFocused(false);
                             }}
-                            className="px-2.5 py-1.5 rounded-xl hover:bg-amber-50 text-stone-700 hover:text-amber-900 cursor-pointer flex items-center justify-between"
+                            className="px-3 py-2 rounded-xl hover:bg-amber-50 text-stone-700 hover:text-amber-900 cursor-pointer flex items-center justify-between text-sm"
                           >
                             <span className="font-medium">{item}</span>
-                            <ArrowRight className="w-3.5 h-3.5 text-stone-300" />
+                            <ArrowRight className="w-4 h-4 text-stone-300" />
                           </div>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <div className="p-2 text-center text-stone-400 text-xs">
+                    <div className="p-3 text-center text-stone-400 text-sm">
                       Không có gợi ý trùng khớp
                     </div>
                   )
                 ) : (
                   <div>
-                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1 px-1 pb-1">
-                      <TrendingUp className="w-3 h-3 text-amber-600" />
+                    <span className="text-xs font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5 px-1 pb-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
                       <span>Được tìm kiếm nhiều:</span>
                     </span>
-                    <div className="flex flex-wrap gap-1.5 pt-1">
+                    <div className="flex flex-wrap gap-2 pt-1">
                       {POPULAR_SEARCHES.map((tag, idx) => (
                         <button
                           key={idx}
@@ -291,7 +291,7 @@ export default function ShopPage({
                             setDebouncedQuery(tag);
                             setIsSearchFocused(false);
                           }}
-                          className="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 rounded-lg text-[11px] font-medium"
+                          className="px-3 py-1.5 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 rounded-xl text-xs sm:text-sm font-medium transition-colors"
                         >
                           {tag}
                         </button>
@@ -308,21 +308,21 @@ export default function ShopPage({
             <button
               type="button"
               onClick={() => setIsSortOpen((prev) => !prev)}
-              className={`h-9 px-2.5 sm:px-3 rounded-2xl border text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 ${
+              className={`h-11 px-3.5 sm:px-4 rounded-2xl border text-sm font-bold flex items-center gap-2 transition-all shadow-2xs cursor-pointer active:scale-95 ${
                 sortBy !== 'default'
-                  ? 'bg-amber-100/80 border-amber-400 text-amber-900'
+                  ? 'bg-amber-100/90 border-amber-400 text-amber-900'
                   : 'bg-stone-50/90 border-stone-200 text-stone-700 hover:bg-white'
               }`}
               title="Sắp xếp sản phẩm"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-700" />
+              <SlidersHorizontal className="w-4 h-4 text-amber-700" />
               <span className="hidden sm:inline">{currentSortLabel}</span>
-              <ChevronDown className={`w-3 h-3 text-stone-400 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-stone-400 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isSortOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl border border-stone-200 shadow-xl p-1.5 z-30 animate-fadeIn space-y-0.5 text-xs font-medium">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl border border-stone-200 shadow-xl p-2 z-30 animate-fadeIn space-y-1 text-sm font-medium">
+                <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block px-2.5 py-1">
                   Sắp xếp theo:
                 </span>
                 {SORT_OPTIONS.map((opt) => (
@@ -333,14 +333,14 @@ export default function ShopPage({
                       setSortBy(opt.value);
                       setIsSortOpen(false);
                     }}
-                    className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between cursor-pointer transition-colors ${
+                    className={`w-full px-3 py-2 rounded-xl text-left flex items-center justify-between cursor-pointer transition-colors text-sm ${
                       sortBy === opt.value
                         ? 'bg-amber-50 text-amber-900 font-bold'
                         : 'text-stone-700 hover:bg-stone-50'
                     }`}
                   >
                     <span>{opt.label}</span>
-                    {sortBy === opt.value && <Check className="w-3.5 h-3.5 text-amber-700" />}
+                    {sortBy === opt.value && <Check className="w-4 h-4 text-amber-700" />}
                   </button>
                 ))}
               </div>
@@ -348,7 +348,7 @@ export default function ShopPage({
           </div>
         </div>
 
-        {/* HÀNG 2: THANH DANH MỤC CAT01...CAT06 */}
+        {/* HÀNG 2: THANH DANH MỤC CHIPS */}
         <div
           ref={catScrollRef}
           onWheel={handleWheel}
@@ -356,23 +356,23 @@ export default function ShopPage({
           onMouseLeave={handleMouseLeaveOrUp}
           onMouseUp={handleMouseLeaveOrUp}
           onMouseMove={handleMouseMove}
-          className={`pt-2 border-t border-stone-100 flex items-center gap-2 overflow-x-auto pb-1 select-none [-ms-overflow-style:none] [scrollbar-width:none] ${
+          className={`pt-3 border-t border-stone-100 flex items-center gap-2.5 overflow-x-auto pb-1 select-none [-ms-overflow-style:none] [scrollbar-width:none] ${
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
         >
           <button
             type="button"
             onClick={handleSelectAllCategories}
-            className={`shrink-0 py-1.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
+            className={`shrink-0 py-2 px-4 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 border ${
               selectedCategories.length === 0
-                ? 'bg-amber-800 text-white border-amber-800 shadow-xs'
-                : 'bg-stone-50 hover:bg-stone-100 text-stone-600 border-stone-200'
+                ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
+                : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-4 h-4" />
             <span>Tất cả</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-              selectedCategories.length === 0 ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
+            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+              selectedCategories.length === 0 ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
             }`}>
               {products.length}
             </span>
@@ -389,16 +389,16 @@ export default function ShopPage({
                 key={cat.id}
                 type="button"
                 onClick={() => handleToggleCategory(cat.id)}
-                className={`shrink-0 py-1.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 border whitespace-nowrap ${
+                className={`shrink-0 py-2 px-4 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 border whitespace-nowrap ${
                   isCatActive
-                    ? 'bg-amber-800 text-white border-amber-800 shadow-xs ring-1 ring-amber-800'
+                    ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-900'
                     : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
                 }`}
               >
-                <IconComponent className={`w-3.5 h-3.5 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
+                <IconComponent className={`w-4 h-4 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
                 <span>{catName}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  isCatActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200/80 text-stone-600'
+                <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                  isCatActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
                 }`}>
                   {itemCount}
                 </span>
@@ -410,19 +410,19 @@ export default function ShopPage({
 
       {/* 3. LƯỚI SẢN PHẨM */}
       {filteredProducts.length === 0 ? (
-        <section className="bg-white rounded-3xl p-8 sm:p-14 text-center border border-dashed border-stone-300 space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
-            <ShoppingBag className="w-6 h-6 stroke-[1.5]" />
+        <section className="bg-white rounded-3xl p-8 sm:p-14 text-center border border-dashed border-stone-300 space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200/80">
+            <ShoppingBag className="w-7 h-7 stroke-[1.5]" />
           </div>
 
-          <div className="space-y-1">
-            <h3 className="font-bold text-stone-800 text-sm sm:text-base">Không tìm thấy món phù hợp</h3>
-            <p className="text-xs text-stone-500 max-w-md mx-auto leading-relaxed">
+          <div className="space-y-1.5">
+            <h3 className="font-bold text-stone-800 text-base sm:text-lg">Không tìm thấy món phù hợp</h3>
+            <p className="text-sm text-stone-500 max-w-md mx-auto leading-relaxed">
               Không có sản phẩm nào khớp với bộ lọc hiện tại. Thử chọn lại danh mục hoặc tìm từ khóa khác nhé!
             </p>
           </div>
 
-          <div className="pt-1">
+          <div className="pt-2">
             <button
               type="button"
               onClick={() => {
@@ -431,18 +431,18 @@ export default function ShopPage({
                 setDebouncedQuery('');
                 setSortBy('default');
               }}
-              className="px-4 py-2 rounded-xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-2xl bg-amber-900 hover:bg-amber-800 text-white text-sm font-bold transition-all shadow-xs active:scale-95 cursor-pointer inline-flex items-center gap-2"
             >
               <span>Xem lại toàn bộ kệ hàng</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </section>
       ) : (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-stone-500 px-1">
-            <span>Hiển thị <strong className="text-stone-900 font-mono font-bold">{filteredProducts.length}</strong> sản phẩm</span>
-            <span className="text-amber-800 font-medium">Hái tươi & đóng thùng trong ngày</span>
+        <section className="space-y-4">
+          <div className="flex items-center justify-between text-sm text-stone-600 px-1">
+            <span>Hiển thị <strong className="text-stone-900 font-mono font-bold text-base">{filteredProducts.length}</strong> sản phẩm</span>
+            <span className="text-amber-800 font-semibold">Hái tươi & đóng thùng trong ngày</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -458,13 +458,13 @@ export default function ShopPage({
       )}
 
       {/* 4. CAM KẾT VẬN CHUYỂN */}
-      <section className="bg-amber-50/80 rounded-3xl p-5 sm:p-7 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="space-y-1 text-center sm:text-left">
-          <h4 className="font-bold text-sm text-amber-950 flex items-center justify-center sm:justify-start gap-1.5">
-            <Sparkles className="w-4 h-4 text-amber-700" />
+      <section className="bg-amber-50/80 rounded-3xl p-6 sm:p-8 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-5">
+        <div className="space-y-1.5 text-center sm:text-left">
+          <h4 className="font-bold text-base sm:text-lg text-amber-950 flex items-center justify-center sm:justify-start gap-2">
+            <Sparkles className="w-5 h-5 text-amber-700" />
             <span>Đơn Hàng Gửi Xe Vào Sài Gòn & Các Tỉnh</span>
           </h4>
-          <p className="text-xs text-amber-900/80 leading-relaxed font-light max-w-2xl">
+          <p className="text-sm text-amber-900/90 leading-relaxed font-normal max-w-2xl">
             Nông sản tươi được chèn giấy rơm và bọc thùng xốp chuyên dụng, gửi xe khách trong đêm để sáng sớm hôm sau tới nơi vẫn giữ nguyên độ tươi giòn.
           </p>
         </div>
@@ -473,10 +473,10 @@ export default function ShopPage({
           <button
             type="button"
             onClick={() => onNavigate('story')}
-            className="px-4 py-2.5 rounded-2xl bg-amber-800 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
+            className="px-5 py-3 rounded-2xl bg-amber-900 hover:bg-amber-800 text-white text-sm font-bold shrink-0 transition-all shadow-xs active:scale-95 cursor-pointer flex items-center gap-2"
           >
             <span>Đọc chuyện mùa vụ</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-4 h-4" />
           </button>
         )}
       </section>

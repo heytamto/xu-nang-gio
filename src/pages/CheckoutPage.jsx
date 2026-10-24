@@ -777,43 +777,48 @@ export default function CheckoutPage({
 
   if (!cart.length) {
     return (
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 font-sans">
-        <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl p-8 sm:p-12 text-center max-w-md mx-auto">
-          <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-center mx-auto mb-5 shadow-inner">
-            <ShoppingBag className="w-10 h-10 stroke-[1.8]" />
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 font-sans text-stone-800">
+        <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl p-8 sm:p-12 text-center max-w-xl mx-auto space-y-7 animate-fadeIn">
+          {/* Icon giỏ hàng to rõ, ấm cúng */}
+          <div className="w-24 h-24 rounded-3xl bg-amber-50 border-2 border-amber-200/80 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
+            <ShoppingBag className="w-12 h-12 stroke-[2.2]" />
           </div>
 
-          <h2 className="text-xl font-black text-stone-900 tracking-tight">
-            Giỏ hàng của bạn đang trống
-          </h2>
-          
-          <p className="text-xs sm:text-sm text-stone-500 mt-2 leading-relaxed">
-            Hiện chưa có thức quà nào trong giỏ. Ghé thăm gian hàng vườn để chọn nho tươi, táo giòn cắt cành nhé!
-          </p>
+          {/* Tiêu đề & Diễn giải */}
+          <div className="space-y-2.5 max-w-md mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
+              Giỏ hàng của bạn đang trống
+            </h2>
+            <p className="text-stone-600 text-sm sm:text-base leading-relaxed font-normal">
+              Hiện chưa có thức quà nào trong giỏ. Ghé thăm gian hàng vườn để chọn nho tươi, táo giòn cắt cành nhé!
+            </p>
+          </div>
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          {/* 2 Nút bấm chuẩn h-12 (48px) bấm êm tay */}
+          <div className="flex flex-col sm:flex-row gap-3.5 justify-center pt-2">
             <button
               type="button"
               onClick={() => onNavigate?.('shop')}
-              className="px-6 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+              className="h-12 px-7 rounded-2xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm sm:text-base shadow-md shadow-amber-800/20 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2.5"
             >
-              <span>Ghé Gian Hàng</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>GHÉ GIAN HÀNG</span>
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
             </button>
             <button
               type="button"
               onClick={() => onNavigate?.('home')}
-              className="px-6 py-3 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold text-xs transition-colors cursor-pointer"
+              className="h-12 px-6 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold text-sm sm:text-base transition-colors active:scale-95 cursor-pointer flex items-center justify-center"
             >
               Về Trang Chủ
             </button>
           </div>
 
-          <div className="mt-8 pt-6 border-t border-stone-100 flex items-center justify-center gap-4 text-[11px] text-stone-400 font-medium">
+          {/* Dải cam kết phía dưới dàn hàng ngang thoáng */}
+          <div className="pt-6 border-t border-stone-100 flex flex-wrap items-center justify-center gap-4 sm:gap-7 text-xs sm:text-sm font-semibold text-stone-600">
             <span>🌿 Hái tươi tại vườn</span>
-            <span>•</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-stone-300 hidden sm:inline-block" />
             <span>🚚 Giao tận nhà</span>
-            <span>•</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-stone-300 hidden sm:inline-block" />
             <span>🛡️ Bao ăn từng quả</span>
           </div>
         </div>
@@ -915,6 +920,7 @@ export default function CheckoutPage({
                 customerHistory={customerHistory}
                 depositAmount={depositAmount}
                 finalTotalAmount={activeFinalTotal}
+                isPaymentGiftsEnabled={isPaymentGiftsEnabled}
               />
               {paymentMethod === 'cod' ? (
                 <CodTimeline finalTotalAmount={activeFinalTotal} />

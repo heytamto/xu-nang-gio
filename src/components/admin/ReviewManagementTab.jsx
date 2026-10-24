@@ -154,27 +154,27 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
   });
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-6 sm:space-y-7 font-sans text-stone-800">
       {/* ================= 1. CÔNG TẮC BẬT/TẮT HIỂN THỊ MỤC ĐÁNH GIÁ NGOÀI TRANG CHỦ ================= */}
-      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-            <Globe className="w-5 h-5" />
+      <div className="bg-white p-5 sm:p-7 rounded-3xl border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-start gap-4">
+          <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
+            <Globe className="w-6 h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black text-stone-900">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
                 Hiển Thị Đánh Giá Ngoài Trang Chủ
               </h3>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-2xs ${
                 showReviewsOnHome 
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                  : 'bg-stone-100 text-stone-600 border-stone-300'
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                  : 'bg-stone-100 text-stone-700 border-stone-300'
               }`}>
                 {showReviewsOnHome ? '🟢 Đang hiển thị' : '🔴 Đang ẩn'}
               </span>
             </div>
-            <p className="text-xs text-stone-500 font-light mt-0.5">
+            <p className="text-xs sm:text-sm text-stone-600 font-normal leading-relaxed">
               Kiểm soát việc có hiển thị mục "Khách Ăn Quả Xứ Nắng Nói Gì" và dải thẻ trượt tự động ngoài Trang chủ hay không.
             </p>
           </div>
@@ -184,9 +184,9 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
           type="button"
           disabled={isUpdatingConfig}
           onClick={handleToggleShowOnHome}
-          className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 shrink-0 ${
+          className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 shrink-0 ${
             showReviewsOnHome
-              ? 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'
+              ? 'bg-rose-50 text-rose-800 border border-rose-300 hover:bg-rose-100'
               : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-700/20'
           }`}
         >
@@ -200,19 +200,19 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
       </div>
 
       {/* ================= 2. THANH TÌM KIẾM & BỘ LỌC DUYỆT TỪNG REVIEW ================= */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-stone-200/90 shadow-2xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5 bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-2xs">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-5 h-5 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Tìm theo mã đơn, tên khách, nội dung..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-sans"
+            className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white focus:outline-none focus:border-amber-600 text-stone-900 font-medium shadow-2xs transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none]">
           {[
             { id: 'all', label: `Tất cả (${reviewsList.length})` },
             { id: 'approved', label: `Đang hiện (${reviewsList.filter(r => r.is_approved).length})` },
@@ -222,10 +222,10 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
               key={tab.id}
               type="button"
               onClick={() => setFilterStatus(tab.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+              className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs ${
                 filterStatus === tab.id
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-600'
+                  ? 'bg-amber-100 text-amber-950 border border-amber-300/80 ring-1 ring-amber-400/30'
+                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
               }`}
             >
               {tab.label}
@@ -236,13 +236,13 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
 
       {/* ================= 3. DANH SÁCH REVIEW ================= */}
       {loading ? (
-        <div className="py-20 flex flex-col items-center justify-center text-stone-400 text-xs gap-2 bg-white rounded-3xl border border-stone-200/90">
-          <Loader2 className="w-6 h-6 animate-spin text-amber-700" />
+        <div className="py-20 flex flex-col items-center justify-center text-stone-500 text-xs sm:text-sm gap-3 bg-white rounded-3xl border border-stone-200/90 font-medium">
+          <Loader2 className="w-7 h-7 animate-spin text-amber-700" />
           <span>Đang đồng bộ đánh giá từ máy chủ...</span>
         </div>
       ) : filteredReviews.length === 0 ? (
-        <div className="py-20 text-center text-stone-400 text-xs bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
-          <MessageSquare className="w-10 h-10 mx-auto text-stone-300 stroke-[1.5]" />
+        <div className="py-20 text-center text-stone-400 text-xs sm:text-sm bg-white rounded-3xl border border-dashed border-stone-300 space-y-3 font-medium">
+          <MessageSquare className="w-12 h-12 mx-auto text-stone-300 stroke-[1.5]" />
           <p>Chưa có đánh giá nào phù hợp với điều kiện tìm kiếm.</p>
         </div>
       ) : (
@@ -250,48 +250,48 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
           {filteredReviews.map((rev) => (
             <div 
               key={rev.id} 
-              className={`p-5 rounded-3xl bg-white border transition-all flex flex-col justify-between space-y-3.5 shadow-2xs ${
-                rev.is_approved ? 'border-stone-200/90' : 'border-amber-300 bg-amber-50/20'
+              className={`p-5 sm:p-6 rounded-3xl bg-white border transition-all flex flex-col justify-between space-y-4 shadow-2xs ${
+                rev.is_approved ? 'border-stone-200/90' : 'border-amber-300 bg-amber-50/20 ring-1 ring-amber-300/40'
               }`}
             >
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-bold text-amber-950 bg-amber-100/90 px-2 py-0.5 rounded text-[11px]">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-black text-amber-950 bg-amber-100 px-2.5 py-1 rounded-xl text-xs sm:text-sm border border-amber-300/60 shadow-2xs">
                     {rev.order_code}
                   </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-2xs ${
                     rev.is_approved 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                      : 'bg-stone-100 text-stone-600 border-stone-200'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                      : 'bg-stone-100 text-stone-700 border-stone-300'
                   }`}>
                     {rev.is_approved ? '✓ Hiển thị web' : 'Đang ẩn'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-0.5">
-                  <div className="flex items-center gap-0.5">
+                  <div className="flex items-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <Star 
                         key={i} 
-                        className={`w-3.5 h-3.5 ${
+                        className={`w-4 h-4 sm:w-4.5 sm:h-4.5 ${
                           i < rev.rating ? 'fill-amber-400 text-amber-400' : 'text-stone-200'
                         }`} 
                       />
                     ))}
                   </div>
-                  <span className="text-[10px] text-stone-400 font-mono">
+                  <span className="text-xs text-stone-500 font-mono font-medium">
                     {new Date(rev.created_at).toLocaleDateString('vi-VN')}
                   </span>
                 </div>
 
-                <p className="text-xs text-stone-700 font-light leading-relaxed italic bg-[#faf8f5] p-3 rounded-2xl border border-stone-100 min-h-[64px]">
+                <p className="text-xs sm:text-sm text-stone-800 font-normal leading-relaxed italic bg-[#faf8f5] p-3.5 sm:p-4 rounded-2xl border border-stone-200/60 min-h-[72px]">
                   "{rev.content}"
                 </p>
 
-                <div className="text-[11px] text-stone-500 pt-1 flex justify-between items-center border-t border-stone-100">
-                  <strong className="text-stone-900 font-bold">{rev.customer_name}</strong>
+                <div className="text-xs sm:text-sm text-stone-600 pt-1.5 flex justify-between items-center border-t border-stone-100 font-medium">
+                  <strong className="text-stone-900 font-black text-sm">{rev.customer_name}</strong>
                   {rev.customer_phone && (
-                    <span className="font-mono text-stone-400 text-[10px]">
+                    <span className="font-mono text-stone-500 text-xs">
                       SĐT: ...{rev.customer_phone.slice(-4)}
                     </span>
                   )}
@@ -299,27 +299,27 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
               </div>
 
               {/* Thao tác Duyệt / Ẩn / Xóa từng review */}
-              <div className="flex items-center gap-2 pt-2 border-t border-stone-100">
+              <div className="flex items-center gap-2.5 pt-2.5 border-t border-stone-100">
                 <button
                   type="button"
                   disabled={actionLoadingId === rev.id}
                   onClick={() => handleToggleApprove(rev)}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`flex-1 py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50 ${
                     rev.is_approved
-                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-200'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-700/20'
                   }`}
                 >
                   {actionLoadingId === rev.id ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : rev.is_approved ? (
                     <>
-                      <EyeOff className="w-3.5 h-3.5" />
+                      <EyeOff className="w-4 h-4" />
                       <span>Ẩn khỏi web</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-4 h-4" />
                       <span>Duyệt hiển thị</span>
                     </>
                   )}
@@ -329,7 +329,7 @@ export default function ReviewManagementTab({ shopConfig = {}, onSaveConfig, onS
                   type="button"
                   disabled={actionLoadingId === rev.id}
                   onClick={() => handleDelete(rev.id)}
-                  className="p-2 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                  className="p-3 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-colors cursor-pointer border border-transparent hover:border-rose-200"
                   title="Xóa đánh giá này"
                 >
                   <Trash2 className="w-4 h-4" />

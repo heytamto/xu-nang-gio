@@ -51,14 +51,14 @@ import { formatDate } from "../utils/dateUtils";
 // Bản đồ Icon dự phòng cho danh mục
 const CATEGORY_ID_ICON_MAP = {
   cat01: Sparkles, // Combo Ưu Đãi
-  cat02: Apple, // Trái Cây Tươi Giàn
-  cat03: Flame, // Nem & Chả Đặc Sản
-  cat04: Fish, // Hải Sản Gió Biển
-  cat05: Wine, // Gia Vị Xứ Nắng / Mật Nho
-  cat06: Leaf, // Đặc Sản Sấy Dẻo
+  cat02: Apple,    // Trái Cây Tươi Giàn
+  cat03: Flame,    // Nem & Chả Đặc Sản
+  cat04: Fish,     // Hải Sản Gió Biển
+  cat05: Wine,     // Gia Vị Xứ Nắng / Mật Nho
+  cat06: Leaf,     // Đặc Sản Sấy Dẻo
 };
 
-// DỮ LIỆU ĐẶC SẢN 12 THÁNG NẮNG GIÓ PHAN RANG (Ảnh thực phẩm tuyển chọn tươi mọng)
+// DỮ LIỆU ĐẶC SẢN 12 THÁNG NẮNG GIÓ PHAN RANG
 const MONTHLY_HARVEST_CALENDAR = [
   {
     month: 1,
@@ -418,11 +418,9 @@ export default function HomePage({
 
   const [realOrderCount, setRealOrderCount] = useState(1200);
 
-  // 👉 Tự động nhận diện tháng hiện tại
   const currentRealMonth = useMemo(() => new Date().getMonth() + 1, []);
   const [selectedMonth, setSelectedMonth] = useState(currentRealMonth);
 
-  // 👉 Lazy Loading Đánh giá
   const [reviewsList, setReviewsList] = useState([]);
   const [totalReviewsCount, setTotalReviewsCount] = useState(0);
   const [reviewPage, setReviewPage] = useState(0);
@@ -430,7 +428,6 @@ export default function HomePage({
   const [isLoadingMoreReviews, setIsLoadingMoreReviews] = useState(false);
   const isFetchingRef = useRef(false);
 
-  // 👉 Tự động trượt & Kéo chuột
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -509,7 +506,6 @@ export default function HomePage({
       .catch(() => {});
   }, [isReviewsEnabled, loadReviewsBatch]);
 
-  // VÒNG LẶP TRƯỢT TỰ ĐỘNG KHÔNG RESET ÉP VỀ ĐẦU
   useEffect(() => {
     if (!isReviewsEnabled) return;
 
@@ -554,7 +550,6 @@ export default function HomePage({
     isReviewsEnabled,
   ]);
 
-  // KÉO THẢ CHUỘT
   const handleMouseDown = (e) => {
     if (!reviewsScrollRef.current) return;
     setIsDragging(true);
@@ -670,16 +665,17 @@ export default function HomePage({
   }, [selectedMonth]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
+      
       {/* 1. HERO BANNER MẶT TIỀN */}
-      <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
+      <section className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-10 left-10 w-80 h-80 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           <div className="lg:col-span-7 space-y-5">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-black tracking-wide shadow-inner">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs sm:text-sm font-black tracking-wide shadow-inner">
+              <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
               <span>NÔNG SẢN CẮT GIÀN & KÝ SỰ BẢN ĐỊA PHAN RANG</span>
             </div>
 
@@ -690,7 +686,7 @@ export default function HomePage({
               </span>
             </h1>
 
-            <p className="text-xs sm:text-sm text-stone-300 leading-relaxed font-light max-w-xl">
+            <p className="text-sm sm:text-base text-stone-200 leading-relaxed font-normal max-w-xl">
               Nông sản thuần tự nhiên dưới chân dãy Núi Chúa: từ vườn táo giòn
               rụm Phước Hậu, giàn nho chín mọng Thái An đến mẻ chả cá quết tươi
               làng biển Cà Ná. Hái sớm tinh mơ và gửi đến bạn nguyên vẹn vị đất
@@ -701,7 +697,7 @@ export default function HomePage({
               <button
                 type="button"
                 onClick={() => goToShop("all")}
-                className="group px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-xs sm:text-sm flex items-center gap-2.5 shadow-lg shadow-amber-950/50 transition-all active:scale-95 cursor-pointer"
+                className="group px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-sm flex items-center gap-2.5 shadow-lg shadow-amber-950/50 transition-all active:scale-95 cursor-pointer"
               >
                 <span>Ghé Chợ Quê Xứ Nắng</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -710,25 +706,22 @@ export default function HomePage({
               <button
                 type="button"
                 onClick={goToStory}
-                className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-stone-200 hover:text-white font-bold text-xs sm:text-sm border border-white/20 backdrop-blur-xs transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                className="px-5 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-stone-100 hover:text-white font-bold text-sm border border-white/20 backdrop-blur-xs transition-all active:scale-95 cursor-pointer flex items-center gap-2"
               >
                 <Sprout className="w-4 h-4 text-amber-400" />
                 <span>Chuyện Người Làm Vườn</span>
               </button>
             </div>
 
-            <div className="pt-4 flex flex-wrap items-center gap-5 text-[11px] text-stone-300 font-medium border-t border-white/10">
+            <div className="pt-4 flex flex-wrap items-center gap-5 text-xs sm:text-sm text-stone-300 font-semibold border-t border-white/10">
               <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" /> Cắt cành sớm
-                5h30
+                <Clock className="w-4 h-4 text-amber-400" /> Cắt cành sớm 5h30
               </span>
               <span className="flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-amber-400" /> Gửi xe khách
-                trong đêm
+                <Truck className="w-4 h-4 text-amber-400" /> Gửi xe khách trong đêm
               </span>
               <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Bao ăn
-                từng trái
+                <ShieldCheck className="w-4 h-4 text-emerald-400" /> Bao ăn từng trái
               </span>
             </div>
           </div>
@@ -744,44 +737,44 @@ export default function HomePage({
 
               <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 block">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400 block">
                     Vườn Thái An • Vĩnh Hải
                   </span>
-                  <strong className="text-sm font-black text-white">
+                  <strong className="text-base sm:text-lg font-black text-white">
                     Nho Xanh NH01-48 Cắt Giàn
                   </strong>
                 </div>
 
-                <span className="px-2.5 py-1 rounded-xl bg-amber-500/20 backdrop-blur-md border border-amber-400/40 text-[11px] font-bold text-amber-300">
+                <span className="px-3 py-1 rounded-xl bg-amber-500/20 backdrop-blur-md border border-amber-400/40 text-xs font-bold text-amber-300">
                   Chuẩn loại 1
                 </span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex items-center gap-3 shadow-inner">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                  <Sun className="w-4 h-4" />
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex items-center gap-3 shadow-inner">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Sun className="w-5 h-5" />
                 </div>
                 <div>
-                  <strong className="text-xs font-black text-white block">
+                  <strong className="text-sm font-black text-white block">
                     2.800+ Giờ
                   </strong>
-                  <span className="text-[10px] text-stone-400">
+                  <span className="text-xs text-stone-300 font-normal">
                     Nắng gắt gom vị ngọt
                   </span>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex items-center gap-3 shadow-inner">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                  <Award className="w-4 h-4" />
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md flex items-center gap-3 shadow-inner">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <Award className="w-5 h-5" />
                 </div>
                 <div>
-                  <strong className="text-xs font-black text-white block">
+                  <strong className="text-sm font-black text-white block">
                     100% Giàn Tươi
                   </strong>
-                  <span className="text-[10px] text-stone-400">
+                  <span className="text-xs text-stone-300 font-normal">
                     Không chất bảo quản
                   </span>
                 </div>
@@ -792,9 +785,9 @@ export default function HomePage({
       </section>
 
       {/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
-      <section className="space-y-3">
+      <section className="space-y-3.5">
         <div className="flex items-center justify-between px-1">
-          <p className="text-xs font-black uppercase tracking-wider text-stone-600 flex items-center gap-1.5">
+          <p className="text-sm font-black uppercase tracking-wider text-stone-700 flex items-center gap-2">
             <Compass className="w-4 h-4 text-amber-700" />
             <span>Khám phá các gian hàng quê</span>
           </p>
@@ -803,7 +796,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => scrollCategories("left")}
-              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
+              className="w-9 h-9 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
               title="Cuộn sang trái"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -811,7 +804,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => scrollCategories("right")}
-              className="w-8 h-8 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
+              className="w-9 h-9 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
               title="Cuộn sang phải"
             >
               <ChevronRight className="w-4 h-4" />
@@ -820,10 +813,10 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => goToShop("all")}
-              className="text-xs font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 ml-2"
+              className="text-sm font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 ml-2"
             >
               <span>Xem tất cả ({products.length})</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -831,15 +824,15 @@ export default function HomePage({
         <div className="relative group/scroll">
           <div
             ref={scrollRef}
-            className="flex items-center gap-2.5 overflow-x-auto pb-2.5 pt-1 px-1 scroll-smooth select-none [scrollbar-color:#d6d3d1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-stone-300 hover:[&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-track]:bg-transparent"
+            className="flex items-center gap-3 overflow-x-auto pb-2.5 pt-1 px-1 scroll-smooth select-none [scrollbar-color:#d6d3d1_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-stone-300 hover:[&::-webkit-scrollbar-thumb]:bg-amber-400 [&::-webkit-scrollbar-track]:bg-transparent"
             style={{ whiteSpace: "nowrap" }}
           >
             <button
               type="button"
               onClick={() => goToShop("all")}
-              className="shrink-0 px-4 py-2.5 rounded-2xl bg-amber-800 text-white text-xs font-black shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer hover:bg-amber-900"
+              className="shrink-0 px-4 py-3 rounded-2xl bg-amber-800 text-white text-sm font-black shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer hover:bg-amber-900"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <Sparkles className="w-4 h-4 text-amber-300" />
               <span>Toàn Bộ ({products.length})</span>
             </button>
 
@@ -852,9 +845,9 @@ export default function HomePage({
                   key={cat.id}
                   type="button"
                   onClick={() => goToShop(cat.id)}
-                  className="shrink-0 px-4 py-2.5 rounded-2xl bg-white border border-stone-200/90 hover:border-amber-600 hover:text-amber-900 text-stone-700 text-xs font-bold shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer group"
+                  className="shrink-0 px-4 py-3 rounded-2xl bg-white border border-stone-200/90 hover:border-amber-600 hover:text-amber-900 text-stone-700 text-sm font-bold shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer group"
                 >
-                  <IconComponent className="w-3.5 h-3.5 text-amber-700 group-hover:scale-110 transition-transform" />
+                  <IconComponent className="w-4 h-4 text-amber-700 group-hover:scale-110 transition-transform" />
                   <span>{catTitle}</span>
                 </button>
               );
@@ -863,16 +856,15 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* ================= 3. LỊCH MÙA VỤ 12 THÁNG (FULL CỤM: FIX KHÔNG LẸM T12 & FULL RESPONSIVE) ================= */}
-      <section className="bg-white rounded-3xl p-4 sm:p-7 border border-stone-200/90 shadow-xs space-y-5 sm:space-y-6">
-        {/* HEADER SECTION */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
+      {/* 3. LỊCH MÙA VỤ 12 THÁNG */}
+      <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
           <div>
-            <div className="flex items-center gap-2 text-amber-800 text-xs font-black tracking-wider uppercase">
+            <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
               <Calendar className="w-4 h-4 text-amber-700" />
               <span>Hành trình mùa màng Phan Rang</span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-0.5">
+            <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-1">
               Lịch Mùa Vụ Thu Hoạch Nông Sản 12 Tháng
             </h3>
           </div>
@@ -886,7 +878,7 @@ export default function HomePage({
                   ? `Bấm để quay về xem đặc sản Tháng ${currentRealMonth}`
                   : undefined
               }
-              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border active:scale-95 ${
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer border active:scale-95 ${
                 selectedMonth === currentRealMonth
                   ? "bg-amber-100/90 text-amber-950 border-amber-300 shadow-2xs"
                   : "bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 hover:border-amber-400 hover:shadow-xs"
@@ -895,7 +887,7 @@ export default function HomePage({
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               <span>Đang là Tháng {currentRealMonth}</span>
               {selectedMonth !== currentRealMonth && (
-                <span className="text-[10.5px] font-medium text-amber-800/80 pl-1 border-l border-amber-300/80">
+                <span className="text-xs font-semibold text-amber-800 pl-1 border-l border-amber-300">
                   (Quay lại)
                 </span>
               )}
@@ -903,9 +895,8 @@ export default function HomePage({
           </div>
         </div>
 
-        {/* ================= GIAO DIỆN MOBILE (< md): THANH TAB CHỌN THÁNG + CARD CHI TIẾT ================= */}
+        {/* GIAO DIỆN MOBILE (< md) */}
         <div className="block md:hidden space-y-4">
-          {/* Thanh cuộn 12 tháng dạng Pill Buttons */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {MONTHLY_HARVEST_CALENDAR.map((item) => {
               const isSelected = item.month === selectedMonth;
@@ -916,7 +907,7 @@ export default function HomePage({
                   key={item.month}
                   type="button"
                   onClick={() => setSelectedMonth(item.month)}
-                  className={`shrink-0 px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  className={`shrink-0 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
                     isSelected
                       ? "bg-amber-800 text-white border-amber-800 shadow-sm scale-105"
                       : "bg-stone-50 text-stone-700 border-stone-200/90 hover:bg-stone-100"
@@ -933,50 +924,46 @@ export default function HomePage({
             })}
           </div>
 
-          {/* Card chi tiết tháng đang chọn trên mobile */}
           {activeMonthData && (
-            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[440px] flex flex-col justify-between p-5 border border-stone-700/80 shadow-lg">
-              {/* Ảnh nền */}
+            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[460px] flex flex-col justify-between p-6 border border-stone-700/80 shadow-lg">
               <div className="absolute inset-0 pointer-events-none">
                 <img
                   src={activeMonthData.image}
                   alt={activeMonthData.title}
                   className="w-full h-full object-cover filter brightness-[0.65] contrast-105"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-black/40" />
+                <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-black/40" />
               </div>
 
-              {/* Đỉnh card mobile */}
               <div className="relative z-10 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono font-black text-xs px-2.5 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md">
+                  <span className="font-mono font-black text-xs px-3 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md">
                     THÁNG {activeMonthData.month}
                   </span>
-                  <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-black/50 border border-white/20 text-amber-200 backdrop-blur-md">
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-black/50 border border-white/20 text-amber-200 backdrop-blur-md">
                     {activeMonthData.status}
                   </span>
                 </div>
 
                 {activeMonthData.month === currentRealMonth && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-3 py-1 rounded-full backdrop-blur-md">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Chính vụ rộ</span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-3 py-1 rounded-full backdrop-blur-md">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Chính vụ</span>
                   </span>
                 )}
               </div>
 
-              {/* Thân card mobile */}
-              <div className="relative z-10 space-y-3 my-auto py-4">
-                <h4 className="text-xl font-black text-white leading-snug drop-shadow-md">
+              <div className="relative z-10 space-y-3.5 my-auto py-4">
+                <h4 className="text-xl sm:text-2xl font-black text-white leading-snug drop-shadow-md">
                   {activeMonthData.title}
                 </h4>
 
-                <div className="p-3.5 rounded-2xl bg-black/45 border border-white/15 backdrop-blur-md text-xs text-stone-200 leading-relaxed space-y-2">
+                <div className="p-4 rounded-2xl bg-black/50 border border-white/15 backdrop-blur-md text-sm text-stone-100 leading-relaxed space-y-2.5">
                   <div className="flex items-start gap-2">
                     <span className="shrink-0 text-amber-400 font-bold">
                       🌾 Đặc trưng:
                     </span>
-                    <span className="text-stone-100">
+                    <span className="text-stone-100 font-normal">
                       {activeMonthData.desc}
                     </span>
                   </div>
@@ -984,20 +971,19 @@ export default function HomePage({
                     <span className="shrink-0 text-amber-300 font-bold">
                       💡 Thưởng thức:
                     </span>
-                    <span className="text-amber-100/90">
+                    <span className="text-amber-100 font-normal">
                       {activeMonthData.tips}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Chân card mobile */}
               <div className="relative z-10 space-y-3 pt-1">
-                <div className="flex items-center justify-between text-[11px] px-1 text-stone-300">
-                  <span className="text-amber-400 font-mono tracking-wider uppercase text-[10px] font-bold">
+                <div className="flex items-center justify-between text-xs sm:text-sm px-1 text-stone-300">
+                  <span className="text-amber-400 font-mono tracking-wider uppercase text-xs font-bold">
                     Đặc sản chọn lọc:
                   </span>
-                  <span className="font-semibold text-white/90">
+                  <span className="font-bold text-white">
                     {activeMonthData.highlight}
                   </span>
                 </div>
@@ -1009,19 +995,19 @@ export default function HomePage({
                     e.stopPropagation();
                     goToShop(activeMonthData.categoryTarget || "all");
                   }}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-md"
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-sm flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer shadow-md"
                 >
                   <ShoppingBag className="w-4 h-4 text-stone-950" />
                   <span>Xem Nông Sản Tháng {activeMonthData.month}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* ================= GIAO DIỆN TABLET & DESKTOP (md:flex): ACCORDION 12 THẺ KHÔNG BỊ CẮT LẸM ================= */}
-        <div className="hidden md:flex flex-row items-stretch gap-1 lg:gap-1.5 h-[490px] lg:h-[510px] w-full select-none rounded-2xl p-1.5 pt-7 pb-2 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
+        {/* GIAO DIỆN TABLET & DESKTOP (md:flex) */}
+        <div className="hidden md:flex flex-row items-stretch gap-1.5 h-[500px] lg:h-[530px] w-full select-none rounded-3xl p-2 pt-8 pb-2.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
           {MONTHLY_HARVEST_CALENDAR.map((item) => {
             const isExpanded = item.month === selectedMonth;
             const isRealMonth = item.month === currentRealMonth;
@@ -1043,7 +1029,6 @@ export default function HomePage({
                     : "flex-1 z-0 translate-y-0 cursor-pointer shadow-none hover:z-30 hover:scale-[1.03] hover:-translate-y-3.5 hover:shadow-[0_12px_24px_rgba(0,0,0,0.25)] group/card"
                 }`}
               >
-                {/* LỚP VỎ CHỨA ẢNH NỀN */}
                 <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none bg-stone-800 border border-white/20">
                   <img
                     src={item.image}
@@ -1065,13 +1050,13 @@ export default function HomePage({
 
                 {/* DẠNG THU NHỎ */}
                 <div
-                  className={`absolute inset-0 py-3.5 px-0.5 flex flex-col items-center justify-between pointer-events-none transition-opacity duration-300 z-10 ${
+                  className={`absolute inset-0 py-4 px-1 flex flex-col items-center justify-between pointer-events-none transition-opacity duration-300 z-10 ${
                     isExpanded ? "opacity-0 invisible" : "opacity-100 visible"
                   }`}
                 >
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-center gap-1.5">
                     <span
-                      className={`font-mono font-black text-[11px] lg:text-xs px-1 lg:px-2 py-0.5 rounded-lg shadow-2xs backdrop-blur-md transition-colors ${
+                      className={`font-mono font-black text-xs px-2 py-0.5 rounded-lg shadow-2xs backdrop-blur-md transition-colors ${
                         isRealMonth
                           ? "bg-amber-400 text-stone-950 font-black ring-1 ring-amber-300"
                           : "bg-black/60 text-white border border-white/30 group-hover/card:border-amber-400 group-hover/card:text-amber-300"
@@ -1080,13 +1065,13 @@ export default function HomePage({
                       T{item.month}
                     </span>
                     {isRealMonth && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     )}
                   </div>
 
                   <div className="my-auto py-2 flex items-center justify-center overflow-visible">
                     <span
-                      className="font-black text-lg lg:text-[30px] tracking-[0.1em] uppercase text-transparent select-none whitespace-nowrap transition-transform duration-300 group-hover/card:scale-105"
+                      className="font-black text-xl lg:text-[32px] tracking-[0.1em] uppercase text-transparent select-none whitespace-nowrap transition-transform duration-300 group-hover/card:scale-105"
                       style={{
                         writingMode: "vertical-rl",
                         transform: "rotate(180deg)",
@@ -1105,47 +1090,45 @@ export default function HomePage({
                     </span>
                   </div>
 
-                  <span className="text-[9px] lg:text-[10px] font-mono font-black text-white/80 drop-shadow-md pb-0.5">
+                  <span className="text-xs font-mono font-black text-white/90 drop-shadow-md pb-0.5">
                     #{item.month < 10 ? `0${item.month}` : item.month}
                   </span>
                 </div>
 
-                {/* DẠNG PHÓNG TO: CO GIÃN THEO DIỆN TÍCH THẺ (TỰ ĐỘNG CHIA KHÔNG GIAN, KHÔNG ÉP CỤT T12) */}
+                {/* DẠNG PHÓNG TO */}
                 <div
-                  className={`absolute inset-0 w-full h-full p-4 lg:p-6 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
+                  className={`absolute inset-0 w-full h-full p-5 lg:p-7 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
                     isExpanded
                       ? "opacity-100 visible pointer-events-auto"
                       : "opacity-0 invisible pointer-events-none"
                   }`}
                 >
                   <div className="w-full h-full flex flex-col justify-between pointer-events-auto overflow-hidden">
-                    {/* Đỉnh thẻ */}
-                    <div className="flex items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-mono font-black text-[11px] lg:text-xs px-2 py-0.5 lg:py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-black text-xs lg:text-sm px-2.5 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
                           THÁNG {item.month}
                         </span>
-                        <span className="text-[10px] lg:text-[11px] font-bold px-2 py-0.5 lg:py-1 rounded-full bg-black/40 border border-white/20 text-amber-200 backdrop-blur-md truncate">
+                        <span className="text-xs font-bold px-3 py-1 rounded-full bg-black/40 border border-white/20 text-amber-200 backdrop-blur-md truncate">
                           {item.status}
                         </span>
                       </div>
 
                       {isRealMonth && (
-                        <span className="inline-flex items-center gap-1 text-[10px] lg:text-[11px] font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-2 py-0.5 lg:py-1 rounded-full backdrop-blur-md shadow-xs shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300 bg-emerald-950/70 border border-emerald-400/40 px-3 py-1 rounded-full backdrop-blur-md shadow-xs shrink-0">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                           <span>Chính vụ</span>
                         </span>
                       )}
                     </div>
 
-                    {/* Thân thẻ */}
-                    <div className="space-y-2 lg:space-y-3.5 my-auto py-1 min-w-0">
-                      <h4 className="text-base lg:text-2xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words line-clamp-2">
+                    <div className="space-y-3 lg:space-y-4 my-auto py-2 min-w-0">
+                      <h4 className="text-lg lg:text-2xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words line-clamp-2">
                         {item.title}
                       </h4>
 
-                      <div className="p-3 lg:p-3.5 rounded-2xl bg-black/40 border border-white/15 backdrop-blur-md text-[11px] lg:text-xs text-stone-200 leading-relaxed font-light space-y-1.5">
-                        <div className="flex items-start gap-1.5">
+                      <div className="p-4 rounded-2xl bg-black/45 border border-white/15 backdrop-blur-md text-xs lg:text-sm text-stone-100 leading-relaxed font-normal space-y-2">
+                        <div className="flex items-start gap-2">
                           <span className="shrink-0 text-amber-400 font-bold">
                             🌾 Đặc trưng:
                           </span>
@@ -1153,24 +1136,23 @@ export default function HomePage({
                             {item.desc}
                           </span>
                         </div>
-                        <div className="flex items-start gap-1.5 pt-1.5 border-t border-white/10">
+                        <div className="flex items-start gap-2 pt-2 border-t border-white/10">
                           <span className="shrink-0 text-amber-300 font-bold">
                             💡 Thưởng thức:
                           </span>
-                          <span className="line-clamp-2 text-amber-100/90">
+                          <span className="line-clamp-2 text-amber-100">
                             {item.tips}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Chân thẻ */}
-                    <div className="space-y-2 relative z-30 pointer-events-auto">
-                      <div className="flex items-center justify-between text-[10.5px] lg:text-[11px] px-1 text-stone-300">
-                        <span className="text-amber-400 font-mono tracking-wider uppercase text-[9.5px] lg:text-[10px] font-bold shrink-0">
+                    <div className="space-y-2.5 relative z-30 pointer-events-auto">
+                      <div className="flex items-center justify-between text-xs lg:text-sm px-1 text-stone-300">
+                        <span className="text-amber-400 font-mono tracking-wider uppercase text-xs font-bold shrink-0">
                           Đặc sản:
                         </span>
-                        <span className="font-semibold text-white/90 truncate ml-2">
+                        <span className="font-bold text-white truncate ml-2">
                           {item.highlight}
                         </span>
                       </div>
@@ -1182,13 +1164,13 @@ export default function HomePage({
                           e.stopPropagation();
                           goToShop(item.categoryTarget || "all");
                         }}
-                        className="w-full py-2.5 lg:py-3 px-3 lg:px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-[11.5px] lg:text-xs flex items-center justify-center gap-1.5 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
+                        className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black text-xs lg:text-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer shadow-md pointer-events-auto"
                       >
-                        <ShoppingBag className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-stone-950 shrink-0" />
+                        <ShoppingBag className="w-4 h-4 text-stone-950 shrink-0" />
                         <span className="truncate">
                           Xem Nông Sản Tháng {item.month}
                         </span>
-                        <ArrowRight className="w-3.5 h-3.5 text-stone-950 shrink-0" />
+                        <ArrowRight className="w-4 h-4 text-stone-950 shrink-0" />
                       </button>
                     </div>
                   </div>
@@ -1203,7 +1185,7 @@ export default function HomePage({
       <section className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-amber-800 uppercase tracking-wider">
               <TrendingUp className="w-4 h-4 text-amber-600" />
               <span>Được chọn mua nhiều nhất</span>
             </div>
@@ -1215,16 +1197,16 @@ export default function HomePage({
           <button
             type="button"
             onClick={() => goToShop("all")}
-            className="group text-xs font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
+            className="group text-sm font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
           >
             <span>Xem tất cả gian hàng ({products.length} món)</span>
-            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
         {featuredProducts.length === 0 ? (
-          <div className="p-16 text-center text-stone-400 text-xs bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
-            <ShoppingBag className="w-8 h-8 mx-auto text-stone-300 stroke-[1.5]" />
+          <div className="p-16 text-center text-stone-500 text-sm bg-white rounded-3xl border border-dashed border-stone-300 space-y-2">
+            <ShoppingBag className="w-8 h-8 mx-auto text-stone-400 stroke-[1.5]" />
             <p>Đang cập nhật danh sách nông sản thu hoạch hôm nay...</p>
           </div>
         ) : (
@@ -1237,16 +1219,16 @@ export default function HomePage({
       </section>
 
       {/* 5. QUY TRÌNH ĐÓNG THÙNG BẢO ĐẢM TƯƠI NGON */}
-      <section className="bg-gradient-to-br from-stone-900 to-stone-950 text-white rounded-3xl p-6 sm:p-10 border border-stone-800 shadow-xl space-y-6">
-        <div className="max-w-2xl space-y-1">
-          <span className="text-amber-400 text-xs font-black tracking-wider uppercase flex items-center gap-1.5">
+      <section className="bg-gradient-to-br from-stone-900 to-stone-950 text-white rounded-[2rem] p-6 sm:p-10 border border-stone-800 shadow-xl space-y-6">
+        <div className="max-w-2xl space-y-2">
+          <span className="text-amber-400 text-xs sm:text-sm font-black tracking-wider uppercase flex items-center gap-1.5">
             <PackageCheck className="w-4 h-4 text-amber-400" />
             <span>Quy chuẩn nhà vườn</span>
           </span>
-          <h3 className="text-xl sm:text-2xl font-black">
+          <h3 className="text-xl sm:text-3xl font-black text-white">
             Làm Sao Để Nho & Táo Đi Hàng Trăm Cây Số Vẫn Tươi Rót?
           </h3>
-          <p className="text-xs sm:text-sm text-stone-400 font-light">
+          <p className="text-sm sm:text-base text-stone-300 font-normal leading-relaxed">
             Chúng tôi hiểu nỗi lo dập nát khi đặt hoa quả tươi từ xa. Đây là
             cách nhà vườn bảo vệ từng thùng hàng:
           </p>
@@ -1277,15 +1259,15 @@ export default function HomePage({
           ].map((item, idx) => (
             <div
               key={idx}
-              className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2"
+              className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5"
             >
-              <span className="text-2xl font-black font-mono text-amber-400">
+              <span className="text-3xl font-black font-mono text-amber-400">
                 {item.step}
               </span>
-              <h4 className="text-xs sm:text-sm font-bold text-stone-100">
+              <h4 className="text-base font-bold text-stone-100">
                 {item.title}
               </h4>
-              <p className="text-xs text-stone-400 font-light leading-relaxed">
+              <p className="text-sm text-stone-300 font-normal leading-relaxed">
                 {item.desc}
               </p>
             </div>
@@ -1294,59 +1276,59 @@ export default function HomePage({
       </section>
 
       {/* 6. GÓC VĂN HÓA THỔ NHƯỠNG */}
-      <section className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-3xl p-6 sm:p-8 border border-amber-200/70 shadow-xs space-y-6">
+      <section className="bg-gradient-to-br from-amber-50/80 via-white to-amber-50/40 rounded-[2rem] p-6 sm:p-9 border border-amber-200/70 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/50 pb-4">
           <div className="space-y-1">
-            <span className="text-amber-800 text-xs font-black tracking-wider uppercase flex items-center gap-1.5">
+            <span className="text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase flex items-center gap-1.5">
               <Sun className="w-4 h-4 text-amber-600" />
               <span>Gió như phang, nắng như rang</span>
             </span>
-            <h3 className="text-lg sm:text-xl font-black text-stone-900">
+            <h3 className="text-xl sm:text-2xl font-black text-stone-900">
               Vì Sao Đất Càng Khắc Nghiệt, Trái Lại Càng Đậm Vị?
             </h3>
           </div>
-          <p className="text-xs text-stone-500 max-w-sm">
+          <p className="text-sm text-stone-600 max-w-sm font-normal">
             Ninh Thuận có hơn 2.800 giờ nắng/năm — lượng bốc hơi cao gấp 2 lần
             lượng mưa.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
-              <Sun className="w-4 h-4" />
+          <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+              <Sun className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-stone-900">
+            <h4 className="text-base sm:text-lg font-bold text-stone-900">
               Quang Hợp Cực Đại
             </h4>
-            <p className="text-xs text-stone-600 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Nắng chiếu từ sáng sớm đến tận chiều tà giúp cây nho và táo gió
               tích lũy lượng đường tự nhiên cao vượt trội so với các vùng đất ẩm
               mát.
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
-            <div className="w-8 h-8 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center font-bold">
-              <Wind className="w-4 h-4" />
+          <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center font-bold">
+              <Wind className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-stone-900">
+            <h4 className="text-base sm:text-lg font-bold text-stone-900">
               Gió Biển Chống Nấm Mốc
             </h4>
-            <p className="text-xs text-stone-600 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Gió biển thổi qua giàn liên tục làm khô ráo tán lá tự nhiên, hạn
               chế sâu bệnh mà không cần can thiệp hóa chất bảo vệ thực vật.
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-              <Droplets className="w-4 h-4" />
+          <div className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-2xs space-y-2.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+              <Droplets className="w-5 h-5" />
             </div>
-            <h4 className="text-sm font-bold text-stone-900">
+            <h4 className="text-base sm:text-lg font-bold text-stone-900">
               Mạch Nước Phù Sa Pha Cát
             </h4>
-            <p className="text-xs text-stone-600 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Hệ thống mương dẫn thủy lợi cổ Champa đưa nguồn nước phù sa sông
               Dinh bồi đắp cho từng gốc nho, giữ cho thịt quả chắc, vỏ mỏng.
             </p>
@@ -1362,8 +1344,8 @@ export default function HomePage({
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-stone-200 pb-4">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
-                <Heart className="w-3.5 h-3.5 fill-amber-700 text-amber-700" />
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-800 uppercase tracking-wider">
+                <Heart className="w-4 h-4 fill-amber-700 text-amber-700" />
                 <span>
                   Tình cảm của khách thương (
                   {totalReviewsCount > 0
@@ -1377,8 +1359,8 @@ export default function HomePage({
               </h3>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-stone-400 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200/80">
-              <MoveHorizontal className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-500 bg-stone-100 px-3.5 py-2 rounded-full border border-stone-200/80">
+              <MoveHorizontal className="w-4 h-4 text-amber-600 animate-pulse" />
               <span>Tự động trượt • Kéo để xem thêm</span>
             </div>
           </div>
@@ -1411,39 +1393,39 @@ export default function HomePage({
               return (
                 <div
                   key={rev.id || `${orderCode}-${idx}`}
-                  className="w-[280px] sm:w-[320px] h-[210px] shrink-0 p-4 sm:p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
+                  className="w-[300px] sm:w-[340px] h-[230px] shrink-0 p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
                 >
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-0.5 text-amber-500">
+                      <div className="flex items-center gap-1 text-amber-500">
                         {[...Array(ratingNum)].map((_, i) => (
                           <Star
                             key={i}
-                            className="w-3.5 h-3.5 fill-amber-400 text-amber-400"
+                            className="w-4 h-4 fill-amber-400 text-amber-400"
                           />
                         ))}
                       </div>
 
                       {orderCode ? (
-                        <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200">
+                        <span className="text-xs font-mono font-bold text-amber-900 bg-amber-100/80 px-2.5 py-0.5 rounded-md border border-amber-200">
                           #{orderCode}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
                           {rev.tag || "Khách đã mua"}
                         </span>
                       )}
                     </div>
 
-                    <div className="relative min-h-[52px] flex items-start">
-                      <Quote className="w-4 h-4 text-stone-200 absolute -top-1 -left-1 opacity-50 shrink-0" />
-                      <p className="text-xs text-stone-600 font-light leading-relaxed italic line-clamp-3 pl-2.5">
+                    <div className="relative min-h-[58px] flex items-start">
+                      <Quote className="w-4 h-4 text-stone-300 absolute -top-1 -left-1 opacity-60 shrink-0" />
+                      <p className="text-sm text-stone-700 font-normal leading-relaxed italic line-clamp-3 pl-3">
                         "{rev.content}"
                       </p>
                     </div>
 
                     {images.length > 0 && (
-                      <div className="flex items-center gap-1.5 pt-0.5 pl-2">
+                      <div className="flex items-center gap-2 pt-1 pl-3">
                         {images.slice(0, 3).map((imgUrl, imgIdx) => (
                           <button
                             key={imgIdx}
@@ -1455,7 +1437,7 @@ export default function HomePage({
                               }
                               setActiveLightboxImg(imgUrl);
                             }}
-                            className="relative w-9 h-9 rounded-lg overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in shrink-0"
+                            className="relative w-10 h-10 rounded-xl overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in shrink-0"
                             title="Bấm để xem ảnh phóng to"
                           >
                             <img
@@ -1473,12 +1455,12 @@ export default function HomePage({
                     )}
                   </div>
 
-                  <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                  <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between">
                     <div className="min-w-0 pr-2">
-                      <strong className="text-xs font-bold text-stone-900 block truncate">
+                      <strong className="text-sm font-bold text-stone-900 block truncate">
                         {customerName}
                       </strong>
-                      <span className="text-[10px] text-stone-400 font-light block truncate">
+                      <span className="text-xs text-stone-500 font-normal block truncate">
                         {rev.role ||
                           (orderCode
                             ? "Đã nhận hàng thành công"
@@ -1486,8 +1468,8 @@ export default function HomePage({
                       </span>
                     </div>
 
-                    <span className="text-[9.5px] font-medium text-stone-400 font-mono flex items-center gap-1 shrink-0 bg-stone-50 px-1.5 py-0.5 rounded-md border border-stone-100">
-                      <Clock className="w-2.5 h-2.5 text-stone-400" />
+                    <span className="text-xs font-medium text-stone-400 font-mono flex items-center gap-1 shrink-0 bg-stone-50 px-2 py-0.5 rounded-md border border-stone-100">
+                      <Clock className="w-3 h-3 text-stone-400" />
                       <span>
                         {formatDate(
                           rev.created_at || rev.createdAt || new Date(),
@@ -1500,9 +1482,9 @@ export default function HomePage({
             })}
 
             {isLoadingMoreReviews && (
-              <div className="w-[140px] h-[210px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
+              <div className="w-[140px] h-[230px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
                 <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
-                <span className="text-[10.5px] font-medium">
+                <span className="text-xs font-medium">
                   Đang tải tiếp...
                 </span>
               </div>
@@ -1512,7 +1494,7 @@ export default function HomePage({
       )}
 
       {/* 9. BỐN CAM KẾT VƯỜN QUÊ */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           {
             icon: CheckCircle2,
@@ -1522,12 +1504,12 @@ export default function HomePage({
           {
             icon: ShieldCheck,
             title: "100% Nguyên Bản",
-            desc: "Nắng phơi mộc, không phẩm màu",
+            desc: "Nắng phơi mộc, không phẩm màu hóa chất",
           },
           {
             icon: Truck,
             title: "Ship Thùng Xốp",
-            desc: "Chèn rơm chống dập, ướp đá gel",
+            desc: "Chèn rơm chống dập, ướp đá gel mát lạnh",
           },
           {
             icon: RefreshCw,
@@ -1539,16 +1521,16 @@ export default function HomePage({
           return (
             <div
               key={i}
-              className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 flex flex-col sm:flex-row items-start sm:items-center gap-3.5 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all duration-200"
+              className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all duration-200"
             >
-              <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200/70 shrink-0">
-                <Icon className="w-5 h-5 text-amber-600" />
+              <div className="p-3 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200/70 shrink-0">
+                <Icon className="w-6 h-6 text-amber-600" />
               </div>
-              <div className="space-y-0.5">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900">
+              <div className="space-y-1">
+                <h4 className="text-sm sm:text-base font-bold text-stone-900">
                   {item.title}
                 </h4>
-                <p className="text-[11px] text-stone-500 leading-snug font-light">
+                <p className="text-xs sm:text-sm text-stone-500 leading-snug font-normal">
                   {item.desc}
                 </p>
               </div>
@@ -1558,16 +1540,16 @@ export default function HomePage({
       </section>
 
       {/* 10. BANNER KÝ SỰ BẢN ĐỊA */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-amber-900 via-stone-900 to-stone-900 text-white rounded-3xl p-7 sm:p-10 shadow-xl border border-stone-800 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="space-y-2 text-center md:text-left max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs font-bold">
-            <Heart className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+      <section className="relative overflow-hidden bg-gradient-to-r from-amber-900 via-stone-900 to-stone-900 text-white rounded-[2rem] p-7 sm:p-12 shadow-xl border border-stone-800 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="space-y-2.5 text-center md:text-left max-w-2xl">
+          <div className="inline-flex items-center gap-1.5 text-amber-400 text-xs sm:text-sm font-bold">
+            <Heart className="w-4 h-4 fill-amber-400 text-amber-400" />
             <span>Ký sự người trồng nho & táo Phan Rang</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+          <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             Muốn hiểu vì sao quả ngọt đậm sâu giữa đất nung rát nắng?
           </h3>
-          <p className="text-xs sm:text-sm text-stone-300 font-light leading-relaxed">
+          <p className="text-sm sm:text-base text-stone-300 font-normal leading-relaxed">
             Mời bạn ghé xem nhật ký mùa vụ, xem cách người làm vườn bọc từng túi
             táo sinh học và phơi ráo từng mẻ nho dưới gió biển Cà Ná.
           </p>
@@ -1576,7 +1558,7 @@ export default function HomePage({
         <button
           type="button"
           onClick={goToStory}
-          className="group px-6 py-3.5 rounded-2xl bg-white text-stone-900 hover:bg-amber-100 font-bold text-xs shrink-0 transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
+          className="group px-7 py-4 rounded-2xl bg-white text-stone-900 hover:bg-amber-100 font-bold text-sm shrink-0 transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2"
         >
           <span>Đọc Chuyện Xứ Nắng Gió</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-amber-800" />
@@ -1596,7 +1578,7 @@ export default function HomePage({
             <button
               type="button"
               onClick={() => setActiveLightboxImg(null)}
-              className="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-stone-900/80 hover:bg-stone-800 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
+              className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-stone-900/80 hover:bg-stone-800 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
               title="Đóng (Esc)"
             >
               <X className="w-5 h-5" />
@@ -1606,7 +1588,7 @@ export default function HomePage({
               alt="Review Fullsize"
               className="w-full max-h-[82vh] object-contain rounded-2xl"
             />
-            <div className="text-center py-2 text-[11px] text-stone-400 font-sans">
+            <div className="text-center py-2.5 text-xs text-stone-400 font-sans">
               Ảnh thực tế từ khách nhận hàng • Nhấn vùng tối để đóng
             </div>
           </div>
@@ -1677,7 +1659,7 @@ function ExperienceGuideSection() {
     <section
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 relative overflow-hidden"
+      className="bg-white rounded-[2rem] p-6 sm:p-9 border border-stone-200/90 shadow-xs space-y-6 relative overflow-hidden"
     >
       <div className="absolute top-0 left-0 right-0 h-1 bg-stone-100 overflow-hidden">
         <div
@@ -1703,24 +1685,24 @@ function ExperienceGuideSection() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4 pt-1">
         <div>
-          <div className="flex items-center gap-2 text-amber-800 text-xs font-black tracking-wider uppercase">
+          <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
             <HelpCircle className="w-4 h-4 text-amber-600" />
             <span>Kinh nghiệm nhà nông • 10 đặc sản chuẩn gốc</span>
           </div>
-          <h3 className="text-lg sm:text-xl font-black text-stone-900 mt-0.5">
+          <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-1">
             Mẹo Phân Biệt & Nhận Diện Nông Sản Ninh Thuận Thật
           </h3>
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto">
-          <span className="text-xs font-mono font-bold text-stone-400">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <span className="text-sm font-mono font-bold text-stone-500">
             {currentIndex + 1} / {NINH_THUAN_EXPERIENCES.length}
           </span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handlePrev}
-              className="w-8 h-8 rounded-full border border-stone-200 hover:border-amber-600 hover:bg-amber-50 text-stone-600 hover:text-amber-800 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+              className="w-9 h-9 rounded-full border border-stone-200 hover:border-amber-600 hover:bg-amber-50 text-stone-600 hover:text-amber-800 flex items-center justify-center transition-all cursor-pointer active:scale-95"
               title="Xem đặc sản trước"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -1728,7 +1710,7 @@ function ExperienceGuideSection() {
             <button
               type="button"
               onClick={handleNext}
-              className="w-8 h-8 rounded-full border border-stone-200 hover:border-amber-600 hover:bg-amber-50 text-stone-600 hover:text-amber-800 flex items-center justify-center transition-all cursor-pointer active:scale-95"
+              className="w-9 h-9 rounded-full border border-stone-200 hover:border-amber-600 hover:bg-amber-50 text-stone-600 hover:text-amber-800 flex items-center justify-center transition-all cursor-pointer active:scale-95"
               title="Xem đặc sản kế tiếp"
             >
               <ChevronRight className="w-4 h-4" />
@@ -1739,17 +1721,17 @@ function ExperienceGuideSection() {
 
       <div
         ref={tabsContainerRef}
-        className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] scroll-smooth"
+        className="flex items-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] scroll-smooth"
       >
         {NINH_THUAN_EXPERIENCES.map((exp, idx) => (
           <button
             key={exp.id}
             type="button"
             onClick={() => changeTab(idx)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 shrink-0 cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 shrink-0 cursor-pointer ${
               idx === currentIndex
                 ? "bg-amber-800 text-white shadow-xs scale-[1.02]"
-                : "bg-stone-100 hover:bg-stone-200 text-stone-600"
+                : "bg-stone-100 hover:bg-stone-200 text-stone-700"
             }`}
           >
             {exp.tabLabel}
@@ -1764,46 +1746,46 @@ function ExperienceGuideSection() {
             : "opacity-100 translate-y-0 scale-100"
         }`}
       >
-        <div className="lg:col-span-8 p-5 sm:p-6 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-4 flex flex-col justify-between shadow-2xs">
-          <div className="space-y-3">
+        <div className="lg:col-span-8 p-6 sm:p-7 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-4 flex flex-col justify-between shadow-2xs">
+          <div className="space-y-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-[11px] font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-2.5 py-0.5 rounded-lg">
+              <span className="font-mono text-xs font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-3 py-1 rounded-lg">
                 {currentItem.badge}
               </span>
-              <span className="text-xs text-stone-500 font-medium flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-amber-700" />
+              <span className="text-xs sm:text-sm text-stone-600 font-semibold flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-amber-700" />
                 {currentItem.origin}
               </span>
             </div>
 
-            <h4 className="text-base sm:text-lg font-black text-stone-900">
+            <h4 className="text-lg sm:text-xl font-black text-stone-900">
               {currentItem.title}
             </h4>
 
-            <div className="space-y-2 pt-1">
+            <div className="space-y-2.5 pt-1">
               {currentItem.realSigns.map((sign, sIdx) => (
                 <div
                   key={sIdx}
-                  className="flex items-start gap-2.5 text-xs text-stone-700 leading-relaxed"
+                  className="flex items-start gap-2.5 text-sm sm:text-base text-stone-700 leading-relaxed font-normal"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-1" />
                   <span>{sign}</span>
                 </div>
               ))}
             </div>
 
             {currentItem.storageTip && (
-              <div className="mt-3 p-3 rounded-xl bg-white/80 border border-amber-200/60 text-xs text-stone-700 flex items-start gap-2 shadow-2xs">
+              <div className="mt-4 p-4 rounded-xl bg-white/80 border border-amber-200/60 text-sm sm:text-base text-stone-700 flex items-start gap-2.5 shadow-2xs">
                 <span className="font-bold text-amber-900 shrink-0">
                   🧊 Mẹo bảo quản:
                 </span>
-                <span className="font-light">{currentItem.storageTip}</span>
+                <span className="font-normal">{currentItem.storageTip}</span>
               </div>
             )}
           </div>
 
-          <div className="pt-2 text-[11px] text-stone-400 italic flex items-center gap-1.5">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+          <div className="pt-2 text-xs text-stone-500 italic flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
             <span>
               Di chuột vào khung để tạm dừng đọc kỹ, rời chuột để tiếp tục tự
               động chuyển.
@@ -1811,19 +1793,19 @@ function ExperienceGuideSection() {
           </div>
         </div>
 
-        <div className="lg:col-span-4 p-5 sm:p-6 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col justify-between space-y-3 shadow-2xs">
-          <div className="space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-rose-800">
+        <div className="lg:col-span-4 p-6 sm:p-7 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col justify-between space-y-4 shadow-2xs">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-black uppercase text-rose-800">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>Cách tránh hàng kém chất lượng</span>
             </div>
 
-            <p className="text-xs text-rose-950/80 leading-relaxed font-light">
+            <p className="text-sm sm:text-base text-rose-950 leading-relaxed font-normal">
               {currentItem.fakeWarning}
             </p>
           </div>
 
-          <div className="pt-3 border-t border-rose-200/60 flex items-center justify-between text-[11px] text-rose-700 font-bold">
+          <div className="pt-3.5 border-t border-rose-200/60 flex items-center justify-between text-xs sm:text-sm text-rose-700 font-bold">
             <span>🛡️ Bao ăn tận miệng</span>
             <span>🌿 Chuẩn gốc hái giàn</span>
           </div>

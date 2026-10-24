@@ -57,9 +57,9 @@ function CustomDropdown({
     ) || options[0];
 
   return (
-    <div className="relative w-full" ref={containerRef}>
+    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
       {label && (
-        <label className="font-semibold text-stone-600 block mb-1 text-xs">
+        <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
           {label}
         </label>
       )}
@@ -67,14 +67,14 @@ function CustomDropdown({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
+        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
-            ? "bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs"
-            : "bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs"
+            ? "bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold"
+            : "bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium"
         }`}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
-          {Icon && <Icon className="w-3.5 h-3.5 text-amber-700 shrink-0" />}
+        <div className="flex items-center gap-2 min-w-0">
+          {Icon && <Icon className="w-4 h-4 text-amber-700 shrink-0" />}
           <div className="truncate font-bold text-stone-900">
             {renderSelected
               ? renderSelected(selectedOpt)
@@ -90,14 +90,14 @@ function CustomDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm">
           {headerLabel && (
-            <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400">
+            <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
               {headerLabel}
             </div>
           )}
 
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {options.map((opt) => {
               const optVal =
                 opt.value !== undefined
@@ -114,9 +114,9 @@ function CustomDropdown({
                     onChange(optVal, opt);
                     setIsOpen(false);
                   }}
-                  className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
                     isSelected
-                      ? "bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs"
+                      ? "bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs"
                       : "hover:bg-amber-50/70 text-stone-700 font-medium"
                   }`}
                 >
@@ -220,7 +220,6 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 1. TẢI VÀ LẮNG NGHE REALTIME BẢNG GIFTS
   const loadGiftsFromDb = useCallback(async () => {
     setIsLoadingGifts(true);
     try {
@@ -267,7 +266,6 @@ export default function ConfigVoucherTab({
     };
   }, [loadGiftsFromDb]);
 
-  // 2. TẢI EMAIL TEMPLATES
   const loadTemplatesFromDb = useCallback(async () => {
     setIsLoadingTemplates(true);
     try {
@@ -288,7 +286,6 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  // 3. TẢI VOUCHERS
   const loadVouchersFromDb = useCallback(async () => {
     setIsLoadingVouchers(true);
     try {
@@ -319,7 +316,6 @@ export default function ConfigVoucherTab({
     }
   }, []);
 
-  // 4. TẢI SHOP CONFIGS
   const loadShopConfigsFromDb = useCallback(async () => {
     try {
       const { data, error } = await supabase.from("shop_configs").select("*");
@@ -408,7 +404,6 @@ export default function ConfigVoucherTab({
     loadShopConfigsFromDb();
   }, [loadTemplatesFromDb, loadVouchersFromDb, loadShopConfigsFromDb]);
 
-  // HÀM BẬT/TẮT TỪNG MÓN: CẬP NHẬT NGAY VÀO SUPABASE
   const handleToggleGiftStock = async (giftId, currentStatus) => {
     const nextStatus = !currentStatus;
 
@@ -880,17 +875,17 @@ export default function ConfigVoucherTab({
   };
 
   return (
-    <div className="space-y-6 font-sans animate-fadeIn">
+    <div className="space-y-6 sm:space-y-7 font-sans animate-fadeIn text-stone-800">
       {/* 1. CẤU HÌNH THANH TOÁN, VIETQR, VẬN CHUYỂN & VẬN HÀNH */}
-      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
-        <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-          <QrCode className="w-4 h-4 text-amber-600" />
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
+        <div className="flex items-center gap-2.5 text-stone-900 font-black text-sm sm:text-base border-b border-stone-100 pb-3.5">
+          <QrCode className="w-5 h-5 text-amber-700" />
           <span>
             Cấu Hình Thanh Toán, VietQR, Vận Chuyển & Ưu Đãi Khách Quen
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs sm:text-sm">
           <div className="sm:col-span-2">
             <CustomDropdown
               label="Ngân hàng nhận tiền:"
@@ -904,7 +899,7 @@ export default function ConfigVoucherTab({
                   <span className="font-bold text-stone-900">
                     {opt?.shortName}
                   </span>
-                  <span className="text-[11px] font-normal text-stone-500 truncate">
+                  <span className="text-xs font-normal text-stone-500 truncate">
                     ({opt?.name})
                   </span>
                 </div>
@@ -913,12 +908,12 @@ export default function ConfigVoucherTab({
                 <div className="flex items-center justify-between gap-2">
                   <div className="truncate">
                     <span className="font-bold">{opt.shortName}</span>
-                    <span className="text-[10.5px] text-stone-500 pl-1.5 font-normal truncate">
+                    <span className="text-xs text-stone-500 pl-2 font-normal truncate">
                       {opt.name}
                     </span>
                   </div>
                   <span
-                    className={`text-[10.5px] font-mono shrink-0 ${isSelected ? "text-amber-800" : "text-stone-400"}`}
+                    className={`text-xs font-mono font-bold shrink-0 ${isSelected ? "text-amber-900" : "text-stone-400"}`}
                   >
                     BIN: {opt.bin}
                   </span>
@@ -928,19 +923,19 @@ export default function ConfigVoucherTab({
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Số Tài Khoản:
             </label>
             <input
               type="text"
               value={cfg.accountNo}
               onChange={(e) => setCfg({ ...cfg, accountNo: e.target.value })}
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-800 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Tên Chủ Tài Khoản:
             </label>
             <input
@@ -949,12 +944,12 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 setCfg({ ...cfg, accountName: e.target.value.toUpperCase() })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono uppercase font-bold focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono uppercase font-bold text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Tiền Cọc Giữ Đơn (VNĐ):
             </label>
             <input
@@ -964,13 +959,13 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 setCfg({ ...cfg, depositAmount: Number(e.target.value) || 0 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-700 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-black text-amber-950 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
-              <Truck className="w-3.5 h-3.5 text-amber-700" />
+            <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
+              <Truck className="w-4 h-4 text-amber-700" />
               <span>Phí Vận Chuyển Mặc Định:</span>
             </label>
             <input
@@ -980,13 +975,13 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 setCfg({ ...cfg, shippingFee: Number(e.target.value) || 0 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
-              <Truck className="w-3.5 h-3.5 text-emerald-600" />
+            <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
+              <Truck className="w-4 h-4 text-emerald-600" />
               <span>Mốc Miễn Phí Vận Chuyển:</span>
             </label>
             <input
@@ -999,12 +994,12 @@ export default function ConfigVoucherTab({
                   freeShippingThreshold: Number(e.target.value) || 0,
                 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-black text-emerald-700 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Hotline / Zalo hỗ trợ:
             </label>
             <input
@@ -1018,13 +1013,13 @@ export default function ConfigVoucherTab({
                   zaloPhone: e.target.value.replace(/[^0-9]/g, ""),
                 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-stone-800 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-stone-900 font-bold text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+            <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
               <span>Mã PIN Vào Kho / Admin:</span>
             </label>
             <input
@@ -1032,12 +1027,12 @@ export default function ConfigVoucherTab({
               maxLength={6}
               value={cfg.warehousePin}
               onChange={(e) => setCfg({ ...cfg, warehousePin: e.target.value })}
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-black text-amber-950 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs tracking-widest"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               % Giảm Khách Cũ (Loyalty):
             </label>
             <input
@@ -1049,12 +1044,12 @@ export default function ConfigVoucherTab({
                   loyaltyDiscountPercent: Number(e.target.value) || 0,
                 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-black text-emerald-700 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Trần Giảm Khách Cũ (VNĐ):
             </label>
             <input
@@ -1066,13 +1061,13 @@ export default function ConfigVoucherTab({
                   loyaltyMaxDiscount: Number(e.target.value) || 0,
                 })
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-bold text-emerald-700 focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono font-black text-emerald-700 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div className="sm:col-span-2 lg:col-span-2">
-            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-amber-700" />
+            <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-amber-700" />
               <span>Địa Chỉ Vườn Chính / Điểm Gửi Xe:</span>
             </label>
             <input
@@ -1080,13 +1075,13 @@ export default function ConfigVoucherTab({
               value={cfg.address || ""}
               onChange={(e) => setCfg({ ...cfg, address: e.target.value })}
               placeholder="VD: Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận"
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
 
           <div className="sm:col-span-2 lg:col-span-4">
-            <label className="font-semibold text-stone-600 block mb-1 flex items-center gap-1">
-              <Megaphone className="w-3.5 h-3.5 text-amber-700" />
+            <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
+              <Megaphone className="w-4 h-4 text-amber-700" />
               <span>Thông Báo Chạy Chân Trang (Banner Marquee):</span>
             </label>
             <input
@@ -1094,23 +1089,23 @@ export default function ConfigVoucherTab({
               value={cfg.announcement || ""}
               onChange={(e) => setCfg({ ...cfg, announcement: e.target.value })}
               placeholder="VD: Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM..."
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
             />
           </div>
         </div>
 
-        {/* CÔNG TẮC BẬT/TẮT TỔNG: TỰ ĐỘNG GHI NGAY VÀO SUPABASE KHI GẠT CÔNG TẮC */}
-        <div className="pt-3 border-t border-stone-100 space-y-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
-                <Gift className="w-4 h-4" />
+        {/* CÔNG TẮC BẬT/TẮT TỔNG */}
+        <div className="pt-4 border-t border-stone-100 space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-3xl bg-amber-50/70 border border-amber-200/80 shadow-2xs">
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 shadow-inner">
+                <Gift className="w-5 h-5" />
               </div>
-              <div className="space-y-0.5">
-                <strong className="text-xs font-bold text-stone-900 block">
+              <div className="space-y-1">
+                <strong className="text-sm sm:text-base font-black text-stone-900 block">
                   Chương Trình Tặng Quà Quê (Ưu đãi Chuyển khoản VietQR)
                 </strong>
-                <p className="text-[11px] text-stone-500 leading-relaxed">
+                <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-normal">
                   Bật công tắc này để kích hoạt khung quà tặng kèm tại trang Checkout khi khách thanh toán cọc hoặc trả trước 100%.
                 </p>
               </div>
@@ -1122,10 +1117,8 @@ export default function ConfigVoucherTab({
                 checked={Boolean(cfg.enablePaymentGifts)}
                 onChange={async (e) => {
                   const nextVal = e.target.checked;
-                  // 1. Cập nhật state Admin ngay lập tức
                   setCfg((prev) => ({ ...prev, enablePaymentGifts: nextVal }));
 
-                  // 2. Ghi trực tiếp vào Supabase để kích hoạt Realtime sang CheckoutPage
                   try {
                     const nowIso = new Date().toISOString();
                     const { data: generalRow } = await supabase
@@ -1159,50 +1152,50 @@ export default function ConfigVoucherTab({
                 }}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              <div className="w-12 h-6.5 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600 shadow-inner"></div>
             </label>
           </div>
 
           {/* QUẢN LÝ TRẠNG THÁI TỪNG MÓN CỦA BẢNG GIFTS */}
           {cfg.enablePaymentGifts && (
-            <div className="p-3.5 bg-stone-50/90 rounded-2xl border border-stone-200/80 space-y-2.5 animate-fadeIn">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                  <Gift className="w-3.5 h-3.5 text-amber-700" />
+            <div className="p-5 sm:p-6 bg-stone-50/90 rounded-3xl border border-stone-200/80 space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs sm:text-sm font-bold text-stone-900 flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-amber-700" />
                   <span>Danh Mục Quà Tặng ({giftsList.length} món)</span>
                 </span>
-                <span className="text-[10.5px] text-stone-400">
+                <span className="text-xs text-stone-500 font-medium">
                   Click nút để đổi trạng thái trực tiếp trong database
                 </span>
               </div>
 
               {isLoadingGifts ? (
-                <div className="p-4 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                <div className="p-6 text-center text-xs sm:text-sm text-stone-500 flex items-center justify-center gap-2 font-medium">
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
                   <span>Đang tải danh sách quà từ bảng gifts...</span>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs sm:text-sm">
                   {giftsList.map((gift) => {
                     const isAvailable = gift.is_active !== false;
                     return (
                       <div
                         key={gift.id}
-                        className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2.5 shadow-2xs ${
+                        className={`p-4 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-2xs ${
                           isAvailable
                             ? "bg-white border-stone-200"
-                            : "bg-stone-100/80 border-stone-200/90 opacity-75"
+                            : "bg-stone-100 border-stone-200/90 opacity-75"
                         }`}
                       >
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0 flex-1 space-y-0.5">
                           <span
-                            className={`font-bold block truncate ${
+                            className={`font-bold block truncate text-xs sm:text-sm ${
                               isAvailable ? "text-stone-900" : "text-stone-500 line-through"
                             }`}
                           >
                             {gift.title}
                           </span>
-                          <span className="text-[10px] text-stone-500 block truncate mt-0.5">
+                          <span className="text-[11px] text-stone-500 block truncate font-medium">
                             {gift.tag} • {gift.type}
                           </span>
                         </div>
@@ -1210,10 +1203,10 @@ export default function ConfigVoucherTab({
                         <button
                           type="button"
                           onClick={() => handleToggleGiftStock(gift.id, isAvailable)}
-                          className={`px-2.5 py-1 rounded-xl text-[10.5px] font-bold border transition-all cursor-pointer shrink-0 ${
+                          className={`h-9 px-3.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs ${
                             isAvailable
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-                              : "bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
+                              ? "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                              : "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100"
                           }`}
                         >
                           {isAvailable ? "Đang bật" : "Đã tắt"}
@@ -1229,28 +1222,28 @@ export default function ConfigVoucherTab({
       </div>
 
       {/* 2. CẤU HÌNH VOUCHER */}
-      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
-        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-          <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-            <Tag className="w-4 h-4 text-amber-600" />
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3.5">
+          <div className="flex items-center gap-2.5 text-stone-900 font-black text-sm sm:text-base">
+            <Tag className="w-5 h-5 text-amber-700" />
             <span>Danh Sách Mã Khuyến Mãi ({vouchers.length} mã)</span>
           </div>
-          <span className="text-xs text-stone-500 hidden sm:inline">
+          <span className="text-xs sm:text-sm text-stone-500 hidden sm:inline font-medium">
             Dữ liệu đồng bộ trực tiếp từ bảng <strong>public.vouchers</strong>
           </span>
         </div>
 
         {isLoadingVouchers ? (
-          <div className="p-8 text-center text-xs text-stone-400 flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+          <div className="p-8 text-center text-xs sm:text-sm text-stone-500 flex items-center justify-center gap-2 font-medium">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
             <span>Đang tải danh sách voucher từ hệ thống...</span>
           </div>
         ) : vouchers.length === 0 ? (
-          <div className="p-6 text-center text-xs text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+          <div className="p-8 text-center text-xs sm:text-sm text-stone-600 bg-stone-50 rounded-2xl border border-dashed border-stone-200 font-medium">
             Chưa có voucher nào trong bảng <code>vouchers</code>. Hãy tạo mã đầu tiên bên dưới!
           </div>
         ) : (
-          <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
+          <div className="divide-y divide-stone-100 border border-stone-200 rounded-3xl overflow-hidden bg-stone-50/50 shadow-2xs">
             {vouchers.map((v) => {
               const limit = Number(v.usageLimit) || 0;
               const used = Number(v.usedCount) || 0;
@@ -1260,47 +1253,47 @@ export default function ConfigVoucherTab({
               return (
                 <div
                   key={v.code}
-                  className="p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs bg-white"
+                  className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm bg-white"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5 flex-1 min-w-[240px]">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
+                      <span className="font-mono font-black text-amber-950 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300/60 text-xs sm:text-sm">
                         {v.code}
                       </span>
-                      <span className="font-bold text-stone-800">
+                      <span className="font-bold text-stone-900 text-xs sm:text-sm">
                         {v.type === "percent"
                           ? `Giảm ${v.value}%${v.maxDiscount ? ` (Tối đa ${Number(v.maxDiscount).toLocaleString("vi-VN")}đ)` : ""}`
                           : `Giảm ${Number(v.value).toLocaleString("vi-VN")}đ`}
                       </span>
 
                       {v.canStack ? (
-                        <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
-                          <Layers className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-900 font-bold px-3 py-1 rounded-xl text-xs shadow-2xs">
+                          <Layers className="w-3.5 h-3.5 text-emerald-700" />
                           <span>ĐƯỢC GỘP MÃ</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                        <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-900 font-bold px-3 py-1 rounded-xl text-xs shadow-2xs">
                           <span>ĐỘC QUYỀN (1 MÃ)</span>
                         </span>
                       )}
 
                       {isOutOfStock ? (
-                        <span className="bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                        <span className="bg-red-100 text-red-800 font-bold px-3 py-1 rounded-xl text-xs">
                           HẾT LƯỢT DÙNG
                         </span>
                       ) : (
-                        <span className="bg-stone-100 text-stone-600 font-semibold px-2 py-0.5 rounded-md text-[10px]">
+                        <span className="bg-stone-100 text-stone-700 font-semibold px-3 py-1 rounded-xl text-xs">
                           Còn lại:{" "}
-                          <strong className="font-mono text-amber-900">
+                          <strong className="font-mono text-amber-950 font-black">
                             {remaining}
                           </strong>{" "}
                           {limit > 0 ? `(${used}/${limit} đã dùng)` : ""}
                         </span>
                       )}
                     </div>
-                    <p className="text-stone-500 text-[11px]">
+                    <p className="text-stone-600 text-xs leading-relaxed font-normal">
                       {v.desc ? `${v.desc} • ` : ""}Đơn tối thiểu:{" "}
-                      <strong className="text-stone-700 font-mono">
+                      <strong className="text-stone-800 font-mono font-bold">
                         {v.minOrder
                           ? `${Number(v.minOrder).toLocaleString("vi-VN")}đ`
                           : "0đ"}
@@ -1308,14 +1301,14 @@ export default function ConfigVoucherTab({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleToggleVoucherStack(v.code)}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                      className={`h-11 px-4 rounded-2xl text-xs font-bold border transition-colors cursor-pointer shadow-2xs active:scale-95 ${
                         v.canStack
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
-                          : "bg-stone-100 text-stone-600 border-stone-200 hover:bg-stone-200"
+                          ? "bg-emerald-50 text-emerald-900 border-emerald-300 hover:bg-emerald-100"
+                          : "bg-stone-100 text-stone-700 border-stone-200 hover:bg-stone-200"
                       }`}
                     >
                       {v.canStack ? "Cho phép gộp" : "Không cho gộp"}
@@ -1324,7 +1317,7 @@ export default function ConfigVoucherTab({
                     <button
                       type="button"
                       onClick={() => setEditingVoucher({ ...v })}
-                      className="p-1.5 text-stone-400 hover:text-amber-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                      className="w-11 h-11 text-stone-400 hover:text-amber-700 rounded-2xl hover:bg-stone-100 flex items-center justify-center transition-colors cursor-pointer"
                       title="Chỉnh sửa voucher"
                     >
                       <Pencil className="w-4 h-4" />
@@ -1333,7 +1326,7 @@ export default function ConfigVoucherTab({
                     <button
                       type="button"
                       onClick={() => handleRemoveVoucher(v.code)}
-                      className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                      className="w-11 h-11 text-stone-400 hover:text-red-600 rounded-2xl hover:bg-stone-100 flex items-center justify-center transition-colors cursor-pointer"
                       title="Xóa voucher"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1347,15 +1340,15 @@ export default function ConfigVoucherTab({
 
         <form
           onSubmit={handleAddVoucher}
-          className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3"
+          className="bg-stone-50 p-5 sm:p-6 rounded-3xl border border-stone-200 space-y-4 shadow-2xs"
         >
-          <span className="font-bold text-xs text-stone-800 block">
+          <span className="font-black text-sm sm:text-base text-stone-900 block">
             Tạo voucher mới vào cơ sở dữ liệu:
           </span>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5 sm:gap-4 text-xs sm:text-sm">
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+              <label className="text-xs text-stone-600 font-bold block mb-1.5">
                 Mã CODE *
               </label>
               <input
@@ -1369,7 +1362,7 @@ export default function ConfigVoucherTab({
                     code: e.target.value.toUpperCase(),
                   })
                 }
-                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900 focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono uppercase font-bold text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs"
               />
             </div>
 
@@ -1385,7 +1378,7 @@ export default function ConfigVoucherTab({
                 renderOption={(opt) => (
                   <div className="space-y-0.5">
                     <span className="font-bold block">{opt.label}</span>
-                    <span className="text-[10px] text-stone-400 block font-light">
+                    <span className="text-xs text-stone-500 block font-normal">
                       {opt.subLabel}
                     </span>
                   </div>
@@ -1394,7 +1387,7 @@ export default function ConfigVoucherTab({
             </div>
 
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+              <label className="text-xs text-stone-600 font-bold block mb-1.5">
                 {newVoucher.type === "percent"
                   ? "Mức giảm (%) *"
                   : "Mức giảm (VNĐ) *"}
@@ -1407,13 +1400,13 @@ export default function ConfigVoucherTab({
                 onChange={(e) =>
                   setNewVoucher({ ...newVoucher, value: e.target.value })
                 }
-                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs"
               />
             </div>
 
             {newVoucher.type === "percent" && (
               <div>
-                <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                <label className="text-xs text-stone-600 font-bold block mb-1.5">
                   Giảm tối đa (VNĐ)
                 </label>
                 <input
@@ -1426,13 +1419,13 @@ export default function ConfigVoucherTab({
                       maxDiscount: e.target.value,
                     })
                   }
-                  className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600 shadow-2xs"
                 />
               </div>
             )}
 
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+              <label className="text-xs text-stone-600 font-bold block mb-1.5">
                 Đơn tối thiểu (VNĐ)
               </label>
               <input
@@ -1442,12 +1435,12 @@ export default function ConfigVoucherTab({
                   setNewVoucher({ ...newVoucher, minOrder: e.target.value })
                 }
                 placeholder="0"
-                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs"
               />
             </div>
 
             <div>
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+              <label className="text-xs text-stone-600 font-bold block mb-1.5">
                 SL Giới Hạn (Lượt)
               </label>
               <input
@@ -1457,12 +1450,12 @@ export default function ConfigVoucherTab({
                   setNewVoucher({ ...newVoucher, usageLimit: e.target.value })
                 }
                 placeholder="0 = Vô hạn"
-                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-900 focus:outline-none focus:border-amber-600 shadow-2xs"
               />
             </div>
 
             <div className="lg:col-span-6">
-              <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+              <label className="text-xs text-stone-600 font-bold block mb-1.5">
                 Mô tả hiển thị
               </label>
               <input
@@ -1472,13 +1465,13 @@ export default function ConfigVoucherTab({
                 onChange={(e) =>
                   setNewVoucher({ ...newVoucher, desc: e.target.value })
                 }
-                className="w-full p-2 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 shadow-2xs"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-200/60">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-2xl border border-amber-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stone-200/60">
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-bold text-amber-950 bg-amber-50 h-11 px-4 rounded-2xl border border-amber-200 shadow-2xs">
               <input
                 type="checkbox"
                 checked={newVoucher.canStack}
@@ -1492,9 +1485,9 @@ export default function ConfigVoucherTab({
 
             <button
               type="submit"
-              className="px-5 py-2.5 bg-stone-900 hover:bg-amber-800 text-white rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-11 px-6 bg-stone-900 hover:bg-amber-800 text-white rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs active:scale-95"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Thêm Voucher Vào Hệ Thống</span>
             </button>
           </div>
@@ -1502,31 +1495,31 @@ export default function ConfigVoucherTab({
       </div>
 
       {/* 3. CẤU HÌNH EMAIL TEMPLATES */}
-      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-6 space-y-4 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
-          <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
-            <div className="w-7 h-7 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
-              <Mail className="w-4 h-4" />
+      <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
+          <div className="flex items-center gap-3 text-stone-900 font-black text-sm sm:text-base">
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shadow-inner">
+              <Mail className="w-5 h-5" />
             </div>
             <div>
               <span>Mẫu Email Hệ Thống ({templates.length} mẫu)</span>
-              <p className="text-[11px] font-normal text-stone-500">
+              <p className="text-xs font-normal text-stone-500 mt-0.5">
                 Được đồng bộ trực tiếp từ bảng email_templates
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setIsNewTemplateModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
+              className="h-11 px-4 rounded-2xl bg-amber-800 hover:bg-amber-900 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs transition-all active:scale-95 cursor-pointer"
             >
               <PlusCircle className="w-4 h-4 text-amber-200" />
               <span>Tạo Mẫu Mới</span>
             </button>
 
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+            <label className="flex items-center gap-2 cursor-pointer text-xs sm:text-sm font-bold text-amber-950 bg-amber-50 h-11 px-4 rounded-2xl border border-amber-200 shadow-2xs">
               <input
                 type="checkbox"
                 checked={cfg.autoSendEmail}
@@ -1540,21 +1533,21 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-amber-50/40 p-3.5 rounded-2xl border border-amber-200/60 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm bg-amber-50/50 p-5 rounded-3xl border border-amber-200/70 relative">
           <div className="relative" ref={dropdownRef}>
-            <label className="font-bold text-amber-900 mb-1.5 flex items-center justify-between text-xs">
+            <label className="font-bold text-amber-950 mb-1.5 flex items-center justify-between text-xs sm:text-sm">
               <span className="flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-amber-700" />
+                <Mail className="w-4 h-4 text-amber-700" />
                 <span>Mẫu thư đang chỉnh sửa:</span>
               </span>
               {templates.length > 1 && (
                 <button
                   type="button"
                   onClick={handleDeleteActiveTemplate}
-                  className="text-stone-400 hover:text-rose-600 flex items-center gap-1 text-[11px] font-semibold transition-colors cursor-pointer"
+                  className="text-stone-400 hover:text-rose-600 flex items-center gap-1 text-xs font-semibold transition-colors cursor-pointer"
                   title="Xóa mẫu thư này"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                   <span>Xóa mẫu</span>
                 </button>
               )}
@@ -1564,13 +1557,13 @@ export default function ConfigVoucherTab({
               type="button"
               disabled={isLoadingTemplates || templates.length === 0}
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-stone-200 hover:border-amber-400 rounded-2xl text-stone-800 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+              className="w-full h-11 flex items-center justify-between px-4 bg-white border border-stone-200 hover:border-amber-400 rounded-2xl text-stone-900 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/20"
             >
               <div className="flex items-center gap-2 truncate">
-                <span className="text-amber-800 font-bold">
+                <span className="text-amber-950 font-black">
                   {activeTemplate.name}
                 </span>
-                <span className="text-[11px] font-mono text-stone-400 font-normal">
+                <span className="text-xs font-mono text-stone-400 font-normal">
                   ({activeTemplate.id})
                 </span>
               </div>
@@ -1582,12 +1575,12 @@ export default function ConfigVoucherTab({
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute left-0 top-full mt-2 w-full sm:w-80 bg-white border border-stone-200/80 rounded-3xl p-2.5 shadow-2xl z-30 space-y-1 animate-fadeIn [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase text-stone-400 tracking-wider">
+              <div className="absolute left-0 top-full mt-2 w-full sm:w-96 bg-white border border-stone-200/80 rounded-3xl p-3 shadow-2xl z-30 space-y-1 animate-fadeIn [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="px-3.5 py-2 text-xs font-black uppercase text-stone-400 tracking-wider">
                   DANH SÁCH MẪU TRONG DATABASE:
                 </div>
 
-                <div className="max-h-60 overflow-y-auto space-y-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="max-h-64 overflow-y-auto space-y-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {templates.map((tpl) => {
                     const isSelected = tpl.id === activeTemplate.id;
                     return (
@@ -1598,15 +1591,15 @@ export default function ConfigVoucherTab({
                           setSelectedTemplateId(tpl.id);
                           setIsDropdownOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-colors cursor-pointer text-left ${
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs sm:text-sm font-bold transition-colors cursor-pointer text-left ${
                           isSelected
                             ? "bg-[#fffbeb] text-amber-950 font-black"
                             : "text-stone-700 hover:bg-stone-50 font-medium"
                         }`}
                       >
-                        <div className="flex flex-col">
+                        <div className="flex flex-col space-y-0.5">
                           <span>{tpl.name}</span>
-                          <span className="text-[10px] font-mono text-stone-400 font-normal">
+                          <span className="text-[11px] font-mono text-stone-400 font-normal">
                             {tpl.id}
                           </span>
                         </div>
@@ -1622,7 +1615,7 @@ export default function ConfigVoucherTab({
           </div>
 
           <div>
-            <label className="font-bold text-stone-700 block mb-1.5 text-xs">
+            <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
               Tên gợi nhớ của mẫu:
             </label>
             <input
@@ -1631,17 +1624,17 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 handleUpdateActiveTemplate("name", e.target.value)
               }
-              className="w-full px-4 py-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-800 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
             />
           </div>
         </div>
 
-        <div className="p-3 bg-stone-50/80 rounded-2xl border border-stone-200/70 text-xs space-y-1.5">
-          <div className="flex items-center gap-1.5 font-bold text-stone-700 text-[11px]">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+        <div className="p-4 sm:p-5 bg-stone-50/80 rounded-2xl border border-stone-200/70 text-xs sm:text-sm space-y-2.5">
+          <div className="flex items-center gap-2 font-bold text-stone-800">
+            <Sparkles className="w-4 h-4 text-amber-600" />
             <span>Các biến tự động chèn dữ liệu vào mẫu:</span>
           </div>
-          <div className="flex flex-wrap gap-1.5 font-mono text-[10px]">
+          <div className="flex flex-wrap gap-2 font-mono text-xs">
             {[
               "{{CUSTOMER_NAME}}",
               "{{ORDER_CODE}}",
@@ -1654,7 +1647,7 @@ export default function ConfigVoucherTab({
             ].map((tag) => (
               <span
                 key={tag}
-                className="bg-white text-amber-900 px-2 py-0.5 rounded-md border border-stone-200 shadow-2xs font-semibold"
+                className="bg-white text-amber-950 px-3 py-1 rounded-xl border border-stone-200 shadow-2xs font-bold"
               >
                 {tag}
               </span>
@@ -1662,9 +1655,9 @@ export default function ConfigVoucherTab({
           </div>
         </div>
 
-        <div className="space-y-3 text-xs">
+        <div className="space-y-4 text-xs sm:text-sm">
           <div>
-            <label className="font-bold text-stone-700 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Tiêu đề thư gửi khách:
             </label>
             <input
@@ -1673,12 +1666,12 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 handleUpdateActiveTemplate("subject", e.target.value)
               }
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-800 focus:outline-none focus:border-amber-600 transition-colors"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors shadow-2xs"
             />
           </div>
 
           <div>
-            <label className="font-bold text-stone-700 block mb-1">
+            <label className="font-bold text-stone-700 block mb-1.5">
               Nội dung thư (HTML từ database):
             </label>
             <textarea
@@ -1687,12 +1680,12 @@ export default function ConfigVoucherTab({
               onChange={(e) =>
                 handleUpdateActiveTemplate("body", e.target.value)
               }
-              className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-xs text-stone-800 focus:outline-none focus:border-amber-600 transition-colors leading-relaxed"
+              className="w-full p-4 rounded-3xl border border-stone-200 bg-stone-50 focus:bg-white font-mono text-xs sm:text-sm text-stone-900 focus:outline-none focus:border-amber-600 transition-colors leading-relaxed shadow-2xs"
             />
           </div>
 
-          <div className="pt-2 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <span className="text-[11px] text-stone-500">
+          <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3.5">
+            <span className="text-xs sm:text-sm text-stone-600">
               Kiểm tra hiển thị của mẫu <strong>{activeTemplate.name}</strong>:
             </span>
             <div className="flex items-center gap-2">
@@ -1701,18 +1694,18 @@ export default function ConfigVoucherTab({
                 placeholder="Nhập email của bạn để nhận thử..."
                 value={testEmailInput}
                 onChange={(e) => setTestEmailInput(e.target.value)}
-                className="w-full sm:w-64 p-2 rounded-2xl border border-stone-200 text-xs focus:outline-none focus:border-amber-600 bg-white"
+                className="w-full sm:w-80 h-11 px-4 rounded-2xl border border-stone-200 text-xs sm:text-sm focus:outline-none focus:border-amber-600 bg-white shadow-2xs"
               />
               <button
                 type="button"
                 onClick={handleSendTestEmail}
                 disabled={isSendingTest}
-                className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                className="h-11 px-5 bg-stone-100 hover:bg-stone-200 text-stone-900 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer shrink-0 disabled:opacity-50 shadow-2xs"
               >
                 {isSendingTest ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                  <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
                 ) : (
-                  <Send className="w-3.5 h-3.5 text-amber-700" />
+                  <Send className="w-4 h-4 text-amber-700" />
                 )}
                 <span>{isSendingTest ? "Đang gửi..." : "Gửi Test"}</span>
               </button>
@@ -1727,12 +1720,12 @@ export default function ConfigVoucherTab({
           type="button"
           disabled={isSaving}
           onClick={handleSaveAll}
-          className="px-6 py-3 bg-amber-800 hover:bg-amber-900 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+          className="h-12 px-8 bg-amber-800 hover:bg-amber-900 text-white rounded-2xl text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2.5 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
         >
           {isSaving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
-            <Check className="w-4 h-4" />
+            <Check className="w-5 h-5 stroke-[2.5]" />
           )}
           <span>
             {isSaving
@@ -1742,30 +1735,30 @@ export default function ConfigVoucherTab({
         </button>
       </div>
 
-      {/* 5. MODAL TẠO MẪU EMAIL MỚI */}
+      {/* 5. MODAL TẠO MẪU EMAIL MỚI: PHÓNG TO max-w-2xl, KHÔNG GIAN THOÁNG ĐÃNG */}
       {isNewTemplateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-              <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
-                <PlusCircle className="w-4 h-4 text-amber-700" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-6">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <h3 className="text-base sm:text-xl font-black text-stone-900 flex items-center gap-2.5">
+                <PlusCircle className="w-6 h-6 text-amber-700" />
                 <span>Thêm Mẫu Email Mới</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsNewTemplateModalOpen(false)}
-                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
+                className="w-10 h-10 rounded-2xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form
               onSubmit={handleCreateNewTemplate}
-              className="space-y-3.5 text-xs"
+              className="space-y-5 text-xs sm:text-sm"
             >
               <div>
-                <label className="text-[11px] text-stone-700 font-bold block mb-1">
+                <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                   Tên gợi nhớ của mẫu *:
                 </label>
                 <input
@@ -1779,17 +1772,17 @@ export default function ConfigVoucherTab({
                       name: e.target.value,
                     })
                   }
-                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50/70 focus:bg-white font-medium text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] text-stone-700 font-bold block mb-1">
+                <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                   Tiêu đề email mặc định:
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: [Xứ Nắng Gió] Thùng hàng {{ORDER_CODE}} đang trên đường tới bạn"
+                  placeholder="VD: [Xứ Nắng Gió] Thùng hàng {{ORDER_CODE}} đang trên đường giao đến bạn"
                   value={newTemplateForm.subject}
                   onChange={(e) =>
                     setNewTemplateForm({
@@ -1797,31 +1790,31 @@ export default function ConfigVoucherTab({
                       subject: e.target.value,
                     })
                   }
-                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600"
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50/70 focus:bg-white font-medium text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
                   onClick={() => setIsNewTemplateModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                  className="h-11 px-6 rounded-2xl text-xs sm:text-sm font-bold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   disabled={isCreatingTpl}
-                  className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  className="h-11 px-7 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
                   {isCreatingTpl ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                       <span>Đang tạo...</span>
                     </>
                   ) : (
                     <>
-                      <Plus className="w-3.5 h-3.5" />
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
                       <span>Tạo Mẫu Ngay</span>
                     </>
                   )}
@@ -1832,31 +1825,31 @@ export default function ConfigVoucherTab({
         </div>
       )}
 
-      {/* 6. MODAL CHỈNH SỬA VOUCHER */}
+      {/* 6. MODAL CHỈNH SỬA VOUCHER: PHÓNG TO max-w-2xl, KHÔNG GIAN RỘNG RÃI */}
       {editingVoucher && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-              <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-6 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+              <h3 className="text-base sm:text-xl font-black text-stone-900 flex items-center gap-2.5">
                 <span>Chỉnh Sửa Voucher:</span>
-                <span className="font-mono text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md">
+                <span className="font-mono text-amber-950 bg-amber-100 px-3 py-1 rounded-xl text-xs sm:text-sm border border-amber-300/60 shadow-2xs">
                   {editingVoucher.code}
                 </span>
               </h3>
               <button
                 type="button"
                 onClick={() => setEditingVoucher(null)}
-                className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
+                className="w-10 h-10 rounded-2xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 flex items-center justify-center cursor-pointer transition-colors"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form
               onSubmit={handleSaveEditedVoucher}
-              className="space-y-3.5 text-xs"
+              className="space-y-4 text-xs sm:text-sm"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <CustomDropdown
                     label="Loại giảm"
@@ -1876,7 +1869,7 @@ export default function ConfigVoucherTab({
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                     {editingVoucher.type === "percent"
                       ? "Mức giảm (%) *"
                       : "Mức giảm (VNĐ) *"}
@@ -1892,14 +1885,14 @@ export default function ConfigVoucherTab({
                         value: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-600"
+                    className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
                   />
                 </div>
               </div>
 
               {editingVoucher.type === "percent" && (
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                     Giảm tối đa (VNĐ)
                   </label>
                   <input
@@ -1912,14 +1905,14 @@ export default function ConfigVoucherTab({
                         maxDiscount: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold focus:outline-none focus:border-amber-600"
+                    className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono text-emerald-800 font-bold text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
                   />
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                     Đơn tối thiểu (VNĐ)
                   </label>
                   <input
@@ -1931,12 +1924,12 @@ export default function ConfigVoucherTab({
                         minOrder: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono focus:outline-none focus:border-amber-600"
+                    className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                  <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                     SL Giới hạn (0 = Vô hạn)
                   </label>
                   <input
@@ -1948,13 +1941,13 @@ export default function ConfigVoucherTab({
                         usageLimit: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-800 focus:outline-none focus:border-amber-600"
+                    className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-mono font-bold text-amber-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] text-stone-500 font-semibold block mb-1">
+                <label className="text-xs sm:text-sm text-stone-700 font-bold block mb-1.5">
                   Mô tả hiển thị
                 </label>
                 <input
@@ -1966,11 +1959,11 @@ export default function ConfigVoucherTab({
                       desc: e.target.value,
                     })
                   }
-                  className="w-full p-2.5 rounded-2xl border border-stone-200 bg-white font-medium focus:outline-none focus:border-amber-600"
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 text-xs sm:text-sm focus:outline-none focus:border-amber-600 shadow-2xs"
                 />
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-amber-950 bg-amber-50 p-2.5 rounded-2xl border border-amber-200">
+              <label className="flex items-center gap-3 cursor-pointer text-xs sm:text-sm font-bold text-amber-950 bg-amber-50 h-11 px-4 rounded-2xl border border-amber-200 shadow-2xs">
                 <input
                   type="checkbox"
                   checked={editingVoucher.canStack}
@@ -1985,19 +1978,19 @@ export default function ConfigVoucherTab({
                 <span>Cho phép gộp với các voucher khác (canStack)</span>
               </label>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
                 <button
                   type="button"
                   onClick={() => setEditingVoucher(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+                  className="h-11 px-6 rounded-2xl text-xs sm:text-sm font-bold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+                  className="h-11 px-7 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
                 >
-                  <Check className="w-3.5 h-3.5" />
+                  <Check className="w-4 h-4" />
                   <span>Cập Nhật Voucher</span>
                 </button>
               </div>

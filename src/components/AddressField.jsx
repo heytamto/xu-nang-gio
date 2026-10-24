@@ -63,38 +63,38 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
   };
 
   return (
-    <div className="relative" ref={wrapperRef}>
-      <label className="text-[11px] font-semibold text-stone-600 block mb-1">{label}</label>
+    <div className="relative font-sans text-stone-800" ref={wrapperRef}>
+      <label className="text-xs sm:text-sm font-bold text-stone-700 block mb-1.5">{label}</label>
 
       <button
         type="button"
         disabled={disabled}
         onClick={handleOpen}
-        className={`w-full text-xs p-2.5 rounded-xl border text-left flex items-center justify-between transition-all shadow-2xs cursor-pointer ${
+        className={`w-full text-xs sm:text-sm p-3 rounded-2xl border text-left flex items-center justify-between transition-all shadow-2xs cursor-pointer ${
           disabled
             ? 'bg-stone-100 text-stone-400 border-stone-200 cursor-not-allowed'
             : isOpen
-            ? 'border-amber-600 bg-white ring-2 ring-amber-500/20 text-stone-800'
-            : 'border-stone-200 bg-white hover:border-stone-300 text-stone-800'
+            ? 'border-amber-600 bg-white ring-2 ring-amber-500/20 text-stone-900 font-bold'
+            : 'border-stone-200 bg-white hover:border-stone-300 text-stone-900 font-medium'
         }`}
       >
-        <span className="truncate font-medium">
+        <span className="truncate">
           {value || <span className="text-stone-400 font-normal">{placeholder}</span>}
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-stone-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-amber-600' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-stone-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-amber-600' : ''}`} />
       </button>
 
       {isOpen && (
         <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn font-sans">
-          <div className="p-2 border-b border-stone-100 bg-stone-50/60 flex items-center gap-1.5">
-            <Search className="w-3.5 h-3.5 text-stone-400 shrink-0 ml-1" />
+          <div className="p-2.5 border-b border-stone-100 bg-stone-50/70 flex items-center gap-2">
+            <Search className="w-4 h-4 text-stone-400 shrink-0 ml-1" />
             <input
               ref={inputRef}
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="Gõ để tìm nhanh..."
-              className="w-full text-xs bg-transparent border-none focus:outline-none text-stone-800 placeholder-stone-400 font-medium"
+              className="w-full text-xs sm:text-sm bg-transparent border-none focus:outline-none text-stone-800 placeholder-stone-400 font-medium"
             />
             {keyword && (
               <button
@@ -103,12 +103,12 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
                 className="p-1 text-stone-400 hover:text-stone-600 rounded-md cursor-pointer"
                 title="Xóa tìm kiếm"
               >
-                <X className="w-3 h-3" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          <ul className="max-h-52 overflow-y-auto text-xs divide-y divide-stone-50 p-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+          <ul className="max-h-56 overflow-y-auto text-xs sm:text-sm divide-y divide-stone-50 p-1.5 [-ms-overflow-style:none] [scrollbar-width:thin]">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => {
                 const isSelected = opt === value;
@@ -122,20 +122,20 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
                         setKeyword('');
                         setDebouncedKeyword('');
                       }}
-                      className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
+                      className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-amber-50 text-amber-900 font-bold'
+                          ? 'bg-amber-100 text-amber-950 font-bold'
                           : 'hover:bg-stone-50 text-stone-700'
                       }`}
                     >
                       <span className="truncate">{opt}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-amber-600 shrink-0 ml-2" />}
+                      {isSelected && <Check className="w-4 h-4 text-amber-700 stroke-[2.5] shrink-0 ml-2" />}
                     </button>
                   </li>
                 );
               })
             ) : (
-              <li className="p-3 text-center text-[11px] text-stone-400 italic">
+              <li className="p-3.5 text-center text-xs text-stone-400 italic">
                 Không tìm thấy "{debouncedKeyword || keyword}"
               </li>
             )}
@@ -147,7 +147,6 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
 }
 
 export default function AddressField({ value = '', onChange, error = '' }) {
-  // Mode: 'manual' (mặc định nếu đã có địa chỉ) hoặc 'gps'
   const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'manual'));
 
   const provinces = useMemo(() => Object.keys(administrativeData), []);
@@ -196,7 +195,6 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
       const parts = value.split(',').map((p) => p.trim()).filter(Boolean);
       if (parts.length >= 3) {
-        // Dự kiến: [Số nhà tên đường, Phường/Xã, Quận/Huyện?, Tỉnh/Thành]
         const rawProv = parts[parts.length - 1];
         const matchedProv = provinces.find((p) => 
           cleanAdministrativeName(p).includes(cleanAdministrativeName(rawProv)) ||
@@ -215,7 +213,6 @@ export default function AddressField({ value = '', onChange, error = '' }) {
             });
           }
 
-          // Tìm ward ở vị trí áp chót
           const rawWard = parts[parts.length - 2];
           const matchedWard = targetWards.find((w) =>
             cleanAdministrativeName(w).includes(cleanAdministrativeName(rawWard)) ||
@@ -230,12 +227,10 @@ export default function AddressField({ value = '', onChange, error = '' }) {
         }
       }
 
-      // Fallback nếu không khớp regex: gán nguyên địa chỉ vào ô chi tiết
       setDetailAddress(value);
     }
   }, [value, provinces]);
 
-  // Cập nhật selectedWard khi danh sách wards thay đổi
   useEffect(() => {
     if (wards.length > 0) {
       if (!wards.includes(selectedWard)) {
@@ -246,12 +241,10 @@ export default function AddressField({ value = '', onChange, error = '' }) {
     }
   }, [wards]);
 
-  // Kiểm tra tính hợp lệ của địa chỉ chi tiết
   const isDetailEmpty = !detailAddress.trim();
   const isDetailTooShort = detailAddress.trim().length > 0 && detailAddress.trim().length < 4;
   const showDetailError = detailTouched && (isDetailEmpty || isDetailTooShort);
 
-  // Đồng bộ giá trị trả về cho Checkout Form
   useEffect(() => {
     let full = '';
     if (inputMode === 'gps' && autoDetectedText) {
@@ -371,40 +364,40 @@ export default function AddressField({ value = '', onChange, error = '' }) {
   };
 
   return (
-    <div className="space-y-3 font-sans">
+    <div className="space-y-3.5 font-sans text-stone-800">
       {/* THANH ĐIỀU HƯỚNG DẠNG TAB: 1. LẤY VỊ TRÍ | 2. TỰ NHẬP */}
-      <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100/90 rounded-2xl border border-stone-200">
+      <div className="grid grid-cols-2 gap-2 p-1.5 bg-stone-100/90 rounded-2xl border border-stone-200">
         <button
           type="button"
           onClick={() => setInputMode('manual')}
-          className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
             inputMode === 'manual'
-              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/60'
-              : 'text-stone-500 hover:text-stone-800'
+              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+              : 'text-stone-600 hover:text-stone-900'
           }`}
         >
-          <Edit3 className={`w-3.5 h-3.5 ${inputMode === 'manual' ? 'text-amber-600' : 'text-stone-400'}`} />
+          <Edit3 className={`w-4 h-4 ${inputMode === 'manual' ? 'text-amber-600' : 'text-stone-400'}`} />
           <span>1. Tự chọn / Nhập tay</span>
         </button>
 
         <button
           type="button"
           onClick={() => setInputMode('gps')}
-          className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+          className={`py-2.5 px-3.5 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
             inputMode === 'gps'
-              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/60'
-              : 'text-stone-500 hover:text-stone-800'
+              ? 'bg-white text-amber-900 shadow-xs border border-stone-200/80'
+              : 'text-stone-600 hover:text-stone-900'
           }`}
         >
-          <Navigation className={`w-3.5 h-3.5 ${inputMode === 'gps' ? 'text-amber-600 fill-amber-600/20' : 'text-stone-400'}`} />
+          <Navigation className={`w-4 h-4 ${inputMode === 'gps' ? 'text-amber-600 fill-amber-600/20' : 'text-stone-400'}`} />
           <span>2. Lấy vị trí GPS</span>
         </button>
       </div>
 
-      {/* KHỐI 1: TỰ NHẬP THỦ CÔNG (ĐẶT LÊN ĐẦU ĐỂ TỐI ƯU UX) */}
+      {/* KHỐI 1: TỰ NHẬP THỦ CÔNG */}
       {inputMode === 'manual' && (
-        <div className="space-y-2.5 animate-fadeIn">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="space-y-3 animate-fadeIn">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SearchableSelect
               label="Tỉnh / Thành phố *"
               value={selectedProvince}
@@ -424,11 +417,11 @@ export default function AddressField({ value = '', onChange, error = '' }) {
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-stone-600 block mb-1">
+            <label className="text-xs sm:text-sm font-bold text-stone-700 block mb-1.5">
               Địa chỉ chi tiết / Điểm gửi xe <span className="text-rose-500 font-bold">*</span>
             </label>
             <div className="relative">
-              <MapPin className={`w-4 h-4 absolute left-3 top-3 transition-colors ${
+              <MapPin className={`w-4 h-4 absolute left-3.5 top-3.5 transition-colors ${
                 showDetailError ? 'text-rose-500' : 'text-stone-400'
               }`} />
               <input
@@ -441,7 +434,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
                   setDetailAddress(e.target.value);
                   if (!detailTouched) setDetailTouched(true);
                 }}
-                className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border font-medium transition-all shadow-2xs focus:outline-none ${
+                className={`w-full text-xs sm:text-sm pl-10 pr-4 py-3 rounded-2xl border font-medium transition-all shadow-2xs focus:outline-none ${
                   showDetailError
                     ? 'border-rose-400 bg-rose-50/30 text-rose-900 focus:border-rose-500 ring-2 ring-rose-500/10'
                     : 'border-stone-200 bg-white text-stone-800 focus:border-amber-600 ring-2 ring-amber-500/10'
@@ -451,8 +444,8 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
             {/* Thông báo lỗi yêu cầu điền cụ thể */}
             {showDetailError && (
-              <p className="text-[11px] text-rose-600 font-semibold mt-1.5 flex items-center gap-1 animate-fadeIn">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <p className="text-xs sm:text-sm text-rose-600 font-semibold mt-1.5 flex items-center gap-1.5 animate-fadeIn">
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>
                   {isDetailEmpty
                     ? 'Bắt buộc điền số nhà, tên đường hoặc bến xe để gửi hàng.'
@@ -466,15 +459,15 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
       {/* KHỐI 2: LẤY VỊ TRÍ TỰ ĐỘNG BẰNG GPS */}
       {inputMode === 'gps' && (
-        <div className="space-y-2.5 animate-fadeIn">
+        <div className="space-y-3 animate-fadeIn">
           {!autoDetectedText ? (
-            <div className="p-4 bg-amber-50/50 rounded-2xl border border-dashed border-amber-300 text-center space-y-2.5">
-              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto">
-                <Navigation className="w-5 h-5 fill-amber-700/20" />
+            <div className="p-5 bg-amber-50/60 rounded-3xl border border-dashed border-amber-300 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
+                <Navigation className="w-6 h-6 fill-amber-700/20" />
               </div>
-              <div>
-                <strong className="block text-xs font-bold text-stone-800">Tự động nhận diện địa chỉ giao hàng</strong>
-                <p className="text-[11px] text-stone-500 leading-relaxed mt-0.5">
+              <div className="space-y-1">
+                <strong className="block text-sm sm:text-base font-bold text-stone-900">Tự động nhận diện địa chỉ giao hàng</strong>
+                <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-normal">
                   Nhấn nút bên dưới để trình duyệt tự điền số nhà, đường, phường xã nơi bạn đang ở.
                 </p>
               </div>
@@ -482,7 +475,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
                 type="button"
                 onClick={handleGetLocation}
                 disabled={isLocating}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 mx-auto cursor-pointer active:scale-95"
               >
                 {isLocating ? (
                   <>
@@ -498,22 +491,22 @@ export default function AddressField({ value = '', onChange, error = '' }) {
               </button>
             </div>
           ) : (
-            <div className="p-3.5 bg-emerald-50/80 border border-emerald-300/80 rounded-2xl space-y-2.5 shadow-2xs">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+            <div className="p-4 sm:p-5 bg-emerald-50/80 border border-emerald-300/80 rounded-3xl space-y-3 shadow-2xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 block tracking-wide">
+                    <span className="text-xs uppercase font-bold text-emerald-800 block tracking-wider">
                       Địa chỉ nhận dạng từ GPS thành công:
                     </span>
-                    <p className="text-xs text-stone-900 font-medium leading-relaxed mt-1">
+                    <p className="text-sm sm:text-base text-stone-900 font-semibold leading-relaxed mt-1">
                       {autoDetectedText}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-1 border-t border-emerald-200/60 text-[11px]">
+              <div className="flex items-center gap-3 pt-2 border-t border-emerald-200/60 text-xs sm:text-sm">
                 <button
                   type="button"
                   onClick={handleGetLocation}
@@ -535,9 +528,9 @@ export default function AddressField({ value = '', onChange, error = '' }) {
           )}
 
           {locationError && (
-            <div className="text-[11px] text-rose-800 bg-rose-50 p-2.5 rounded-xl border border-rose-200 flex items-start gap-2 animate-fadeIn">
+            <div className="text-xs sm:text-sm text-rose-800 bg-rose-50 p-3 rounded-2xl border border-rose-200 flex items-start gap-2.5 animate-fadeIn">
               <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{locationError}</span>
+              <span className="leading-relaxed font-medium">{locationError}</span>
             </div>
           )}
         </div>
@@ -545,8 +538,8 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
       {/* Cảnh báo lỗi chung từ form Checkout nếu khách chưa hoàn thành */}
       {error && !showDetailError && (
-        <p className="text-[11px] text-rose-600 font-semibold flex items-center gap-1 animate-fadeIn">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+        <p className="text-xs sm:text-sm text-rose-600 font-semibold flex items-center gap-1.5 animate-fadeIn pl-1">
+          <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </p>
       )}

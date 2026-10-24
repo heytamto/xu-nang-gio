@@ -166,29 +166,31 @@ export default function ImageUploadField({
   };
 
   return (
-    <div className="space-y-2 font-sans">
+    <div className="space-y-2.5 font-sans text-stone-800">
       <div className="flex items-center justify-between">
-        <label className="font-bold text-stone-700 block text-xs">
+        <label className="font-bold text-stone-700 block text-xs sm:text-sm">
           {label} {multiple && <span className="text-stone-400 font-normal">({imageList.length}/{maxFiles} ảnh)</span>}
         </label>
-        <span className="text-[10px] text-amber-800 font-medium">Bucket: {bucket}</span>
+        <span className="text-xs text-amber-900 font-semibold bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200/80">
+          Bucket: {bucket}
+        </span>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2.5">
         {/* Nút bấm tải ảnh */}
-        <label className={`cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all shrink-0 ${
+        <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-xs sm:text-sm font-bold transition-all shrink-0 shadow-2xs ${
           isUploading || (multiple && imageList.length >= maxFiles)
             ? 'bg-stone-100 text-stone-400 border-stone-200 pointer-events-none' 
-            : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-200 shadow-2xs active:scale-95'
+            : 'bg-amber-50 hover:bg-amber-100 text-amber-950 border-amber-300 active:scale-95'
         }`}>
           {isUploading ? (
             <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+              <Loader2 className="w-4 h-4 animate-spin text-amber-700" />
               <span>Đang nén & tải lên...</span>
             </>
           ) : (
             <>
-              <UploadCloud className="w-3.5 h-3.5 text-amber-700" />
+              <UploadCloud className="w-4 h-4 text-amber-700" />
               <span>Tải ảnh từ máy</span>
             </>
           )}
@@ -202,7 +204,7 @@ export default function ImageUploadField({
           />
         </label>
 
-        {/* Ô nhập URL thủ công (Ẩn nếu hideManualUrl = true) */}
+        {/* Ô nhập URL thủ công */}
         {!hideManualUrl && (
           <div className="relative flex-1">
             <input
@@ -217,16 +219,16 @@ export default function ImageUploadField({
               }}
               onKeyDown={multiple ? handleAddManualUrl : undefined}
               placeholder={multiple ? "Dán link ảnh rồi nhấn Enter..." : placeholder}
-              className="w-full pl-3 pr-8 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-mono text-stone-700 focus:outline-none focus:border-amber-600 transition-all shadow-2xs"
+              className="w-full pl-3.5 pr-9 py-2.5 rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white text-xs sm:text-sm font-mono text-stone-800 focus:outline-none focus:border-amber-600 transition-all shadow-2xs"
             />
             {!multiple && value && (
               <button
                 type="button"
                 onClick={() => onChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer p-0.5"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer p-1"
                 title="Xóa link ảnh"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -234,16 +236,16 @@ export default function ImageUploadField({
       </div>
 
       {uploadError && (
-        <p className="text-[11px] text-rose-600 font-semibold">{uploadError}</p>
+        <p className="text-xs text-rose-600 font-semibold pl-1">{uploadError}</p>
       )}
 
       {/* Danh sách ảnh Preview */}
       {imageList.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2.5 pt-1">
+        <div className="flex flex-wrap items-center gap-3 pt-1.5">
           {imageList.map((url, idx) => (
             <div 
               key={idx} 
-              className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200 bg-stone-100 shadow-2xs group shrink-0"
+              className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-2xl overflow-hidden border border-stone-200 bg-stone-100 shadow-2xs group shrink-0"
             >
               <img
                 src={url}
@@ -254,15 +256,15 @@ export default function ImageUploadField({
               <button
                 type="button"
                 onClick={() => handleRemoveSingleImage(url)}
-                className="absolute inset-0 bg-stone-900/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute inset-0 bg-stone-950/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 title="Gỡ ảnh này"
               >
-                <Trash2 className="w-4 h-4 text-rose-400" />
+                <Trash2 className="w-5 h-5 text-rose-400" />
               </button>
             </div>
           ))}
-          <span className="text-[10.5px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg font-medium border border-emerald-200 flex items-center gap-1">
-            <Check className="w-3 h-3 text-emerald-600" />
+          <span className="text-xs text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl font-bold border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
             <span>Đã kết nối {imageList.length} ảnh</span>
           </span>
         </div>

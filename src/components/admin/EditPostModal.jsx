@@ -29,22 +29,26 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
   const selectedOpt = options.find((opt) => opt.value === value) || options[0];
 
   return (
-    <div className="relative w-full" ref={containerRef}>
-      {label && <label className="font-semibold text-stone-600 block mb-1 text-xs">{label}</label>}
+    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
+      {label && (
+        <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
+          {label}
+        </label>
+      )}
 
       {/* Button kích hoạt */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full py-2.5 px-3.5 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs ${
+        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
-            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs'
-            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs'
+            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
+            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
         }`}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="font-bold text-stone-900 truncate">{selectedOpt?.label}</span>
-          <span className="text-[11px] font-mono text-stone-400 font-normal shrink-0">
+          <span className="text-xs font-mono text-stone-400 font-normal shrink-0">
             ({selectedOpt?.value})
           </span>
         </div>
@@ -58,12 +62,12 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
 
       {/* Menu dropdown xổ xuống */}
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs">
-          <div className="px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-stone-400">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px]">
+          <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
             DANH SÁCH CHUYÊN MỤC:
           </div>
 
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {options.map((opt) => {
               const isSelected = opt.value === value;
 
@@ -74,15 +78,15 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  className={`p-2.5 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
+                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
                     isSelected
-                      ? 'bg-amber-100/70 text-amber-950 font-bold border border-amber-300/80 shadow-2xs'
+                      ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs'
                       : 'hover:bg-amber-50/70 text-stone-700 font-medium'
                   }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="truncate">{opt.label}</span>
-                    <span className={`text-[10.5px] font-mono ${isSelected ? 'text-amber-800' : 'text-stone-400'}`}>
+                    <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
                       ({opt.value})
                     </span>
                   </div>
@@ -135,36 +139,40 @@ export default function EditPostModal({ post, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fadeIn font-sans">
-      {/* KHUNG MODAL: ĐÃ TRIỆT TIÊU SCROLLBAR THÔ XẤU */}
-      <div className="bg-white rounded-3xl p-6 max-w-xl w-full shadow-2xl border border-stone-200 space-y-4 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
+      {/* KHUNG MODAL CHUẨN RỘNG max-w-5xl (1024px) */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
-        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-          <h3 className="text-sm font-black text-stone-900">Cập Nhật Bài Viết & Ảnh Bìa</h3>
+        <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+          <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
+            Cập Nhật Bài Viết & Ảnh Bìa
+          </h3>
           <button
             type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 p-1.5 rounded-xl hover:bg-stone-100 cursor-pointer transition-colors"
+            className="text-stone-400 hover:text-stone-700 p-2 rounded-2xl hover:bg-stone-100 cursor-pointer transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Tiêu đề bài viết *</label>
+            <label className="font-bold text-stone-700 block mb-1.5">
+              Tiêu đề bài viết *
+            </label>
             <input
               type="text"
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 font-medium focus:outline-none focus:border-amber-600"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* DROPDOWN CHUYÊN MỤC MỚI */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+            {/* DROPDOWN CHUYÊN MỤC */}
             <div>
               <CustomCategorySelect
                 label="Chuyên mục"
@@ -175,23 +183,27 @@ export default function EditPostModal({ post, onClose, onSave }) {
             </div>
 
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Thời gian đọc</label>
+              <label className="font-bold text-stone-700 block mb-1.5">
+                Thời gian đọc
+              </label>
               <input
                 type="text"
                 placeholder="VD: 3 phút đọc"
                 value={formData.readTime}
                 onChange={(e) => setFormData({ ...formData, readTime: e.target.value })}
-                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
 
             <div>
-              <label className="font-semibold text-stone-600 block mb-1">Tác giả</label>
+              <label className="font-bold text-stone-700 block mb-1.5">
+                Tác giả
+              </label>
               <input
                 type="text"
                 value={formData.author}
                 onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 focus:outline-none focus:border-amber-600"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
           </div>
@@ -205,39 +217,43 @@ export default function EditPostModal({ post, onClose, onSave }) {
           />
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Tóm tắt ngắn (Excerpt) *</label>
+            <label className="font-bold text-stone-700 block mb-1.5">
+              Tóm tắt ngắn (Excerpt) *
+            </label>
             <textarea
-              rows="2"
+              rows="3"
               required
               value={formData.excerpt}
               onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-none focus:outline-none focus:border-amber-600 leading-relaxed"
+              className="w-full p-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 resize-none focus:outline-none focus:border-amber-600 leading-relaxed shadow-2xs transition-colors"
             />
           </div>
 
           <div>
-            <label className="font-semibold text-stone-600 block mb-1">Nội dung chi tiết</label>
+            <label className="font-bold text-stone-700 block mb-1.5">
+              Nội dung chi tiết
+            </label>
             <textarea
-              rows="5"
+              rows="7"
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              className="w-full p-2.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-700 resize-y focus:outline-none focus:border-amber-600 leading-relaxed"
+              className="w-full p-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 resize-y focus:outline-none focus:border-amber-600 leading-relaxed shadow-2xs transition-colors"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
-              <Check className="w-3.5 h-3.5" />
+              <Check className="w-4 h-4 stroke-[2.5]" />
               <span>Lưu Thay Đổi Bài Viết</span>
             </button>
           </div>

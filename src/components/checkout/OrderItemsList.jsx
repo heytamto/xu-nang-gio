@@ -24,23 +24,26 @@ export default function OrderItemsList({
   };
 
   return (
-    <div className="bg-stone-50/90 rounded-3xl p-4 sm:p-5 border border-stone-200/80 space-y-3.5 font-sans">
-      <div className="flex items-center justify-between border-b border-stone-200/70 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[11px] font-black shadow-2xs">
+    <div className="bg-stone-50/90 rounded-3xl p-5 sm:p-6 border border-stone-200/90 space-y-4 font-sans text-stone-800">
+      
+      {/* Header nhóm */}
+      <div className="flex items-center justify-between border-b border-stone-200/80 pb-3.5 flex-wrap gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
             1
           </span>
-          <h3 className="text-xs sm:text-sm font-black text-stone-900 uppercase tracking-wide flex items-center gap-1.5">
-            <ShoppingBag className="w-4 h-4 text-amber-700" />
+          <h3 className="text-sm sm:text-base font-black text-stone-900 uppercase tracking-wide flex items-center gap-2">
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
             <span>Danh Sách Món Đã Chọn ({cart.length} món)</span>
           </h3>
         </div>
-        <span className="text-xs font-bold text-amber-900 font-mono">
+        <span className="text-sm sm:text-base font-black text-amber-950 font-mono">
           Tạm tính: {safeTotal.toLocaleString('vi-VN')}đ
         </span>
       </div>
 
-      <div className="divide-y divide-stone-200/70 max-h-72 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+      {/* Danh sách món cuộn dọc */}
+      <div className="divide-y divide-stone-200/80 max-h-80 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
         {cart.map((item, idx) => {
           const qty = Number(item.quantity) || 1;
           const unitPrice = Number(item.price ?? item.base_price ?? item.basePrice ?? 0);
@@ -51,43 +54,48 @@ export default function OrderItemsList({
           const uniqueKey = item.cartItemId || item.id || `${item.product_id || item.productId || idx}_${item.weight_id || item.weightId || 'std'}`;
 
           return (
-            <div key={uniqueKey} className="py-3 flex items-center justify-between gap-3 text-xs">
+            <div key={uniqueKey} className="py-4 flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm">
+              
               {/* Ảnh và thông tin món */}
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
                 {item.image && (
                   <img
                     src={item.image}
                     alt={itemName}
-                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-stone-200/80 shadow-2xs bg-stone-100"
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover shrink-0 border border-stone-200/90 shadow-2xs bg-stone-100"
                     onError={(e) => {
                       e.currentTarget.src = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
                     }}
                   />
                 )}
-                <div className="min-w-0 flex-1">
-                  <span className="font-bold text-stone-900 block leading-snug truncate">
+                
+                <div className="min-w-0 flex-1 space-y-1">
+                  <span className="font-bold text-stone-900 block text-sm sm:text-base leading-snug">
                     {itemName}
                   </span>
                   
-                  <span className="text-[11px] text-stone-500 block mt-0.5 truncate">
-                    Quy cách: <strong className="text-stone-700">{specLabel}</strong>
-                    {item.flavor ? ` • ${item.flavor}` : ''}
+                  {/* Bỏ truncate ở đây để không bị cắt chữ '19...' */}
+                  <div className="text-xs sm:text-sm text-stone-600 leading-normal flex flex-wrap items-center gap-1">
+                    <span>Quy cách:</span>
+                    <strong className="text-stone-800 font-semibold">{specLabel}</strong>
+                    {item.flavor && <span>• {item.flavor}</span>}
                     {unitPrice > 0 && (
-                      <span className="text-stone-400 font-mono ml-1.5">
+                      <span className="text-stone-400 font-mono ml-1">
                         ({unitPrice.toLocaleString('vi-VN')}đ)
                       </span>
                     )}
-                  </span>
+                  </div>
 
-                  {/* Quà tặng theo món nếu có */}
+                  {/* Quà tặng theo món */}
                   {giftTitle && (
-                    <div className="inline-flex items-center gap-1 text-[9.5px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1">
-                      <Gift className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
-                      <span className="truncate">Tặng: {giftTitle}</span>
+                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-900 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/80 mt-0.5 shadow-2xs">
+                      <Gift className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Tặng: {giftTitle}</span>
                     </div>
                   )}
 
-                  <div className="text-[11px] font-bold text-amber-700 font-mono mt-0.5 sm:hidden">
+                  {/* Thành tiền trên mobile */}
+                  <div className="text-xs sm:text-sm font-black text-amber-950 font-mono sm:hidden pt-0.5">
                     {itemTotal.toLocaleString('vi-VN')}đ
                   </div>
                 </div>
@@ -95,26 +103,28 @@ export default function OrderItemsList({
 
               {/* Cụm điều khiển số lượng */}
               <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center bg-white p-1 rounded-xl border border-stone-200 shadow-2xs">
+                <div className="flex items-center bg-white p-1 rounded-2xl border border-stone-200/90 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => handleQtyChange(item, -1)}
-                    className="w-6 h-6 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer active:scale-95"
                     title={qty === 1 ? "Bỏ món này khỏi giỏ" : "Giảm 1"}
                   >
                     {qty === 1 ? (
-                      <Trash2 className="w-3.5 h-3.5 text-stone-400 hover:text-rose-600 transition-colors" />
+                      <Trash2 className="w-4 h-4 text-stone-400 hover:text-rose-600 transition-colors" />
                     ) : (
                       "-"
                     )}
                   </button>
-                  <span className="w-7 text-center font-bold font-mono text-stone-900 text-xs">
+                  
+                  <span className="w-8 text-center font-black font-mono text-stone-900 text-sm sm:text-base">
                     {qty}
                   </span>
+                  
                   <button
                     type="button"
                     onClick={() => handleQtyChange(item, 1)}
-                    className="w-6 h-6 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer active:scale-95"
                     title="Tăng 1"
                   >
                     +
@@ -122,14 +132,16 @@ export default function OrderItemsList({
                 </div>
 
                 {/* Thành tiền Desktop */}
-                <span className="hidden sm:inline-block font-mono font-black text-stone-900 whitespace-nowrap text-sm w-24 text-right">
+                <span className="hidden sm:inline-block font-mono font-black text-amber-950 whitespace-nowrap text-sm sm:text-base w-24 text-right">
                   {itemTotal.toLocaleString('vi-VN')}đ
                 </span>
               </div>
+
             </div>
           );
         })}
       </div>
+
     </div>
   );
 }

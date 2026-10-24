@@ -292,7 +292,6 @@ export default function AdminPage({
     }
   };
 
-  // Xác nhận thanh toán trực tiếp (Được kích hoạt sau khi bấm modal xác nhận ở DashboardTab)
   const handleConfirmPaymentAndNotify = async (order) => {
     if (!order || !order.code) return;
 
@@ -302,7 +301,6 @@ export default function AdminPage({
       const totalOrderNum = Number(order.final_total || order.total || 0);
       const configuredDeposit = Number(shopConfig?.depositAmount || 50000);
       
-      // Tính đúng số tiền cọc hoặc tiền chuyển khoản 100%
       const verifiedAmount = order.payment_method === 'deposit' 
         ? Math.min(configuredDeposit, totalOrderNum) 
         : totalOrderNum;
@@ -310,7 +308,6 @@ export default function AdminPage({
       const updatedStatus = ORDER_STATUS.CONFIRMED;
       const nowIso = new Date().toISOString();
 
-      // 1. Cập nhật trạng thái và số tiền đã nhận vào bảng orders trên Supabase
       const { error: dbError } = await supabase
         .from('orders')
         .update({
@@ -324,7 +321,6 @@ export default function AdminPage({
 
       if (dbError) throw dbError;
 
-      // 2. Kích hoạt gửi email xác nhận biên nhận cho khách
       const customerEmail = order.email || order.customer?.email;
       let emailSent = false;
 
@@ -350,7 +346,6 @@ export default function AdminPage({
         }
       }
 
-      // 3. Cập nhật state nội bộ dbOrders
       setDbOrders((prev) => {
         const nextOrders = prev.map((o) =>
           o.code === order.code
@@ -441,32 +436,32 @@ export default function AdminPage({
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-12 font-sans animate-fadeIn">
-        <div className="w-full max-w-sm bg-white p-6 sm:p-8 rounded-3xl border border-stone-200/90 shadow-xl text-center space-y-5">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100/80 text-amber-900 flex items-center justify-center border border-amber-200 shadow-2xs">
-            <Lock className="w-7 h-7" />
+      <div className="min-h-[80vh] flex items-center justify-center px-4 py-12 font-sans animate-fadeIn text-stone-800">
+        <div className="w-full max-w-md bg-white p-7 sm:p-9 rounded-3xl border border-stone-200/90 shadow-2xl text-center space-y-6">
+          <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-100/90 text-amber-900 flex items-center justify-center border border-amber-200 shadow-inner">
+            <Lock className="w-8 h-8" />
           </div>
 
-          <div className="space-y-1">
-            <h2 className="text-lg font-black text-stone-900">Khu Vực Quản Trị Vườn</h2>
-            <p className="text-xs text-stone-500 leading-relaxed">
+          <div className="space-y-1.5">
+            <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight">Khu Vực Quản Trị Vườn</h2>
+            <p className="text-xs sm:text-sm text-stone-500 leading-relaxed font-normal">
               Dành riêng cho chủ vườn Xứ Nắng Gió ({ALLOWED_ADMIN_EMAILS.join(', ')})
             </p>
           </div>
 
-          <div className="space-y-3">
-            <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]"></div>
+          <div className="space-y-4">
+            <div ref={googleBtnRef} className="w-full flex justify-center min-h-[48px]"></div>
             
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-stone-200"></div>
-              <span className="shrink mx-3 text-stone-400 text-[11px] font-bold uppercase tracking-wider">Hoặc dùng mật khẩu</span>
+              <span className="shrink mx-3 text-stone-400 text-xs font-bold uppercase tracking-wider">Hoặc dùng mật khẩu</span>
               <div className="flex-grow border-t border-stone-200"></div>
             </div>
 
-            <form onSubmit={handlePasswordLogin} className="space-y-3 text-left">
+            <form onSubmit={handlePasswordLogin} className="space-y-3.5 text-left">
               <div>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <KeyRound className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
                     placeholder="Nhập mật khẩu quản trị..."
@@ -475,13 +470,13 @@ export default function AdminPage({
                       setPassInput(e.target.value);
                       setLoginError('');
                     }}
-                    className="w-full text-xs pl-10 pr-3.5 py-2.5 rounded-2xl border border-stone-200 bg-stone-50/80 focus:bg-white focus:outline-none focus:border-amber-700 font-medium text-stone-800 transition-all shadow-2xs"
+                    className="w-full h-11 text-xs sm:text-sm pl-11 pr-4 rounded-2xl border border-stone-200 bg-stone-50/80 focus:bg-white focus:outline-none focus:border-amber-700 font-medium text-stone-900 transition-all shadow-2xs"
                   />
                 </div>
 
                 {loginError && (
-                  <div className="flex items-center gap-1.5 text-rose-600 text-[11px] font-semibold mt-2 px-1">
-                    <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-rose-600 text-xs font-semibold mt-2 px-1">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
                     <span>{loginError}</span>
                   </div>
                 )}
@@ -489,9 +484,9 @@ export default function AdminPage({
 
               <button
                 type="submit"
-                className="w-full py-2.5 px-4 rounded-2xl bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs tracking-wide transition-all shadow-xs active:scale-95 cursor-pointer"
+                className="w-full h-11 px-4 rounded-2xl bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs sm:text-sm tracking-wide transition-all shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-2"
               >
-                Đăng Nhập Mật Khẩu
+                <span>Đăng Nhập Mật Khẩu</span>
               </button>
             </form>
           </div>
@@ -500,9 +495,9 @@ export default function AdminPage({
             <button
               type="button"
               onClick={onNavigateHome}
-              className="text-xs font-semibold text-stone-500 hover:text-stone-800 flex items-center justify-center gap-1 mx-auto transition-colors cursor-pointer"
+              className="text-xs sm:text-sm font-semibold text-stone-500 hover:text-stone-900 flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer pt-1"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-4 h-4" />
               <span>Quay về trang mua sắm</span>
             </button>
           )}
@@ -512,40 +507,40 @@ export default function AdminPage({
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">
       <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
-        <header className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200/90 shadow-md space-y-3.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+        <header className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-md space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3.5">
+            <div className="flex items-center gap-3.5">
               <button
                 type="button"
                 onClick={onNavigateHome}
-                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                 title="Về Trang Chủ"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base sm:text-lg font-black text-stone-900">Trang Quản Trị Vườn</h1>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">Trang Quản Trị Vườn</h1>
                   {adminUser?.email && (
-                    <span className="text-[10.5px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-200">
+                    <span className="text-xs font-bold text-amber-950 bg-amber-100 px-3 py-0.5 rounded-full border border-amber-300 shadow-2xs">
                       {adminUser.email}
                     </span>
                   )}
                 </div>
-                <p className="text-[11px] sm:text-xs text-stone-500">Hệ thống quản lý thời gian thực Supabase PostgreSQL</p>
+                <p className="text-xs sm:text-sm text-stone-500 font-medium mt-0.5">Hệ thống quản lý thời gian thực Supabase PostgreSQL</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => setIsReconcileOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 text-xs font-bold rounded-xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
+                className="h-11 flex items-center gap-2 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 text-xs sm:text-sm font-bold rounded-2xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
                 title="Đối Soát Sao Kê Ngân Hàng MB Bank"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
                 <span className="hidden sm:inline">Đối Soát Sao Kê</span>
                 <span className="sm:hidden">Sao Kê</span>
               </button>
@@ -554,10 +549,10 @@ export default function AdminPage({
                 <button
                   type="button"
                   onClick={onNavigatePacking}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold rounded-xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
+                  className="h-11 flex items-center gap-2 px-4 bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300/80 text-xs sm:text-sm font-bold rounded-2xl active:scale-95 cursor-pointer shadow-2xs transition-colors"
                   title="Mở Bảng Gom & Đóng Thùng Xốp"
                 >
-                  <PackageCheck className="w-3.5 h-3.5 text-amber-700" />
+                  <PackageCheck className="w-4 h-4 text-amber-800" />
                   <span>Kho Đóng Kiện</span>
                 </button>
               )}
@@ -566,7 +561,7 @@ export default function AdminPage({
                 type="button"
                 disabled={isLoadingOrders}
                 onClick={fetchOrdersFromDatabase}
-                className="p-2.5 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-600 active:scale-95 cursor-pointer disabled:opacity-50 transition-colors"
+                className="w-11 h-11 rounded-2xl bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center active:scale-95 cursor-pointer disabled:opacity-50 transition-colors shadow-2xs"
                 title="Làm mới dữ liệu từ Supabase"
               >
                 <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin text-amber-700' : ''}`} />
@@ -575,7 +570,7 @@ export default function AdminPage({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="p-2 rounded-xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                 title="Đăng xuất khỏi trang quản trị"
               >
                 <LogOut className="w-4 h-4" />
@@ -587,66 +582,66 @@ export default function AdminPage({
             <button
               type="button"
               onClick={() => setActiveTab('dashboard')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'dashboard' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <LayoutDashboard className="w-4 h-4 text-amber-600 shrink-0" />
+              <LayoutDashboard className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Đơn Hàng ({dbOrders.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('products')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'products' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <ShoppingBag className="w-4 h-4 text-amber-600 shrink-0" />
+              <ShoppingBag className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Sản Phẩm ({products.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('stories')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'stories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <Feather className="w-4 h-4 text-amber-600 shrink-0" />
+              <Feather className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Chuyện Vườn ({stories.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('posts')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <BookOpen className="w-4 h-4 text-amber-600 shrink-0" />
+              <BookOpen className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Cẩm Nang ({posts.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('reviews')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'reviews' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <MessageSquare className="w-4 h-4 text-amber-600 shrink-0" />
+              <MessageSquare className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Đánh Giá</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('config')}
-              className={`w-full py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
                 activeTab === 'config' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <Settings className="w-4 h-4 text-amber-600 shrink-0" />
+              <Settings className="w-4 h-4 text-amber-700 shrink-0" />
               <span>Cấu Hình & Mã</span>
             </button>
           </div>
@@ -834,7 +829,7 @@ export default function AdminPage({
       />
 
       {savedNotice && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 bg-stone-900/95 text-white border border-emerald-500/40 rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-2xl backdrop-blur-md">
+        <div className="fixed bottom-6 right-6 z-50 py-3.5 px-5 bg-stone-900/95 text-white border border-emerald-500/40 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
             <Check className="w-3.5 h-3.5 stroke-[3]" />
           </div>
