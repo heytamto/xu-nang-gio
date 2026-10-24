@@ -189,7 +189,7 @@ export default function CheckoutPage({
           }
         }
       )
-      // 2. Sản phẩm (products): Đổi giá hoặc tồn kho là đồng bộ giỏ hàng ngay
+      // 2. Sản phẩm (products): Đổi giá hoặc tồn kho là đồng bộ giỏ hàng ngay (Có tính quy cách chuẩn)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'products' },
@@ -201,17 +201,34 @@ export default function CheckoutPage({
             const updated = prevCart.map((it) => {
               const cleanId = String(it.product_id || it.productId || it.id || '').split('-opt-')[0].split('_')[0].trim();
               if (cleanId === String(freshProd.id)) {
-                const freshPrice = Number(freshProd.base_price ?? it.base_price);
-                if (freshPrice !== Number(it.price ?? it.base_price)) {
+                const base = Number(freshProd.base_price ?? freshProd.basePrice ?? 0);
+                let finalPrice = Number(it.price || base);
+
+                const rawWeights = freshProd.product_weights || freshProd.weights;
+                if (Array.isArray(rawWeights) && rawWeights.length > 0) {
+                  const matchedWeight = rawWeights.find(
+                    (w) => String(w.id) === String(it.weightId) || (w.weight_label || w.label) === it.weightLabel
+                  );
+                  if (matchedWeight) {
+                    const override = matchedWeight.price_override != null && matchedWeight.price_override !== ''
+                      ? Number(matchedWeight.price_override)
+                      : null;
+                    const mult = parseFloat(matchedWeight.multiplier) || 1;
+                    finalPrice = (override != null && override > 0) ? override : Math.round(base * mult);
+                  }
+                }
+
+                if (finalPrice !== Number(it.price)) {
                   changed = true;
                 }
+
                 return {
                   ...it,
                   name: freshProd.name || it.name,
                   title: freshProd.name || it.title,
-                  price: freshPrice,
-                  basePrice: freshPrice,
-                  base_price: freshPrice,
+                  price: finalPrice,
+                  basePrice: base,
+                  base_price: base,
                   inStock: freshProd.in_stock ?? true
                 };
               }
@@ -285,7 +302,7 @@ export default function CheckoutPage({
     return liveConfig?.enablePaymentGifts ?? liveConfig?.payment?.enableGifts ?? true;
   }, [liveConfig]);
 
-  // Đồng bộ giá phòng thủ lần đầu khi giỏ hàng được nạp
+  // Đồng bộ giá phòng thủ lần đầu khi giỏ hàng được nạp (Tính chuẩn quy cách không bị ghi đè base_price)
   useEffect(() => {
     if (!cart.length) {
       setSyncedCart([]);
@@ -307,10 +324,10 @@ export default function CheckoutPage({
           return;
         }
 
-        // Bỏ 'title' và 'price' để không bị lỗi 400 Bad Request
+        // Tải kèm bảng liên kết product_weights để tính đúng theo quy cách
         const { data: latestProducts, error } = await supabase
           .from('products')
-          .select('id, name, base_price, in_stock')
+          .select('id, name, base_price, in_stock, product_weights(*)')
           .in('id', productIds);
 
         if (error) throw error;
@@ -325,10 +342,33 @@ export default function CheckoutPage({
             const fresh = productMap.get(cleanId);
             if (!fresh) return cartItem;
 
-            const currentItemPrice = Number(cartItem.base_price ?? cartItem.basePrice ?? cartItem.price ?? 0);
-            const freshPrice = Number(fresh.base_price ?? currentItemPrice);
+            const base = Number(fresh.base_price ?? fresh.basePrice ?? 0);
+            let finalPrice = Number(cartItem.price || base);
 
-            if (freshPrice !== currentItemPrice) {
+            // Kiểm tra quy cách chính xác
+            const rawWeights = fresh.product_weights || fresh.weights;
+            if (Array.isArray(rawWeights) && rawWeights.length > 0) {
+              const matchedWeight = rawWeights.find(
+                (w) => String(w.id) === String(cartItem.weightId) || (w.weight_label || w.label) === cartItem.weightLabel
+              );
+
+              if (matchedWeight) {
+                const override = matchedWeight.price_override != null && matchedWeight.price_override !== ''
+                  ? Number(matchedWeight.price_override)
+                  : null;
+                const mult = parseFloat(matchedWeight.multiplier) || 1;
+
+                if (override != null && override > 0) {
+                  finalPrice = override;
+                } else {
+                  finalPrice = Math.round(base * mult);
+                }
+              }
+            } else {
+              finalPrice = base;
+            }
+
+            if (finalPrice !== Number(cartItem.price)) {
               hasPriceChanged = true;
             }
 
@@ -336,9 +376,9 @@ export default function CheckoutPage({
               ...cartItem,
               name: fresh.name || cartItem.name,
               title: fresh.name || cartItem.title,
-              price: freshPrice,
-              basePrice: freshPrice,
-              base_price: freshPrice,
+              price: finalPrice,
+              basePrice: base,
+              base_price: base,
               inStock: fresh.in_stock ?? true,
             };
           });
