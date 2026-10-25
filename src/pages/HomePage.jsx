@@ -434,6 +434,7 @@ export default function HomePage({
   const [scrollLeftState, setScrollLeftState] = useState(0);
   const isDragMoved = useRef(false);
   const autoScrollRafRef = useRef(null);
+  const isLoopResetting = useRef(false);
 
   const [activeLightboxImg, setActiveLightboxImg] = useState(null);
 
@@ -506,6 +507,7 @@ export default function HomePage({
       .catch(() => {});
   }, [isReviewsEnabled, loadReviewsBatch]);
 
+  // LOGIC AUTO-SCROLL CHỐNG GIẬT & TỰ ĐỘNG CHẠY LẠI TỪ ĐẦU KHI TRÔI ĐẾN CUỐI
   useEffect(() => {
     if (!isReviewsEnabled) return;
 
@@ -515,18 +517,27 @@ export default function HomePage({
     let lastTimestamp = performance.now();
 
     const step = (timestamp) => {
-      if (!isHovered && !isDragging && scrollContainer) {
+      if (!isHovered && !isDragging && scrollContainer && !isLoopResetting.current) {
         const delta = timestamp - lastTimestamp;
-        const move = (32 * delta) / 1000;
-        scrollContainer.scrollLeft += move;
+        const move = (30 * delta) / 1000;
 
-        const { scrollLeft, scrollWidth, clientWidth } = scrollContainer;
-        if (
-          scrollLeft + clientWidth + 450 >= scrollWidth &&
-          hasMoreReviews &&
-          !isLoadingMoreReviews
-        ) {
-          loadReviewsBatch(reviewPage + 1);
+        const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+
+        // Khi trôi chạm đến mép cuối (còn cách 4px)
+        if (scrollContainer.scrollLeft >= maxScroll - 4) {
+          if (hasMoreReviews && !isLoadingMoreReviews && !isFetchingRef.current) {
+            // Nếu còn dữ liệu thì fetch trang kế tiếp
+            loadReviewsBatch(reviewPage + 1);
+          } else if (!hasMoreReviews) {
+            // ĐÃ HẾT ĐÁNH GIÁ: Tự động trượt mượt mà về đầu và tạm dừng 1.2s rồi chạy lại tiếp
+            isLoopResetting.current = true;
+            scrollContainer.scrollTo({ left: 0, behavior: "smooth" });
+            setTimeout(() => {
+              isLoopResetting.current = false;
+            }, 1200);
+          }
+        } else {
+          scrollContainer.scrollLeft += move;
         }
       }
       lastTimestamp = timestamp;
@@ -570,9 +581,10 @@ export default function HomePage({
 
     const { scrollLeft, scrollWidth, clientWidth } = reviewsScrollRef.current;
     if (
-      scrollLeft + clientWidth + 450 >= scrollWidth &&
+      scrollLeft + clientWidth + 150 >= scrollWidth &&
       hasMoreReviews &&
-      !isLoadingMoreReviews
+      !isLoadingMoreReviews &&
+      !isFetchingRef.current
     ) {
       loadReviewsBatch(reviewPage + 1);
     }
@@ -585,9 +597,10 @@ export default function HomePage({
   const handleReviewsScroll = (e) => {
     const { scrollLeft, scrollWidth, clientWidth } = e.currentTarget;
     if (
-      scrollLeft + clientWidth + 400 >= scrollWidth &&
+      scrollLeft + clientWidth + 150 >= scrollWidth &&
       hasMoreReviews &&
-      !isLoadingMoreReviews
+      !isLoadingMoreReviews &&
+      !isFetchingRef.current
     ) {
       loadReviewsBatch(reviewPage + 1);
     }
@@ -784,7 +797,7 @@ export default function HomePage({
         </div>
       </section>
 
-{/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
+      {/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
       <section className="space-y-3.5">
         <div className="flex items-center justify-between px-1">
           <p className="text-sm font-black uppercase tracking-wider text-stone-700 flex items-center gap-2">
@@ -822,7 +835,6 @@ export default function HomePage({
         </div>
 
         <div className="relative group/scroll">
-          {/* ĐÃ ẨN HOÀN TOÀN THANH CUỘN BẰNG [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden */}
           <div
             ref={scrollRef}
             className="flex items-center gap-3 overflow-x-auto pb-1 pt-1 px-1 scroll-smooth select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
@@ -857,7 +869,7 @@ export default function HomePage({
         </div>
       </section>
 
-{/* 3. LỊCH MÙA VỤ 12 THÁNG (NỚI CAO THOÁNG ĐÃNG, ĐẦY ĐỦ NỘI DUNG) */}
+      {/* 3. LỊCH MÙA VỤ 12 THÁNG */}
       <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 font-sans">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
           <div>
@@ -896,7 +908,7 @@ export default function HomePage({
           </div>
         </div>
 
-        {/* GIAO DIỆN MOBILE (< md): TỰ ĐỘNG CO GIÃN THEO NỘI DUNG min-h-[520px] */}
+        {/* GIAO DIỆN MOBILE (< md) */}
         <div className="block md:hidden space-y-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {MONTHLY_HARVEST_CALENDAR.map((item) => {
@@ -926,7 +938,7 @@ export default function HomePage({
           </div>
 
           {activeMonthData && (
-            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[520px] flex flex-col justify-between p-6 border border-stone-700/80 shadow-lg">
+            <div className="relative rounded-3xl overflow-hidden bg-stone-900 text-white min-h-[500px] flex flex-col justify-between p-6 border border-stone-700/80 shadow-lg">
               <div className="absolute inset-0 pointer-events-none">
                 <img
                   src={activeMonthData.image}
@@ -954,27 +966,28 @@ export default function HomePage({
                 )}
               </div>
 
-              <div className="relative z-10 space-y-3.5 my-auto py-4">
+              <div className="relative z-10 space-y-3.5 my-auto py-3">
                 <h4 className="text-xl sm:text-2xl font-black text-white leading-snug drop-shadow-md">
                   {activeMonthData.title}
                 </h4>
 
-                <div className="p-4 rounded-2xl bg-black/55 border border-white/15 backdrop-blur-md text-sm text-stone-100 leading-relaxed space-y-2.5">
-                  <div className="flex items-start gap-2">
-                    <span className="shrink-0 text-amber-400 font-bold">
-                      🌾 Đặc trưng:
+                <div className="p-4 rounded-2xl bg-black/55 border border-white/15 backdrop-blur-md text-xs sm:text-sm text-stone-100 leading-relaxed space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🌾 Đặc trưng:</span>
                     </span>
-                    <span className="text-stone-100 font-normal leading-relaxed break-words">
+                    <p className="text-stone-100 font-normal leading-relaxed break-words text-xs sm:text-sm">
                       {activeMonthData.desc}
-                    </span>
+                    </p>
                   </div>
-                  <div className="flex items-start gap-2 pt-2 border-t border-white/10">
-                    <span className="shrink-0 text-amber-300 font-bold">
-                      💡 Thưởng thức:
+
+                  <div className="flex flex-col gap-1 pt-2.5 border-t border-white/10">
+                    <span className="text-amber-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <span>💡 Thưởng thức:</span>
                     </span>
-                    <span className="text-amber-100 font-normal leading-relaxed break-words">
+                    <p className="text-amber-100 font-normal leading-relaxed break-words text-xs sm:text-sm">
                       {activeMonthData.tips}
-                    </span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1007,7 +1020,7 @@ export default function HomePage({
           )}
         </div>
 
-        {/* GIAO DIỆN TABLET & DESKTOP: CHIỀU CAO NỚI CHUẨN h-[600px] lg:h-[640px], KHÔNG BỊ CẮT CHỮ */}
+        {/* GIAO DIỆN TABLET & DESKTOP */}
         <div className="hidden md:flex flex-row items-stretch gap-1.5 h-[600px] lg:h-[640px] w-full select-none rounded-3xl p-2 pt-9 pb-3 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-hidden">
           {MONTHLY_HARVEST_CALENDAR.map((item) => {
             const isExpanded = item.month === selectedMonth;
@@ -1096,7 +1109,7 @@ export default function HomePage({
                   </span>
                 </div>
 
-                {/* DẠNG PHÓNG TO: ĐẦY ĐỦ NỘI DUNG, KHÔNG GIAN RỘNG RÃI TUYỆT ĐỐI */}
+                {/* DẠNG PHÓNG TO */}
                 <div
                   className={`absolute inset-0 w-full h-full p-6 lg:p-8 flex flex-col justify-between text-white z-20 transition-opacity duration-300 ${
                     isExpanded
@@ -1105,7 +1118,6 @@ export default function HomePage({
                   }`}
                 >
                   <div className="w-full h-full flex flex-col justify-between pointer-events-auto">
-                    {/* Header Thẻ Active */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-mono font-black text-xs lg:text-sm px-3 py-1 rounded-xl bg-amber-400 text-stone-950 shadow-md shrink-0">
@@ -1124,7 +1136,6 @@ export default function HomePage({
                       )}
                     </div>
 
-                    {/* Khối Nội Dung Chính: Tự do xuống dòng, hiển thị trọn vẹn cả 2 đoạn */}
                     <div className="space-y-4 my-auto py-2 min-w-0">
                       <h4 className="text-xl lg:text-3xl font-black text-white tracking-tight leading-snug drop-shadow-md break-words">
                         {item.title}
@@ -1150,7 +1161,6 @@ export default function HomePage({
                       </div>
                     </div>
 
-                    {/* Footer Thẻ Active */}
                     <div className="space-y-3 relative z-30 pointer-events-auto pt-1">
                       <div className="flex items-center justify-between text-xs lg:text-sm px-1 text-stone-300">
                         <span className="text-amber-400 font-mono tracking-wider uppercase text-xs font-bold shrink-0">
@@ -1343,7 +1353,7 @@ export default function HomePage({
       {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA */}
       <ExperienceGuideSection />
 
-      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG */}
+      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG (TỰ CUỘN MƯỢT & QUAY ĐẦU CHỐNG GIẬT) */}
       {isReviewsEnabled && (
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-stone-200 pb-4">
@@ -1380,7 +1390,7 @@ export default function HomePage({
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUpOrLeave}
-            className={`flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 px-1 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+            className={`flex items-stretch gap-4 overflow-x-auto pb-4 pt-1 px-1 select-none overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
               isDragging ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
@@ -1388,18 +1398,33 @@ export default function HomePage({
               const customerName = rev.customer_name || rev.name || "Khách quý";
               const orderCode = rev.order_code || rev.orderCode || "";
               const ratingNum = Number(rev.rating) || 5;
-              const images = Array.isArray(rev.image_urls)
+
+              // 1. Ảnh do khách tải lên
+              const customerImages = Array.isArray(rev.image_urls)
                 ? rev.image_urls
                 : rev.image_url
                   ? [rev.image_url]
                   : [];
 
+              // 2. Ảnh do nhà vườn đóng gói (Map fallback toàn bộ trường)
+              const shopImage =
+                rev.shop_packing_image ||
+                rev.packing_image ||
+                rev.packing_image_url ||
+                rev.orders?.packing_image ||
+                rev.orders?.packing_image_url ||
+                rev.orders?.packed_image_url ||
+                null;
+
+              const hasAnyPhoto = Boolean(shopImage || customerImages.length > 0);
+
               return (
                 <div
                   key={rev.id || `${orderCode}-${idx}`}
-                  className="w-[300px] sm:w-[340px] h-[230px] shrink-0 p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
+                  className="w-[300px] sm:w-[350px] min-h-[240px] shrink-0 p-5 rounded-3xl bg-white border border-stone-200/90 shadow-2xs hover:shadow-xs hover:border-amber-300 transition-all flex flex-col justify-between relative group select-none"
                 >
                   <div className="space-y-2.5">
+                    {/* Header: Sao & Mã đơn */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 text-amber-500">
                         {[...Array(ratingNum)].map((_, i) => (
@@ -1421,44 +1446,81 @@ export default function HomePage({
                       )}
                     </div>
 
-                    <div className="relative min-h-[58px] flex items-start">
+                    {/* Lời nhận xét */}
+                    <div className="relative min-h-[50px] flex items-start">
                       <Quote className="w-4 h-4 text-stone-300 absolute -top-1 -left-1 opacity-60 shrink-0" />
                       <p className="text-sm text-stone-700 font-normal leading-relaxed italic line-clamp-3 pl-3">
                         "{rev.content}"
                       </p>
                     </div>
 
-                    {images.length > 0 && (
-                      <div className="flex items-center gap-2 pt-1 pl-3">
-                        {images.slice(0, 3).map((imgUrl, imgIdx) => (
-                          <button
-                            key={imgIdx}
-                            type="button"
-                            onClick={(e) => {
-                              if (isDragMoved.current) {
-                                e.stopPropagation();
-                                return;
-                              }
-                              setActiveLightboxImg(imgUrl);
-                            }}
-                            className="relative w-10 h-10 rounded-xl overflow-hidden border border-amber-200/80 hover:border-amber-500 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in shrink-0"
-                            title="Bấm để xem ảnh phóng to"
-                          >
-                            <img
-                              src={imgUrl}
-                              alt={`review-proof-${imgIdx}`}
-                              className="w-full h-full object-cover pointer-events-none"
-                              onError={(e) => {
-                                e.currentTarget.parentElement.style.display =
-                                  "none";
+                    {/* KHỐI ẢNH ĐỐI CHIẾU: ẢNH VƯỜN ĐÓNG & ẢNH KHÁCH NHẬN */}
+                    {hasAnyPhoto && (
+                      <div className="flex items-center gap-2.5 pt-1 pl-3 overflow-x-auto [scrollbar-width:none]">
+                        {/* 1. Ảnh của nhà vườn đóng */}
+                        {shopImage && (
+                          <div className="relative shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (isDragMoved.current) {
+                                  e.stopPropagation();
+                                  return;
+                                }
+                                setActiveLightboxImg(shopImage);
                               }}
-                            />
-                          </button>
+                              className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-emerald-500/80 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in block"
+                              title="Bấm để xem ảnh kiện hàng lúc vườn đóng thùng"
+                            >
+                              <img
+                                src={shopImage}
+                                alt="Ảnh vườn đóng"
+                                className="w-full h-full object-cover pointer-events-none"
+                                onError={(e) => {
+                                  e.currentTarget.parentElement.parentElement.style.display = "none";
+                                }}
+                              />
+                            </button>
+                            <span className="absolute -bottom-1 -right-1 text-[9px] font-black text-emerald-950 bg-emerald-200 border border-emerald-300 px-1 rounded shadow-2xs pointer-events-none">
+                              Vườn
+                            </span>
+                          </div>
+                        )}
+
+                        {/* 2. Ảnh thực tế khách khui thùng */}
+                        {customerImages.slice(0, shopImage ? 2 : 3).map((imgUrl, imgIdx) => (
+                          <div key={imgIdx} className="relative shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                if (isDragMoved.current) {
+                                  e.stopPropagation();
+                                  return;
+                                }
+                                setActiveLightboxImg(imgUrl);
+                              }}
+                              className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-amber-400 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-zoom-in block"
+                              title="Bấm để xem ảnh khách nhận hàng"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Khách chụp-${imgIdx}`}
+                                className="w-full h-full object-cover pointer-events-none"
+                                onError={(e) => {
+                                  e.currentTarget.parentElement.parentElement.style.display = "none";
+                                }}
+                              />
+                            </button>
+                            <span className="absolute -bottom-1 -right-1 text-[9px] font-black text-amber-950 bg-amber-200 border border-amber-300 px-1 rounded shadow-2xs pointer-events-none">
+                              Khách
+                            </span>
+                          </div>
                         ))}
                       </div>
                     )}
                   </div>
 
+                  {/* Thông tin người đánh giá & Ngày tháng */}
                   <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between">
                     <div className="min-w-0 pr-2">
                       <strong className="text-sm font-bold text-stone-900 block truncate">
@@ -1486,7 +1548,7 @@ export default function HomePage({
             })}
 
             {isLoadingMoreReviews && (
-              <div className="w-[140px] h-[230px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
+              <div className="w-[140px] min-h-[240px] shrink-0 p-5 rounded-3xl bg-stone-50 border border-dashed border-stone-200 flex flex-col items-center justify-center gap-2 text-stone-400 text-xs">
                 <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
                 <span className="text-xs font-medium">
                   Đang tải tiếp...
@@ -1593,7 +1655,7 @@ export default function HomePage({
               className="w-full max-h-[82vh] object-contain rounded-2xl"
             />
             <div className="text-center py-2.5 text-xs text-stone-400 font-sans">
-              Ảnh thực tế từ khách nhận hàng • Nhấn vùng tối để đóng
+              Ảnh thực tế đối chiếu kiểm tra • Nhấn vùng tối để đóng
             </div>
           </div>
         </div>
@@ -1602,20 +1664,20 @@ export default function HomePage({
   );
 }
 
-// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH
+// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (ĐÃ CỐ ĐỊNH MIN-HEIGHT CHỐNG GIẬT)
 function ExperienceGuideSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isFading, setIsFading] = useState(false);
   const tabsContainerRef = useRef(null);
 
   const changeTab = (newIndex) => {
-    if (newIndex === currentIndex || isAnimating) return;
-    setIsAnimating(true);
+    if (newIndex === currentIndex || isFading) return;
+    setIsFading(true);
     setTimeout(() => {
       setCurrentIndex(newIndex);
-      setIsAnimating(false);
-    }, 200);
+      setIsFading(false);
+    }, 150);
   };
 
   const handlePrev = () => {
@@ -1744,10 +1806,8 @@ function ExperienceGuideSection() {
       </div>
 
       <div
-        className={`grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch transition-all duration-300 ease-out transform ${
-          isAnimating
-            ? "opacity-0 translate-y-2 scale-[0.99]"
-            : "opacity-100 translate-y-0 scale-100"
+        className={`grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch min-h-[460px] sm:min-h-[400px] lg:min-h-[380px] transition-opacity duration-200 ease-in-out ${
+          isFading ? "opacity-0" : "opacity-100"
         }`}
       >
         <div className="lg:col-span-8 p-6 sm:p-7 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-4 flex flex-col justify-between shadow-2xs">
@@ -1778,21 +1838,24 @@ function ExperienceGuideSection() {
               ))}
             </div>
 
-            {currentItem.storageTip && (
+            {currentItem.storageTip ? (
               <div className="mt-4 p-4 rounded-xl bg-white/80 border border-amber-200/60 text-sm sm:text-base text-stone-700 flex items-start gap-2.5 shadow-2xs">
                 <span className="font-bold text-amber-900 shrink-0">
                   🧊 Mẹo bảo quản:
                 </span>
                 <span className="font-normal">{currentItem.storageTip}</span>
               </div>
+            ) : (
+              <div className="mt-4 p-4 rounded-xl bg-white/40 border border-amber-200/30 text-sm text-stone-500 italic flex items-center gap-2">
+                <span>🍃 Sản phẩm tươi tự nhiên, nên dùng sớm để trọn vị ngon.</span>
+              </div>
             )}
           </div>
 
-          <div className="pt-2 text-xs text-stone-500 italic flex items-center gap-2">
+          <div className="pt-2 text-xs text-stone-500 italic flex items-center gap-2 border-t border-amber-200/40">
             <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
             <span>
-              Di chuột vào khung để tạm dừng đọc kỹ, rời chuột để tiếp tục tự
-              động chuyển.
+              Di chuột vào khung để tạm dừng đọc kỹ, rời chuột để tiếp tục tự động chuyển.
             </span>
           </div>
         </div>

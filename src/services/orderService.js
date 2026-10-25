@@ -579,7 +579,7 @@ export async function fetchActiveProcessingOrders() {
 }
 
 /**
- * 7. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM XÁC THỰC MÃ ĐƠN
+ * 7. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM LƯU ĐỒNG BỘ ẢNH CỦA SHOP VÀ KHÁCH
  */
 export async function submitOrderReview({ 
   orderCode, 
@@ -588,15 +588,17 @@ export async function submitOrderReview({
   rating, 
   content, 
   productTags = '', 
-  imageUrls = [] 
+  imageUrls = [],
+  shopPackingImage = null
 }) {
   try {
     const cleanCode = String(orderCode || '').trim().toUpperCase();
     const cleanPhone = String(phone || '').trim();
 
+    // Lấy thông tin đơn hàng và ảnh đóng gói từ bảng orders nếu chưa truyền
     const { data: existingOrder, error: orderErr } = await supabase
       .from('orders')
-      .select('code, phone, status')
+      .select('code, phone, status, packing_image_url, packed_image_url, packing_image, packing_photos')
       .eq('code', cleanCode)
       .maybeSingle();
 
@@ -612,6 +614,14 @@ export async function submitOrderReview({
       };
     }
 
+    // Tự động fallback lấy ảnh đóng gói từ đơn hàng nếu chưa có
+    const resolvedShopImage = shopPackingImage || 
+      existingOrder.packing_image_url || 
+      existingOrder.packed_image_url || 
+      existingOrder.packing_image || 
+      (Array.isArray(existingOrder.packing_photos) && existingOrder.packing_photos[0]) || 
+      null;
+
     const ratingNum = Number(rating) || 5;
     const { data, error: insertErr } = await supabase
       .from('reviews')
@@ -624,6 +634,7 @@ export async function submitOrderReview({
           content: content.trim(),
           product_tags: productTags || '',
           image_urls: Array.isArray(imageUrls) ? imageUrls : [],
+          shop_packing_image: resolvedShopImage,
           is_approved: true
         }
       ])
@@ -649,7 +660,7 @@ export async function submitOrderReview({
  */
 export async function fetchAllReviewsForAdmin() {
   try {
-    const { data, error } = await supabase
+    const { data: reviewsData, error } = await supabase
       .from('reviews')
       .select('*')
       .order('created_at', { ascending: false });
@@ -658,7 +669,30 @@ export async function fetchAllReviewsForAdmin() {
       console.warn('Lỗi query fetchAllReviewsForAdmin:', error.message);
       return [];
     }
-    return data || [];
+
+    const reviews = reviewsData || [];
+    
+    // Fallback: Tìm các review thiếu shop_packing_image nhưng có order_code
+    const missingCodes = reviews
+      .filter((r) => !r.shop_packing_image && r.order_code)
+      .map((r) => r.order_code);
+
+    if (missingCodes.length > 0) {
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('code, packing_image')
+        .in('code', missingCodes);
+
+      if (Array.isArray(ordersData)) {
+        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
+        return reviews.map((r) => ({
+          ...r,
+          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
+        }));
+      }
+    }
+
+    return reviews;
   } catch (err) {
     console.warn('Lỗi kết nối fetchAllReviewsForAdmin:', err);
     return [];
@@ -707,15 +741,36 @@ export async function deleteReviewById(reviewId) {
  */
 export async function fetchApprovedReviews(limit = 6) {
   try {
-    const { data, error } = await supabase
+    const { data: reviewsData, error } = await supabase
       .from('reviews')
       .select('*')
       .eq('is_approved', true)
       .order('created_at', { ascending: false })
       .limit(limit);
 
-    if (error) return [];
-    return data || [];
+    if (error || !Array.isArray(reviewsData)) return [];
+
+    const reviews = reviewsData;
+    const missingCodes = reviews
+      .filter((r) => !r.shop_packing_image && r.order_code)
+      .map((r) => r.order_code);
+
+    if (missingCodes.length > 0) {
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('code, packing_image')
+        .in('code', missingCodes);
+
+      if (Array.isArray(ordersData)) {
+        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
+        return reviews.map((r) => ({
+          ...r,
+          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
+        }));
+      }
+    }
+
+    return reviews;
   } catch {
     return [];
   }
@@ -739,7 +794,7 @@ export async function fetchTotalOrdersCount() {
 }
 
 /**
- * 13. XÁC THỰC MÃ ĐƠN CŨ LÀM VOUCHER TRI ÂN (TÍNH ĐỘNG THEO CẤU HÌNH LOYALTY)
+ * 13. XÁC THỰC MÃ ĐƠN CŨ LÀM VOUCHER TRI ÂN
  */
 export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentCartTotal = 0) {
   const cleanCode = String(rawCode || '').trim().toUpperCase();
@@ -750,7 +805,6 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
   }
 
   try {
-    // A. Kiểm tra đơn hàng cũ
     const { data: oldOrder, error: orderErr } = await supabase
       .from('orders')
       .select('code, phone, status')
@@ -770,7 +824,6 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       return { valid: false, message: 'Đơn hàng này chưa hoàn tất giao nhận nên chưa thể dùng làm mã ưu đãi.' };
     }
 
-    // B. Kiểm tra xem mã đã từng được dùng ở đơn nào khác chưa
     const { data: alreadyUsed, error: usedErr } = await supabase
       .from('orders')
       .select('code, status')
@@ -791,7 +844,6 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       }
     }
 
-    // C. Đơn cũ phải được đánh giá từ 4 sao trở lên
     const { data: reviewData, error: revErr } = await supabase
       .from('reviews')
       .select('rating, is_approved')
@@ -814,7 +866,6 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       };
     }
 
-    // D. ĐỌC CẤU HÌNH LOYALTY TỪ BẢNG shop_configs
     const { data: loyaltyRow } = await supabase
       .from('shop_configs')
       .select('value')
@@ -829,7 +880,6 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
     const percent = Number(loyaltyCfg.percent ?? 10);
     const maxDiscount = Number(loyaltyCfg.maxDiscount ?? 50000);
 
-    // Tính chiết khấu theo % giỏ hàng hiện tại, trần maxDiscount
     let calculatedDiscount = Math.round((Number(currentCartTotal || 0) * percent) / 100);
     if (maxDiscount > 0) {
       calculatedDiscount = Math.min(calculatedDiscount, maxDiscount);
@@ -839,8 +889,8 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       valid: true, 
       discountAmount: calculatedDiscount, 
       code: cleanCode, 
-      percent,
-      maxDiscount,
+      percent, 
+      maxDiscount, 
       message: `Áp dụng thành công ưu đãi tri ân khách quen (-${calculatedDiscount.toLocaleString('vi-VN')}đ)` 
     };
 
@@ -1001,27 +1051,53 @@ export async function checkCustomerOrderRisk(phone) {
 }
 
 /**
- * LẤY DANH SÁCH REVIEW ĐÃ DUYỆT PHÂN TRANG (ƯU TIÊN RATING CAO & MỚI NHẤT)
+ * 17. LẤY DANH SÁCH REVIEW ĐÃ DUYỆT PHÂN TRANG (CHUẨN HÓA KHÔNG DÙNG JOIN NGOẠI)
  */
 export async function fetchPaginatedApprovedReviews(page = 0, pageSize = 6) {
   try {
     const from = page * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, count, error } = await supabase
+    // 1. Chỉ select thuần từ bảng reviews để tránh lỗi PGRST200
+    const { data: reviewsData, count, error } = await supabase
       .from('reviews')
       .select('*', { count: 'exact' })
       .eq('is_approved', true)
-      .order('rating', { ascending: false })     // Ưu tiên 5 sao trước
-      .order('created_at', { ascending: false }) // Ưu tiên mới nhất
+      .order('rating', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(from, to);
 
     if (error) throw error;
 
+    let reviews = reviewsData || [];
+
+    // 2. Tự động bù ảnh từ bảng orders nếu review chưa có shop_packing_image
+    const missingCodes = reviews
+      .filter((r) => !r.shop_packing_image && r.order_code)
+      .map((r) => r.order_code);
+
+    if (missingCodes.length > 0) {
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('code, packing_image')
+        .in('code', missingCodes);
+
+      if (Array.isArray(ordersData) && ordersData.length > 0) {
+        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
+        reviews = reviews.map((r) => ({
+          ...r,
+          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
+        }));
+      }
+    }
+
+    const total = count || 0;
+    const hasMore = (from + reviews.length) < total;
+
     return {
-      reviews: data || [],
-      totalCount: count || 0,
-      hasMore: (count || 0) > to + 1
+      reviews,
+      totalCount: total,
+      hasMore
     };
   } catch (err) {
     console.warn('Lỗi fetchPaginatedApprovedReviews:', err);
@@ -1030,15 +1106,11 @@ export async function fetchPaginatedApprovedReviews(page = 0, pageSize = 6) {
 }
 
 /**
- * Kiểm tra mã đơn cũ dùng làm voucher:
- * 1. Phải khớp chính xác SĐT của người đặt đơn cũ (tránh share chéo mã).
- * 2. Đơn cũ phải có đánh giá hợp lệ (bảng reviews).
- * 3. Chưa từng được sử dụng thành công (đơn completed).
- * 4. Không đang bị treo ở các đơn đang xử lý (pending, confirmed, packing, shipping).
+ * 18. KIỂM TRA MÃ ĐƠN CŨ DÙNG LÀM VOUCHER
  */
 export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
   const cleanCode = String(voucherCodeInput || '').trim().toUpperCase();
-  const cleanPhone = String(inputPhone || '').replace(/\D/g, '').slice(-9); // Chuẩn hóa 9 số cuối
+  const cleanPhone = String(inputPhone || '').replace(/\D/g, '').slice(-9);
 
   if (!cleanCode) {
     return { valid: false, message: 'Vui lòng nhập mã đơn cũ để nhận ưu đãi!' };
@@ -1049,7 +1121,6 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
   }
 
   try {
-    // BƯỚC 1: Truy vấn đơn hàng gốc để kiểm tra số điện thoại chính chủ
     const { data: originalOrder, error: orderErr } = await supabase
       .from('orders')
       .select('code, phone, status')
@@ -1071,7 +1142,6 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
       };
     }
 
-    // BƯỚC 2: Kiểm tra đơn cũ đã có đánh giá được duyệt hay chưa
     const { data: reviewData } = await supabase
       .from('reviews')
       .select('id, order_code, is_approved')
@@ -1086,7 +1156,6 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
       };
     }
 
-    // BƯỚC 3: Kiểm tra xem mã này đã dùng hoặc đang bị treo ở đơn khác chưa
     const { data: existingUsage } = await supabase
       .from('orders')
       .select('code, status')
@@ -1120,7 +1189,6 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
       }
     }
 
-    // Hợp lệ: Giảm 10% tối đa 50k (hoặc theo shopConfig)
     return {
       valid: true,
       code: cleanCode,
