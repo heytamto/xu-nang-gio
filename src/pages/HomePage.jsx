@@ -1838,18 +1838,23 @@ function ExperienceGuideSection() {
               ))}
             </div>
 
-            {currentItem.storageTip ? (
-              <div className="mt-4 p-4 rounded-xl bg-white/80 border border-amber-200/60 text-sm sm:text-base text-stone-700 flex items-start gap-2.5 shadow-2xs">
-                <span className="font-bold text-amber-900 shrink-0">
-                  🧊 Mẹo bảo quản:
-                </span>
-                <span className="font-normal">{currentItem.storageTip}</span>
-              </div>
-            ) : (
-              <div className="mt-4 p-4 rounded-xl bg-white/40 border border-amber-200/30 text-sm text-stone-500 italic flex items-center gap-2">
-                <span>🍃 Sản phẩm tươi tự nhiên, nên dùng sớm để trọn vị ngon.</span>
-              </div>
-            )}
+            {/* Khối mẹo bảo quản: Trên mobile xuống dòng (flex-col), desktop nằm ngang (sm:flex-row) */}
+{currentItem.storageTip ? (
+  <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-amber-200/70 text-xs sm:text-sm text-stone-700 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2.5 shadow-2xs">
+    <span className="font-bold text-amber-900 shrink-0 flex items-center gap-1.5">
+      <span>🧊</span>
+      <span>Mẹo bảo quản:</span>
+    </span>
+    <p className="text-stone-700 leading-relaxed font-normal">
+      {currentItem.storageTip}
+    </p>
+  </div>
+) : (
+  <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/40 border border-amber-200/40 text-xs sm:text-sm text-stone-500 italic flex items-center gap-2">
+    <span>🍃</span>
+    <span>Sản phẩm tươi tự nhiên, nên dùng sớm để trọn vị ngon.</span>
+  </div>
+)}
           </div>
 
           <div className="pt-2 text-xs text-stone-500 italic flex items-center gap-2 border-t border-amber-200/40">

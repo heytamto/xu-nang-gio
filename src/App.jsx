@@ -24,6 +24,8 @@ import { fetchAllMasterDataFromSupabase } from './services/masterDataService';
 import { supabase } from './supabaseClient';
 import { ORDER_STATUS, normalizeOrderStatus } from './constants/orderStatus';
 
+const VIETNAMESE_SAFE_FONTS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
 export default function App() {
   // Giữ nguyên trang hiện tại khi F5 bằng sessionStorage
   const [currentPage, setCurrentPage] = useState(() => {
@@ -620,8 +622,7 @@ export default function App() {
           console.error('Lỗi network khi gửi đơn ngầm:', err);
         });
 
-      // 2. PHÂN LUỒNG GỬI EMAIL: CHỈ GỬI NGAY NẾU LÀ ĐƠN COD
-      // Đối với đơn Cọc hoặc Chuyển khoản QR, hệ thống chờ Admin đối soát tiền về MB Bank trong AdminPage mới gửi mail
+      // 2. PHÂN LUỒNG GỬI EMAIL: CHỈ GỬI NGAY NẾU LÀ ĐƠN COD HOẶC ĐÃ XÁC NHẬN THANH TOÁN
       const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
       const isCodOrder = currentMethod === 'cod';
       const isAutoPrepaidVerified = Boolean(orderData.isPaymentVerified || orderPayload.payment_verified);
@@ -635,10 +636,10 @@ export default function App() {
               return `
                 <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 8px; border-bottom: 1px dashed #fde68a; padding-bottom: 6px;">
                   <tr>
-                    <td align="left" style="font-size: 13.5px; color: #292524; font-family: Arial, sans-serif;">
+                    <td align="left" style="font-size: 13.5px; color: #292524; font-family: ${VIETNAMESE_SAFE_FONTS}; line-height: 1.4;">
                       • <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span>
                     </td>
-                    <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: Arial, sans-serif; white-space: nowrap; padding-left: 12px;">
+                    <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: ${VIETNAMESE_SAFE_FONTS}; white-space: nowrap; padding-left: 12px;">
                       ${lineTotal.toLocaleString('vi-VN')}đ
                     </td>
                   </tr>
@@ -688,7 +689,11 @@ export default function App() {
 
   const handleSaveConfig = (newCfg) => {
     setShopConfig(newCfg);
-    localStorage.setItem('shop_config', JSON.stringify(newCfg));
+    try {
+      localStorage.setItem('shop_config', JSON.stringify(newCfg));
+    } catch (e) {
+      console.error('Lỗi lưu cấu hình shop vào LocalStorage:', e);
+    }
   };
 
   const navigateTo = (page) => {

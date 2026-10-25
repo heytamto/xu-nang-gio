@@ -101,28 +101,52 @@ export default function AdminPage({
     }
   }, []);
 
+  // Khởi tạo Google Sign-In có kiểm soát, tránh kích hoạt vô tận
   useEffect(() => {
     if (isAuthenticated) return;
 
-    const interval = setInterval(() => {
+    let isMounted = true;
+    let attempts = 0;
+
+    const setupGoogleBtn = () => {
       if (window.google?.accounts?.id && googleBtnRef.current) {
-        clearInterval(interval);
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleGoogleCredentialResponse,
-        });
+        try {
+          window.google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleCredentialResponse,
+          });
 
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: 'outline',
-          size: 'large',
-          width: '100%',
-          text: 'signin_with',
-          shape: 'pill'
-        });
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'outline',
+            size: 'large',
+            width: '100%',
+            text: 'signin_with',
+            shape: 'pill'
+          });
+        } catch (e) {
+          console.warn('Google GSI render skipped:', e);
+        }
+        return true;
       }
-    }, 200);
+      return false;
+    };
 
-    return () => clearInterval(interval);
+    if (!setupGoogleBtn()) {
+      const timer = setInterval(() => {
+        attempts += 1;
+        if (setupGoogleBtn() || attempts > 10 || !isMounted) {
+          clearInterval(timer);
+        }
+      }, 300);
+      return () => {
+        isMounted = false;
+        clearInterval(timer);
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, handleGoogleCredentialResponse]);
 
   const handlePasswordLogin = (e) => {
@@ -450,7 +474,7 @@ export default function AdminPage({
           </div>
 
           <div className="space-y-4">
-            <div ref={googleBtnRef} className="w-full flex justify-center min-h-[48px]"></div>
+            <div ref={googleBtnRef} className="w-full flex justify-center min-h-[44px]"></div>
             
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-stone-200"></div>
@@ -768,7 +792,11 @@ export default function AdminPage({
         )}
 
         {activeTab === 'reviews' && (
-          <ReviewManagementTab onShowToast={showSavedToast} />
+          <ReviewManagementTab 
+            shopConfig={shopConfig} 
+            onSaveConfig={onSaveConfig} 
+            onShowToast={showSavedToast} 
+          />
         )}
 
         {activeTab === 'config' && (
