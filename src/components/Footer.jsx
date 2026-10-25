@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { DEFAULT_SHOP_CONFIG } from '../config/shopConfig';
 
-const DEFAULT_MAP_EMBED_URL = "https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d251.61865863961202!2d108.93089242170359!3d11.563539363791506!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1svi!2s!4v1792144018447!5m2!1svi!2s";
+// URL Google Maps Embed chính thức và sạch sẽ (tọa độ Phước Hậu, Ninh Phước, Ninh Thuận)
+const DEFAULT_MAP_EMBED_URL = "https://www.google.com/maps?q=11.563539,108.930892&hl=vi&z=16&output=embed";
 
 function FacebookIcon({ className = "w-3.5 h-3.5" }) {
   return (
@@ -214,7 +215,6 @@ export default function Footer({
                   </a>
                 )}
   
-                {/* Nút nền tảng X (Twitter) */}
                 {config.twitterUrl && (
                   <a
                     href={config.twitterUrl}
@@ -282,7 +282,8 @@ export default function Footer({
                 src={mapEmbedSrc}
                 className="w-full h-full border-0 transition-opacity duration-300 opacity-90 group-hover:opacity-100"
                 loading="lazy"
-                referrerPolicy="strict-origin-when-cross-origin"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="fullscreen"
               />
             </div>
             
