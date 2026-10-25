@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, PackageCheck, Clock, X, Copy, Check, 
   Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle, ShieldAlert,
-  ChevronDown
+  ChevronDown, Camera, ZoomIn
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
@@ -113,6 +113,9 @@ export default function OrderLookupModal({
   // Quản lý Modal Đánh giá & Danh sách đơn đã gửi đánh giá
   const [reviewOrderTarget, setReviewOrderTarget] = useState(null);
   const [reviewedCodes, setReviewedCodes] = useState(new Set());
+
+  // Xem ảnh phóng to
+  const [previewImage, setPreviewImage] = useState(null);
 
   const [now, setNow] = useState(Date.now());
   const channelRef = useRef(null);
@@ -371,6 +374,9 @@ export default function OrderLookupModal({
               const depositPaid = Number(ord.deposit_paid ?? 0);
               const remainingCod = Number(ord.remaining_cod ?? (displayTotal - depositPaid));
 
+              // Trích xuất hình ảnh đóng gói (hỗ trợ nhiều định dạng từ DB)
+              const packingImage = ord.packing_image_url || ord.packed_image_url || ord.packing_image || (Array.isArray(ord.packing_photos) && ord.packing_photos[0]);
+
               const cardColorClass = isCompleted 
                 ? 'border-emerald-300 bg-emerald-50/40 shadow-xs' 
                 : isNew 
@@ -465,6 +471,46 @@ export default function OrderLookupModal({
                           <span className="text-[11px] bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-md shrink-0">Combo</span>
                           <span className="leading-tight">{ord.campaign_gifts}</span>
                         </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* KHỐI ẢNH THỰC TẾ SAU ĐÓNG GÓI */}
+                  {packingImage && (
+                    <div className="bg-stone-900/5 border border-stone-200 rounded-2xl p-3 space-y-2 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>Ảnh Thực Tế Sau Đóng Gói Tại Vườn:</span>
+                        </span>
+                        <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200">
+                          Đã kiểm tra thùng xốp
+                        </span>
+                      </div>
+
+                      <div 
+                        onClick={() => setPreviewImage(packingImage)}
+                        className="relative rounded-xl overflow-hidden border border-stone-200 bg-stone-100 aspect-16/9 max-h-48 group cursor-pointer shadow-2xs"
+                        title="Bấm để xem ảnh phóng to"
+                      >
+                        <img
+                          src={packingImage}
+                          alt={`Ảnh đóng gói kiện đơn ${ord.code}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-stone-950/20 group-hover:bg-stone-950/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <span className="px-3 py-1.5 rounded-xl bg-white/90 backdrop-blur-xs text-stone-900 font-bold text-xs flex items-center gap-1.5 shadow-md">
+                            <ZoomIn className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Xem ảnh lớn</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {ord.packed_at && (
+                        <p className="text-[11px] text-stone-500 font-mono">
+                          Thời gian đóng thùng: {formatDateTime(ord.packed_at)}
+                        </p>
                       )}
                     </div>
                   )}
@@ -570,12 +616,10 @@ export default function OrderLookupModal({
             </div>
           </div>
 
-          {/* Popup Xác Nhận Hủy: MỞ RỘNG max-w-lg VÀ DROPDOWN CUSTOM BO TRÒN THEME KEM ẤM */}
+          {/* Popup Xác Nhận Hủy */}
           {cancellingOrder && (
             <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-xs rounded-3xl p-4 sm:p-6 flex flex-col justify-center items-center z-30 animate-fadeIn text-stone-900">
               <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg border border-stone-200 shadow-2xl space-y-5 animate-scaleUp">
-                
-                {/* Header popup */}
                 <div className="flex items-center gap-3.5 border-b border-stone-100 pb-3.5">
                   <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
                     <AlertCircle className="w-6 h-6 stroke-[2.2]" />
@@ -600,7 +644,6 @@ export default function OrderLookupModal({
                     </div>
                   )}
 
-                  {/* Custom Dropdown thay thế thẻ select mặc định */}
                   <div className="space-y-1.5 pt-1 text-left">
                     <label className="block text-xs font-bold text-stone-700">Lý do hủy đơn:</label>
                     <CustomCancelReasonSelect
@@ -610,7 +653,6 @@ export default function OrderLookupModal({
                   </div>
                 </div>
 
-                {/* 2 nút hành động chuẩn h-11 */}
                 <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
                   <button 
                     type="button" 
@@ -638,6 +680,35 @@ export default function OrderLookupModal({
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {/* Modal Phóng to ảnh đóng gói */}
+          {previewImage && (
+            <div 
+              className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-fadeIn"
+              onClick={() => setPreviewImage(null)}
+            >
+              <div 
+                className="relative max-w-3xl max-h-[85vh] rounded-3xl overflow-hidden border border-white/20 bg-stone-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <img
+                  src={previewImage}
+                  alt="Ảnh đóng gói cận cảnh"
+                  className="w-full h-full max-h-[80vh] object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="absolute top-3 right-3 w-9 h-9 rounded-full bg-stone-950/80 text-white flex items-center justify-center hover:bg-rose-600 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <span className="text-white text-xs mt-3 opacity-70">
+                Nhấn ra ngoài hoặc bấm nút ✕ để đóng
+              </span>
             </div>
           )}
 
