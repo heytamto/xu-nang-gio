@@ -2,16 +2,42 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     
-    <!-- KHAI BÁO ICON CHO APP & TAB TRÌNH DUYỆT -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#B45309" />
+    <title>Xứ Nắng Gió - Đặc Sản & Nông Sản Ninh Thuận Thu Hoạch Tận Vườn</title>
+    <meta name="description" content="Chuyên đặc sản Ninh Thuận: Nho xanh giòn ngọt, táo gió, bánh tráng mắm ruốc, hải sản khô. Cắt giàn hái sớm, đóng thùng xốp dày gửi xe khách tận nhà." />
 
-    <title>Xứ Nắng Gió</title>
+    <!-- KHAI BÁO ICON & GIAO DIỆN HỆ THỐNG -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="theme-color" content="#B45309" />
+    <meta name="color-scheme" content="light" />
+
+    <!-- GOOGLE FONTS (Hỗ trợ 100% tiếng Việt có dấu, chống vỡ font) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link 
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" 
+      rel="stylesheet" 
+    />
+
+    <!-- OPEN GRAPH (Facebook, Zalo Preview) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:title" content="Xứ Nắng Gió - Đặc Sản Ninh Thuận Hái Tươi Tại Giàn" />
+    <meta property="og:description" content="Nông sản thu hoạch tận giàn, đóng thùng xốp dày, gửi xe khách trong đêm tới TP.HCM. Bao ăn từng trái." />
+    <meta property="og:url" content="https://xunanggio.com" />
+    <meta property="og:image" content="/og-image.jpg" />
+
+    <!-- TWITTER / X CARDS -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Xứ Nắng Gió - Đặc Sản Ninh Thuận" />
+    <meta name="twitter:description" content="Nông sản thu hoạch tận vườn, tươi ngon nguyên vẹn tới tay bạn." />
+    <meta name="twitter:image" content="/og-image.jpg" />
   </head>
-  <body>
+  <body class="bg-stone-100 text-stone-800 antialiased selection:bg-amber-200 selection:text-amber-950 font-sans">
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </body>

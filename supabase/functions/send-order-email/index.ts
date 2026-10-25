@@ -32,6 +32,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// Font stack chuẩn tiếng Việt hỗ trợ hiển thị đồng nhất trên Gmail, Apple Mail, Outlook
+const VIETNAMESE_SAFE_FONTS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif";
+
 function formatPaymentMethodLabel(method: string | undefined): string {
   const normalized = String(method || "").trim().toLowerCase();
   const paymentMap: Record<string, string> = {
@@ -245,7 +248,7 @@ Deno.serve(async (req: Request) => {
 
     const paymentLabel = body.data?.PAYMENT_METHOD || formatPaymentMethodLabel(order.payment_method);
 
-    // Bảng chi tiết sản phẩm HTML chuẩn Responsive
+    // Bảng chi tiết sản phẩm HTML chuẩn Responsive với Font tiếng Việt an toàn
     let itemsSummaryHtml = body.data?.ITEMS_SUMMARY || body.itemsSummaryHtml;
     if (!itemsSummaryHtml) {
       const items = (itemsRes.data && itemsRes.data.length > 0) ? itemsRes.data : (body.cart || []);
@@ -257,10 +260,10 @@ Deno.serve(async (req: Request) => {
             return `
               <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 8px; border-bottom: 1px dashed #fde68a; padding-bottom: 6px;">
                 <tr>
-                  <td align="left" style="font-size: 13.5px; color: #292524; font-family: Arial, sans-serif;">
+                  <td align="left" style="font-size: 13.5px; color: #292524; font-family: ${VIETNAMESE_SAFE_FONTS}; line-height: 1.4;">
                     • <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span>
                   </td>
-                  <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: Arial, sans-serif; white-space: nowrap; padding-left: 12px;">
+                  <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: ${VIETNAMESE_SAFE_FONTS}; white-space: nowrap; padding-left: 12px;">
                     ${total.toLocaleString("vi-VN")}đ
                   </td>
                 </tr>
@@ -272,10 +275,10 @@ Deno.serve(async (req: Request) => {
 
     let giftsHtml = "";
     if (order.payment_gift && order.payment_gift !== "Không áp dụng (COD)") {
-      giftsHtml += `<div style="color: #047857; margin-top: 6px; font-size: 13.5px;">🎁 <strong>Quà tặng kèm:</strong> ${order.payment_gift}</div>`;
+      giftsHtml += `<div style="color: #047857; margin-top: 6px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🎁 <strong>Quà tặng kèm:</strong> ${order.payment_gift}</div>`;
     }
     if (order.campaign_gifts) {
-      giftsHtml += `<div style="color: #047857; margin-top: 4px; font-size: 13.5px;">🍇 <strong>Ưu đãi vườn:</strong> ${order.campaign_gifts}</div>`;
+      giftsHtml += `<div style="color: #047857; margin-top: 4px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🍇 <strong>Ưu đãi vườn:</strong> ${order.campaign_gifts}</div>`;
     }
 
     // Xây dựng template phù hợp cho từng luồng
@@ -286,15 +289,15 @@ Deno.serve(async (req: Request) => {
           id: "tpl0003",
           name: "Email cảm ơn đánh giá",
           subject: "[Xứ Nắng Gió] Cảm ơn {{CUSTOMER_NAME}} đã đánh giá đơn #{{ORDER_CODE}} • Tặng bạn mã ưu đãi",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 560px;">
-            <h2 style="color: #78350f; margin-top: 0;">💛 Xứ Nắng Gió Cảm Ơn Bạn</h2>
-            <p>Chào <strong>{{CUSTOMER_NAME}}</strong>,</p>
-            <p>Nhà vườn rất trân trọng đánh giá của bạn cho đơn hàng <strong>#{{ORDER_CODE}}</strong>.</p>
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: ${VIETNAMESE_SAFE_FONTS}; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 560px;">
+            <h2 style="color: #78350f; margin-top: 0; font-family: ${VIETNAMESE_SAFE_FONTS};">💛 Xứ Nắng Gió Cảm Ơn Bạn</h2>
+            <p style="font-family: ${VIETNAMESE_SAFE_FONTS};">Chào <strong>{{CUSTOMER_NAME}}</strong>,</p>
+            <p style="font-family: ${VIETNAMESE_SAFE_FONTS};">Nhà vườn rất trân trọng đánh giá của bạn cho đơn hàng <strong>#{{ORDER_CODE}}</strong>.</p>
             <div style="background: #fffbeb; border: 1.5px dashed #f59e0b; padding: 16px; border-radius: 12px; text-align: center; margin: 16px 0;">
-              <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: bold;">MÃ GIẢM GIÁ CHO ĐƠN HÀNG KẾ TIẾP:</p>
+              <p style="margin: 0; font-size: 13px; color: #92400e; font-weight: bold; font-family: ${VIETNAMESE_SAFE_FONTS};">MÃ GIẢM GIÁ CHO ĐƠN HÀNG KẾ TIẾP:</p>
               <div style="font-size: 22px; font-weight: 900; font-family: monospace; color: #b45309; margin: 8px 0;">{{ORDER_CODE}}</div>
             </div>
-            <p style="font-size: 13px; color: #78716c;">Hotline / Zalo: <strong>{{SHOP_HOTLINE}}</strong> • {{SHOP_ADDRESS}}</p>
+            <p style="font-size: 13px; color: #78716c; font-family: ${VIETNAMESE_SAFE_FONTS};">Hotline / Zalo: <strong>{{SHOP_HOTLINE}}</strong> • {{SHOP_ADDRESS}}</p>
           </div>`
         };
       } else if (eventType === "PAYMENT_CONFIRMED") {
@@ -303,46 +306,46 @@ Deno.serve(async (req: Request) => {
           id: "tpl_confirmed",
           name: "Biên nhận thanh toán",
           subject: "[Xứ Nắng Gió] Biên nhận thanh toán đơn hàng #{{ORDER_CODE}} • Đã xác nhận",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
-            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: ${VIETNAMESE_SAFE_FONTS}; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
+            <h2 style="color: #78350f; margin-top: 0; font-size: 20px; font-family: ${VIETNAMESE_SAFE_FONTS};">Chào {{CUSTOMER_NAME}},</h2>
             <div style="background: #ecfdf5; border: 1.5px solid #a7f3d0; padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;">
-              <strong style="color: #047857; font-size: 14px;">✓ Nhà vườn đã nhận thành công {{DEPOSIT_PAID}}</strong>
-              <p style="margin: 4px 0 0 0; color: #064e3b; font-size: 13px; line-height: 1.5;">
+              <strong style="color: #047857; font-size: 14px; font-family: ${VIETNAMESE_SAFE_FONTS};">✓ Nhà vườn đã nhận thành công {{DEPOSIT_PAID}}</strong>
+              <p style="margin: 4px 0 0 0; color: #064e3b; font-size: 13px; line-height: 1.5; font-family: ${VIETNAMESE_SAFE_FONTS};">
                 Đơn hàng #{{ORDER_CODE}} đã được chuyển giao cho bộ phận Kho đóng thùng xốp để gửi nhà xe theo lịch hẹn.
               </p>
             </div>
             
             <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
-              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
+              <div style="font-weight: 800; color: #92400e; font-size: 13px; margin-bottom: 12px; font-family: ${VIETNAMESE_SAFE_FONTS}; letter-spacing: 0;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
               {{ITEMS_SUMMARY}}
               {{GIFTS_BLOCK}}
               <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
                 <tr>
-                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng đơn hàng:</td>
+                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold; font-family: ${VIETNAMESE_SAFE_FONTS};">Tổng đơn hàng:</td>
                   <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
                 </tr>
                 <tr>
-                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 6px;">Đã thanh toán (VietQR):</td>
-                  <td align="right" style="font-size: 13px; font-weight: bold; color: #047857; padding-top: 6px;">{{DEPOSIT_PAID}}</td>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 6px; font-family: ${VIETNAMESE_SAFE_FONTS};">Đã thanh toán (VietQR):</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #047857; padding-top: 6px; font-family: ${VIETNAMESE_SAFE_FONTS};">{{DEPOSIT_PAID}}</td>
                 </tr>
                 <tr>
-                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 4px;">Còn lại gửi nhà xe (COD):</td>
-                  <td align="right" style="font-size: 13px; font-weight: bold; color: #292524; padding-top: 4px;">{{REMAINING_COD}}</td>
+                  <td align="left" style="font-size: 12.5px; color: #78716c; padding-top: 4px; font-family: ${VIETNAMESE_SAFE_FONTS};">Còn lại gửi nhà xe (COD):</td>
+                  <td align="right" style="font-size: 13px; font-weight: bold; color: #292524; padding-top: 4px; font-family: ${VIETNAMESE_SAFE_FONTS};">{{REMAINING_COD}}</td>
                 </tr>
                 <tr>
-                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Điểm giao / Bến xe:</td>
-                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
+                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top; font-family: ${VIETNAMESE_SAFE_FONTS};">Điểm giao / Bến xe:</td>
+                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px; font-family: ${VIETNAMESE_SAFE_FONTS};">{{ADDRESS}}</td>
                 </tr>
               </table>
             </div>
 
             <div style="text-align: center; margin: 24px 0 16px 0;">
-              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
+              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block; font-family: ${VIETNAMESE_SAFE_FONTS};">
                 Theo Dõi Tiến Độ Đóng Kiện & Nhà Xe →
               </a>
             </div>
             <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
-            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c; font-family: ${VIETNAMESE_SAFE_FONTS};">
               <tr>
                 <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
                 <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
@@ -356,36 +359,36 @@ Deno.serve(async (req: Request) => {
           id: "tpl0001",
           name: "Email xác nhận đơn COD",
           subject: "[Xứ Nắng Gió] Xác nhận đơn hàng COD #{{ORDER_CODE}} • Cảm ơn {{CUSTOMER_NAME}}",
-          body: `<div style="margin: 0 auto; padding: 24px; font-family: Arial, sans-serif; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
-            <h2 style="color: #78350f; margin-top: 0; font-size: 20px;">Chào {{CUSTOMER_NAME}},</h2>
+          body: `<div style="margin: 0 auto; padding: 24px; font-family: ${VIETNAMESE_SAFE_FONTS}; background: #ffffff; border-radius: 16px; border: 1px solid #fed7aa; max-width: 580px; color: #292524;">
+            <h2 style="color: #78350f; margin-top: 0; font-size: 20px; font-family: ${VIETNAMESE_SAFE_FONTS};">Chào {{CUSTOMER_NAME}},</h2>
             <div style="background: #fff7ed; border: 1.5px solid #fed7aa; padding: 14px 18px; border-radius: 12px; margin-bottom: 16px;">
-              <strong style="color: #c2410c; font-size: 14px;">Phương thức: Thanh toán khi nhận hàng (COD)</strong>
-              <p style="margin: 4px 0 0 0; color: #7c2d12; font-size: 13px; line-height: 1.5;">
+              <strong style="color: #c2410c; font-size: 14px; font-family: ${VIETNAMESE_SAFE_FONTS};">Phương thức: Thanh toán khi nhận hàng (COD)</strong>
+              <p style="margin: 4px 0 0 0; color: #7c2d12; font-size: 13px; line-height: 1.5; font-family: ${VIETNAMESE_SAFE_FONTS};">
                 Đơn hàng đã được ghi nhận. Quý khách vui lòng chuẩn bị <strong>{{REMAINING_COD}}</strong> để thanh toán cho tài xế/nhà xe khi nhận thùng nông sản.
               </p>
             </div>
             <div style="background: #fffbeb; border: 1.5px dashed #fcd34d; padding: 18px; border-radius: 14px; margin: 18px 0;">
-              <div style="font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; margin-bottom: 12px;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
+              <div style="font-weight: 800; color: #92400e; font-size: 13px; margin-bottom: 12px; font-family: ${VIETNAMESE_SAFE_FONTS}; letter-spacing: 0;">CHI TIẾT KIỆN HÀNG NÔNG SẢN</div>
               {{ITEMS_SUMMARY}}
               {{GIFTS_BLOCK}}
               <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-top: 14px; padding-top: 10px; border-top: 1.5px solid #fde68a;">
                 <tr>
-                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold;">Tổng tiền thu hộ (COD):</td>
+                  <td align="left" style="font-size: 14px; color: #57534e; font-weight: bold; font-family: ${VIETNAMESE_SAFE_FONTS};">Tổng tiền thu hộ (COD):</td>
                   <td align="right" style="font-size: 18px; font-weight: 900; color: #b45309; font-family: monospace;">{{TOTAL}}</td>
                 </tr>
                 <tr>
-                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top;">Điểm giao / Bến xe:</td>
-                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px;">{{ADDRESS}}</td>
+                  <td align="left" style="font-size: 12px; color: #78716c; padding-top: 6px; vertical-align: top; font-family: ${VIETNAMESE_SAFE_FONTS};">Điểm giao / Bến xe:</td>
+                  <td align="right" style="font-size: 12px; color: #44403c; padding-top: 6px; max-width: 320px; font-family: ${VIETNAMESE_SAFE_FONTS};">{{ADDRESS}}</td>
                 </tr>
               </table>
             </div>
             <div style="text-align: center; margin: 24px 0 16px 0;">
-              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block;">
+              <a href="{{TRACKING_URL}}" target="_blank" style="background: #b45309; color: #ffffff; text-decoration: none; padding: 12px 26px; border-radius: 12px; font-weight: bold; font-size: 13px; display: inline-block; font-family: ${VIETNAMESE_SAFE_FONTS};">
                 Tra Cứu Lộ Trình Đơn Hàng →
               </a>
             </div>
             <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 20px 0;" />
-            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c;">
+            <table width="100%" border="0" cellpadding="0" cellspacing="0" style="font-size: 12px; color: #78716c; font-family: ${VIETNAMESE_SAFE_FONTS};">
               <tr>
                 <td align="left">Thương mến,<br/><strong style="color: #78350f;">Đội ngũ Nhà Vườn {{SHOP_NAME}}</strong></td>
                 <td align="right">Hotline / Zalo: <strong style="color: #292524;">{{SHOP_HOTLINE}}</strong></td>
@@ -395,10 +398,18 @@ Deno.serve(async (req: Request) => {
         };
       }
     } else {
+      // Chuẩn hóa nếu lấy template từ DB nhưng đang bị lỗi letter-spacing hoặc thiếu font tiếng Việt
       if (template.body) {
         template.body = template.body
           .replaceAll('href="{{SHOP_WEBSITE}}"', 'href="{{TRACKING_URL}}"')
-          .replaceAll('href="https://xunanggio.com"', 'href="{{TRACKING_URL}}"');
+          .replaceAll('href="https://xunanggio.com"', 'href="{{TRACKING_URL}}"')
+          // Xóa bỏ các thuộc tính letter-spacing gây lỗi vỡ chữ có dấu
+          .replaceAll('letter-spacing: 1px;', 'letter-spacing: 0;')
+          .replaceAll('letter-spacing: 2px;', 'letter-spacing: 0;')
+          .replaceAll('letter-spacing: 3px;', 'letter-spacing: 0;')
+          .replaceAll('letter-spacing: 0.1em;', 'letter-spacing: 0;')
+          .replaceAll('tracking-widest', '')
+          .replaceAll('font-family: Arial, sans-serif', `font-family: ${VIETNAMESE_SAFE_FONTS}`);
       }
     }
 
