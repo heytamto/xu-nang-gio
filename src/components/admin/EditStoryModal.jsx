@@ -1,33 +1,96 @@
 // src/components/admin/EditStoryModal.jsx
-import React, { useState } from 'react';
-import { X, Check, Calendar, MapPin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Calendar, MapPin, Loader2 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
+import { supabase } from '../../supabaseClient';
 
-export default function EditStoryModal({ story = {}, onClose, onSave }) {
-  const [formData, setFormData] = useState(() => ({
-    id: story.id || '',
-    title: story.title || '',
-    date: formatDate(story.created_at || story.date || new Date(), '15/10/2026'),
-    season: story.season || 'Vụ Thu Đông',
-    quote: story.quote || story.desc || '',
-    story: story.story || story.content || '',
-    image: story.image_url || story.image || '',
-    location: story.location || 'Giàn nho Thái An',
-    author: story.author || 'Tâm Xứ Nắng'
-  }));
+export default function EditStoryModal({ story = {}, onClose, onSave, onShowAlert }) {
+  const [formData, setFormData] = useState({
+    id: '',
+    title: '',
+    date: '',
+    season: 'Vụ Thu Đông',
+    quote: '',
+    story: '',
+    image: '',
+    location: 'Giàn nho Thái An',
+    author: 'Tâm Xứ Nắng'
+  });
 
-  const handleSubmit = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (story) {
+      setFormData({
+        id: story.id || '',
+        title: story.title || '',
+        date: formatDate(story.created_at || story.date || new Date(), '15/10/2026'),
+        season: story.season || 'Vụ Thu Đông',
+        quote: story.quote || '',
+        story: story.story || story.content || '',
+        image: story.image_url || story.image || '',
+        location: story.location || 'Giàn nho Thái An',
+        author: story.author || 'Tâm Xứ Nắng'
+      });
+      setErrorMessage('');
+    }
+  }, [story]);
+
+  if (!story || !story.id) return null;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.title?.trim()) return;
 
-    onSave({
-      ...formData,
-      // Đảm bảo tương thích song song cả Postgres schema và frontend
-      content: formData.story || formData.quote,
-      desc: formData.quote,
-      image_url: formData.image
-    });
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      const storyText = formData.story.trim() || formData.quote.trim();
+      const imageUrl = formData.image.trim() || null;
+
+      // Payload CHÍNH XÁC theo cấu trúc DDL public.stories (TUYỆT ĐỐI KHÔNG GỬI 'desc')
+      const updatePayload = {
+        title: formData.title.trim(),
+        season: formData.season.trim() || 'Vụ Thu Đông',
+        location: formData.location.trim() || 'Ninh Thuận',
+        author: formData.author.trim() || 'Tâm Xứ Nắng',
+        quote: formData.quote.trim() || null,
+        story: storyText,
+        content: storyText,
+        image: imageUrl,
+        image_url: imageUrl
+      };
+
+      // 1. Cập nhật trực tiếp xuống Supabase Database
+      const { data, error } = await supabase
+        .from('stories')
+        .update(updatePayload)
+        .eq('id', story.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const savedResult = data || { ...story, ...updatePayload };
+
+      // 2. Thông báo thành công nếu có
+      onShowAlert?.(`Đã cập nhật câu chuyện #${story.id} thành công!`);
+
+      // 3. Cập nhật state ở component cha
+      if (onSave) {
+        onSave(savedResult);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Lỗi khi cập nhật chuyện vườn:', err);
+      setErrorMessage(err.message || 'Không thể cập nhật câu chuyện vào cơ sở dữ liệu.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -37,9 +100,16 @@ export default function EditStoryModal({ story = {}, onClose, onSave }) {
         
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-          <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
-            Cập Nhật Chuyện Vườn & Ảnh
-          </h3>
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
+              Cập Nhật Chuyện Vườn & Ảnh
+            </h3>
+            {story.id && (
+              <span className="font-mono text-amber-950 bg-amber-100 px-2.5 py-0.5 rounded-xl text-xs font-bold border border-amber-300/70 shadow-2xs">
+                #{story.id}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -48,6 +118,12 @@ export default function EditStoryModal({ story = {}, onClose, onSave }) {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {errorMessage && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -71,10 +147,9 @@ export default function EditStoryModal({ story = {}, onClose, onSave }) {
               </label>
               <input
                 type="text"
+                disabled
                 value={formData.date}
-                placeholder="15/10/2026"
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-mono font-bold focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-100/70 text-stone-500 font-mono font-bold shadow-2xs cursor-not-allowed"
               />
             </div>
 
@@ -106,7 +181,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Cập nhật ảnh qua Supabase Storage */}
+          {/* Cập nhật ảnh qua Supabase Storage bucket stories */}
           <ImageUploadField
             label="Ảnh đại diện mẩu chuyện (Supabase Storage)"
             value={formData.image}
@@ -151,10 +226,20 @@ export default function EditStoryModal({ story = {}, onClose, onSave }) {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
-              <Check className="w-4 h-4 stroke-[2.5]" />
-              <span>Lưu Thay Đổi Chuyện Vườn</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                  <span>Lưu Thay Đổi Chuyện Vườn</span>
+                </>
+              )}
             </button>
           </div>
         </form>

@@ -2,7 +2,7 @@
 import { supabase } from '../supabaseClient';
 
 /**
- * Tải toàn bộ Master Data trực tiếp từ Supabase (3NF Products + Product Weights + Safe Config + Reviews)
+ * Tải toàn bộ Master Data trực tiếp từ Supabase (3NF Products + Product Weights + Safe Config + Reviews + Payment Rewards)
  */
 export async function fetchAllMasterDataFromSupabase() {
   try {
@@ -23,6 +23,7 @@ export async function fetchAllMasterDataFromSupabase() {
         id,
         name,
         category,
+        category_id,
         base_price,
         unit,
         badge,
@@ -36,6 +37,7 @@ export async function fetchAllMasterDataFromSupabase() {
           id,
           weight_key,
           label,
+          weight_label,
           multiplier,
           price_override,
           is_default,
@@ -46,7 +48,13 @@ export async function fetchAllMasterDataFromSupabase() {
       supabase.from('posts').select('*').order('created_at', { ascending: false }),
       supabase.from('stories').select('*').order('created_at', { ascending: false }),
       supabase.from('vouchers').select('*'),
-      supabase.from('gifts').select('*'),
+
+      // CHỈ LẤY QUÀ TẶNG CHUYỂN KHOẢN (type = 'payment_reward' & đang bật is_active)
+      supabase
+        .from('gifts')
+        .select('*')
+        .eq('type', 'payment_reward')
+        .order('id', { ascending: true }),
 
       // Safe Query cho bảng shop_configs
       supabase.from('shop_configs').select('*').then(res => res, () => ({ data: null, error: null })),
@@ -76,6 +84,9 @@ export async function fetchAllMasterDataFromSupabase() {
       accountNo: '0848957345',
       accountName: 'TO THANH TAM',
       depositAmount: 50000,
+      shippingFee: 30000,
+      freeShippingThreshold: 300000,
+      enablePaymentGifts: true,
       vouchers: []
     };
 
@@ -91,6 +102,8 @@ export async function fetchAllMasterDataFromSupabase() {
           accountNo: row.account_no || row.bank_account || parsedConfig.accountNo,
           accountName: row.account_name || row.bank_holder || parsedConfig.accountName,
           depositAmount: row.deposit_amount != null ? Number(row.deposit_amount) : parsedConfig.depositAmount,
+          shippingFee: row.shipping_fee != null ? Number(row.shipping_fee) : parsedConfig.shippingFee,
+          freeShippingThreshold: row.free_shipping_threshold != null ? Number(row.free_shipping_threshold) : parsedConfig.freeShippingThreshold,
           hotline: row.hotline || parsedConfig.hotline,
           address: row.address,
           announcement: row.announcement,
@@ -99,6 +112,7 @@ export async function fetchAllMasterDataFromSupabase() {
           loyaltyDiscountPercent: row.loyalty_discount_percent,
           loyaltyMaxDiscount: row.loyalty_max_discount,
           autoSendEmail: row.auto_send_email,
+          enablePaymentGifts: row.enable_payment_gifts !== false,
           vouchers: row.vouchers || []
         };
       } else {
@@ -116,6 +130,13 @@ export async function fetchAllMasterDataFromSupabase() {
         const gen = rawMap.general || rawMap.general_config || {};
         const pay = rawMap.payment || rawMap.payment_config || {};
         const ship = rawMap.shipping || {};
+        const loyalty = rawMap.loyalty || {};
+
+        const isGiftsActive = gen.enablePaymentGifts !== undefined
+          ? gen.enablePaymentGifts !== false && String(gen.enablePaymentGifts) !== 'false'
+          : pay.enablePaymentGifts !== undefined
+          ? pay.enablePaymentGifts !== false && String(pay.enablePaymentGifts) !== 'false'
+          : true;
 
         parsedConfig = {
           ...parsedConfig,
@@ -127,14 +148,17 @@ export async function fetchAllMasterDataFromSupabase() {
           tagline: gen.tagline,
           warehousePin: gen.warehousePin || '1234',
           autoSendEmail: gen.autoSendEmail,
+          enablePaymentGifts: isGiftsActive,
           bankBin: pay.bankBin || parsedConfig.bankBin,
           bankName: pay.bankName || parsedConfig.bankName,
           accountNo: pay.accountNo || parsedConfig.accountNo,
           accountName: pay.accountName || parsedConfig.accountName,
           depositAmount: pay.depositAmount != null ? Number(pay.depositAmount) : parsedConfig.depositAmount,
           shippingCarrier: ship.carrier,
-          standardFee: ship.standardFee,
-          freeShippingMin: ship.freeShippingMin
+          shippingFee: ship.standardFee ?? ship.shippingFee ?? pay.shippingFee ?? parsedConfig.shippingFee,
+          freeShippingThreshold: ship.freeShippingMin ?? ship.freeShippingThreshold ?? pay.freeShippingThreshold ?? parsedConfig.freeShippingThreshold,
+          loyaltyDiscountPercent: loyalty.percent ?? parsedConfig.loyaltyDiscountPercent,
+          loyaltyMaxDiscount: loyalty.maxDiscount ?? parsedConfig.loyaltyMaxDiscount
         };
       }
     }
@@ -147,31 +171,40 @@ export async function fetchAllMasterDataFromSupabase() {
             .map((w) => ({
               id: w.weight_key || String(w.id),
               weight_key: w.weight_key,
-              label: w.label,
+              label: w.weight_label || w.label,
+              weight_label: w.weight_label || w.label,
               multiplier: Number(w.multiplier) || 1,
               priceOverride: w.price_override != null ? Number(w.price_override) : null,
+              price_override: w.price_override != null ? Number(w.price_override) : null,
               isDefault: Boolean(w.is_default)
             }))
-        : [{ id: 'std', weight_key: 'std', label: `1 ${p.unit || 'kg'}`, multiplier: 1, isDefault: true }];
+        : [{ id: 'std', weight_key: 'std', label: `1 ${p.unit || 'kg'}`, weight_label: `1 ${p.unit || 'kg'}`, multiplier: 1, isDefault: true }];
 
       return {
         id: p.id,
         name: p.name,
-        category: p.category,
+        category: p.category_id || p.category,
+        category_id: p.category_id || p.category,
         basePrice: Number(p.base_price) || 0,
+        base_price: Number(p.base_price) || 0,
         unit: p.unit,
         badge: p.badge,
         source: p.source,
         desc: p.description,
+        description: p.description,
         image: p.image_url,
+        image_url: p.image_url,
         inStock: p.in_stock !== false,
+        in_stock: p.in_stock !== false,
         campaign_gift_id: p.campaign_gift_id,
         campaign_tag: p.campaign_tag,
-        weights: weightsList
+        weights: weightsList,
+        product_weights: weightsList
       };
     });
 
-    const activeGifts = gifts || [];
+    // Chỉ giữ quà tặng thanh toán hợp lệ (loại trừ các món bị tắt)
+    const validPaymentGifts = (gifts || []).filter(g => g.type === 'payment_reward' && g.is_active !== false);
 
     return {
       categories: categories || [],
@@ -179,17 +212,20 @@ export async function fetchAllMasterDataFromSupabase() {
       posts: (posts || []).map((post) => ({
         ...post,
         image: post.image_url || post.image,
+        image_url: post.image_url || post.image,
         excerpt: post.excerpt || post.description || post.desc,
         readTime: post.read_time || post.readTime
       })),
       stories: (stories || []).map((s) => ({
         ...s,
         image: s.image_url || s.image,
-        story: s.story || s.content
+        image_url: s.image_url || s.image,
+        story: s.story || s.content,
+        content: s.story || s.content
       })),
       vouchers: vouchers || parsedConfig.vouchers || [],
-      giftsCatalog: activeGifts,
-      paymentGifts: activeGifts.filter(g => g.type === 'payment' || g.is_payment_gift),
+      giftsCatalog: validPaymentGifts,
+      paymentGifts: validPaymentGifts,
       config: parsedConfig,
       reviews: reviewRes?.data || []
     };

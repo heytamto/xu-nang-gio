@@ -10,12 +10,12 @@ import {
   Layers, 
   ChevronDown, 
   Check, 
-  Tag
+  Tag,
+  Loader2
 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
-// Danh mục chuẩn khớp với database Supabase
 const DEFAULT_CATEGORIES = [
   { id: 'cat01', label: 'Combo Ưu Đãi' },
   { id: 'cat02', label: 'Trái Cây Tươi Giàn' },
@@ -25,13 +25,11 @@ const DEFAULT_CATEGORIES = [
   { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
 ];
 
-// CÁC TÙY CHỌN CƠ CHẾ TÍNH GIÁ
 const CALC_TYPE_OPTIONS = [
   { value: 'multiplier', label: 'Nhân hệ số (x)' },
   { value: 'fixed', label: 'Giá cố định (VNĐ)' }
 ];
 
-// Danh sách trạng thái kho
 const STOCK_STATUS_OPTIONS = [
   {
     value: true,
@@ -49,7 +47,6 @@ const STOCK_STATUS_OPTIONS = [
   }
 ];
 
-// DROPDOWN CHỌN CƠ CHẾ TÍNH GIÁ (BO TRÒN, THEME KEM ẤM, KHÔNG BỊ VUÔNG XANH TRÌNH DUYỆT)
 function CustomCalcTypeSelect({ value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef(null);
@@ -115,7 +112,6 @@ function CustomCalcTypeSelect({ value, onChange }) {
   );
 }
 
-// DROPDOWN DANH MỤC PHÂN LOẠI & TRẠNG THÁI KHO
 function CustomSelect({ 
   label, 
   headerLabel = "DANH SÁCH TÙY CHỌN:",
@@ -149,7 +145,6 @@ function CustomSelect({
         </label>
       )}
 
-      {/* Button kích hoạt Dropdown */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
@@ -173,7 +168,6 @@ function CustomSelect({
         />
       </button>
 
-      {/* Menu xổ xuống bo tròn */}
       {isOpen && (
         <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm backdrop-blur-md">
           {headerLabel && (
@@ -237,6 +231,8 @@ export default function ProductsTab({
   onResetProducts
 }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     async function loadDbCategories() {
@@ -290,86 +286,120 @@ export default function ProductsTab({
     );
   };
 
-  const handleSubmit = (e) => {
+  // Ghi trực tiếp xuống Supabase Database và tự kích hoạt Sequence ID
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newProduct.name.trim() || !newProduct.basePrice) return;
 
-    const basePriceNum = Number(newProduct.basePrice) || 0;
+    setIsSubmitting(true);
+    setFormError('');
 
-    const finalWeights = weightsList
-      .filter((w) => w.label.trim())
-      .map((w, idx) => {
-        const isMultiplier = w.calcType === 'multiplier';
-        const numVal = Number(w.value) || 0;
+    try {
+      const basePriceNum = Number(newProduct.basePrice) || 0;
+      const defaultUnitLabel = newProduct.unit.trim() || 'kg';
 
-        return {
-          id: `opt-${idx + 1}`,
-          weight_key: `opt_${idx + 1}`,
-          label: w.label.trim(),
-          weight_label: w.label.trim(),
-          multiplier: isMultiplier ? (numVal > 0 ? numVal : 1) : 1,
-          price_override: isMultiplier ? null : numVal,
-          priceOverride: isMultiplier ? null : numVal,
-          is_default: idx === 0,
-          isDefault: idx === 0,
-          sort_order: idx
-        };
+      // 1. Thêm bản ghi vào bảng products (KHÔNG truyền ID để Supabase sequence tự sinh prd...)
+      const productInsertPayload = {
+        name: newProduct.name.trim(),
+        base_price: basePriceNum,
+        unit: defaultUnitLabel,
+        category_id: newProduct.category,
+        badge: newProduct.badge.trim(),
+        source: newProduct.source.trim(),
+        description: newProduct.desc.trim(),
+        image_url: newProduct.image.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80',
+        in_stock: newProduct.inStock,
+        created_at: new Date().toISOString()
+      };
+
+      const { data: insertedProduct, error: prodErr } = await supabase
+        .from('products')
+        .insert([productInsertPayload])
+        .select()
+        .single();
+
+      if (prodErr) throw prodErr;
+      if (!insertedProduct) throw new Error('Không nhận được dữ liệu phản hồi từ Supabase');
+
+      // 2. Chuẩn hóa và thêm danh sách quy cách vào bảng product_weights
+      const finalWeights = weightsList
+        .filter((w) => w.label.trim())
+        .map((w, idx) => {
+          const isMultiplier = w.calcType === 'multiplier';
+          const numVal = Number(w.value) || 0;
+
+          return {
+            product_id: insertedProduct.id,
+            weight_key: `opt_${idx + 1}`,
+            weight_label: w.label.trim(),
+            multiplier: isMultiplier ? (numVal > 0 ? numVal : 1) : 1,
+            price_override: isMultiplier ? null : numVal,
+            is_default: idx === 0,
+            sort_order: idx
+          };
+        });
+
+      const resolvedWeightsPayload = finalWeights.length > 0 ? finalWeights : [
+        {
+          product_id: insertedProduct.id,
+          weight_key: 'std',
+          weight_label: `1 ${defaultUnitLabel}`,
+          multiplier: 1,
+          price_override: null,
+          is_default: true,
+          sort_order: 0
+        }
+      ];
+
+      const { data: insertedWeights, error: weightsErr } = await supabase
+        .from('product_weights')
+        .insert(resolvedWeightsPayload)
+        .select();
+
+      if (weightsErr) {
+        console.warn('Lỗi khi chèn quy cách sản phẩm:', weightsErr);
+      }
+
+      // 3. Đóng gói sản phẩm hoàn chỉnh để đồng bộ lên State cha
+      const completedProduct = {
+        ...insertedProduct,
+        id: insertedProduct.id,
+        basePrice: insertedProduct.base_price,
+        image: insertedProduct.image_url,
+        inStock: insertedProduct.in_stock,
+        category: insertedProduct.category_id,
+        desc: insertedProduct.description,
+        weights: insertedWeights || resolvedWeightsPayload,
+        product_weights: insertedWeights || resolvedWeightsPayload
+      };
+
+      if (onAddProduct) {
+        onAddProduct(completedProduct);
+      }
+
+      // 4. Reset Form về trạng thái rỗng ban đầu
+      setNewProduct({
+        name: '',
+        basePrice: '',
+        unit: 'kg',
+        category: 'cat02',
+        badge: 'Đặc sản mới',
+        source: 'Vườn nhà Tâm (Phước Hậu)',
+        desc: '',
+        image: '',
+        inStock: true,
       });
 
-    const defaultUnitLabel = newProduct.unit.trim() || 'kg';
-    const resolvedWeights = finalWeights.length > 0 ? finalWeights : [
-      { 
-        id: 'opt-1', 
-        weight_key: 'std', 
-        label: `1 ${defaultUnitLabel}`, 
-        weight_label: `1 ${defaultUnitLabel}`,
-        multiplier: 1, 
-        price_override: null, 
-        priceOverride: null,
-        is_default: true, 
-        isDefault: true,
-        sort_order: 0 
-      }
-    ];
-
-    const payload = {
-      name: newProduct.name.trim(),
-      title: newProduct.name.trim(),
-      basePrice: basePriceNum,
-      base_price: basePriceNum,
-      price: basePriceNum,
-      unit: defaultUnitLabel,
-      category: newProduct.category,
-      category_id: newProduct.category,
-      badge: newProduct.badge.trim(),
-      source: newProduct.source.trim(),
-      desc: newProduct.desc.trim(),
-      description: newProduct.desc.trim(),
-      image: newProduct.image.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80',
-      image_url: newProduct.image.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80',
-      inStock: newProduct.inStock,
-      in_stock: newProduct.inStock,
-      weights: resolvedWeights,
-      product_weights: resolvedWeights
-    };
-
-    onAddProduct(payload);
-
-    setNewProduct({
-      name: '',
-      basePrice: '',
-      unit: 'kg',
-      category: 'cat02',
-      badge: 'Đặc sản mới',
-      source: 'Vườn nhà Tâm (Phước Hậu)',
-      desc: '',
-      image: '',
-      inStock: true,
-    });
-    setWeightsList([
-      { label: 'Thùng 2kg (Ăn thử)', calcType: 'multiplier', value: 2 },
-      { label: 'Thùng 5kg (Tiết kiệm)', calcType: 'fixed', value: 299000 }
-    ]);
+      setWeightsList([
+        { label: 'Thùng 2kg (Ăn thử)', calcType: 'multiplier', value: 2 },
+        { label: 'Thùng 5kg (Tiết kiệm)', calcType: 'fixed', value: 299000 }
+      ]);
+    } catch (err) {
+      console.error('Lỗi khi lưu sản phẩm vào Supabase:', err);
+      setFormError(err.message || 'Lỗi khi lưu vào cơ sở dữ liệu. Hãy kiểm tra lại quyền RLS.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -380,6 +410,12 @@ export default function ProductsTab({
           <Plus className="w-5 h-5 text-amber-700" />
           <span>Thêm Đặc Sản Mới Lên Kệ</span>
         </div>
+
+        {formError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {formError}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           {/* Hàng 1: Tên đặc sản + Danh mục */}
@@ -538,7 +574,6 @@ export default function ProductsTab({
                     key={idx} 
                     className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-white p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-amber-300 transition-all"
                   >
-                    {/* Ô nhập tên quy cách */}
                     <div className="flex-1 min-w-[200px]">
                       <input
                         type="text"
@@ -549,13 +584,11 @@ export default function ProductsTab({
                       />
                     </div>
 
-                    {/* Dropdown loại tính giá: theme kem ấm, bo tròn */}
                     <CustomCalcTypeSelect
                       value={row.calcType}
                       onChange={(val) => handleUpdateWeightRow(idx, 'calcType', val)}
                     />
 
-                    {/* Ô nhập hệ số hoặc số tiền */}
                     <div className="w-24 sm:w-28 shrink-0">
                       <input
                         type="number"
@@ -568,12 +601,10 @@ export default function ProductsTab({
                       />
                     </div>
 
-                    {/* Thẻ hiển thị thành tiền (Pill badge bo tròn đẹp mắt) */}
                     <div className="hidden sm:flex h-11 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 w-28 shadow-2xs">
                       {calculatedPrice.toLocaleString('vi-VN')}đ
                     </div>
 
-                    {/* Nút xóa quy cách */}
                     <button
                       type="button"
                       onClick={() => handleRemoveWeightRow(idx)}
@@ -603,10 +634,20 @@ export default function ProductsTab({
           <div className="flex items-center justify-end pt-2 border-t border-stone-100">
             <button
               type="submit"
-              className="px-7 py-3 bg-amber-700 hover:bg-amber-800 text-white rounded-2xl font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
+              disabled={isSubmitting}
+              className="px-7 py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white rounded-2xl font-bold flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer text-xs sm:text-sm"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Đăng Sản Phẩm Mới</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu vào cơ sở dữ liệu...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Đăng Sản Phẩm Mới</span>
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -661,6 +702,9 @@ export default function ProductsTab({
                     />
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg text-xs border border-amber-300/70">
+                          #{p.id}
+                        </span>
                         <span className="font-bold text-stone-900 text-sm sm:text-base truncate">{p.name || p.title}</span>
                         {p.badge && (
                           <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold shrink-0">

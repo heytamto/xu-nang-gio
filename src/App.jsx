@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import OrderLookupModal from './components/OrderLookupModal';
 import OrderSuccessModal from './components/checkout/OrderSuccessModal';
+import NewProductAnnouncementBar from './components/NewProductAnnouncementBar';
 
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
@@ -37,6 +38,9 @@ export default function App() {
   });
 
   const [shopConfig, setShopConfig] = useState(() => getShopConfig());
+
+  // Trạng thái hiển thị thực tế của Dải băng thông báo món mới
+  const [isAnnouncementVisible, setIsAnnouncementVisible] = useState(false);
 
   // Lưu danh mục được chọn từ HomePage để truyền sang ShopPage
   const [selectedShopCategory, setSelectedShopCategory] = useState(() => {
@@ -742,9 +746,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
+      {/* 1. DẢI BĂNG THÔNG BÁO MÓN MỚI (CHỈ HIỆN Ở CÁC TRANG CỦA KHÁCH HÀNG) */}
+      {currentPage !== 'admin' && currentPage !== 'packing' && (
+        <NewProductAnnouncementBar
+          products={products}
+          daysThreshold={7}
+          onVisibilityChange={setIsAnnouncementVisible}
+          onNavigateProduct={(product) => {
+            handleNavigateToShopCategory(product.category || 'all');
+          }}
+        />
+      )}
+
+      {/* 2. THANH NAVBAR ĐIỀU HƯỚNG */}
       {currentPage !== 'admin' && currentPage !== 'packing' && (
         <Navbar
           currentPage={currentPage}
+          hasAnnouncement={isAnnouncementVisible}
           onNavigate={(page) => {
             if (page === 'shop') handleNavigateToShopCategory('all');
             else navigateTo(page);
@@ -757,10 +775,18 @@ export default function App() {
           }}
           isCartBouncing={isCartBouncing}
           forceVisible={forceNavVisible}
+          shopConfig={shopConfig}
         />
       )}
 
-      <main className={`flex-1 w-full max-w-full ${currentPage !== 'admin' && currentPage !== 'packing' ? 'pt-16' : ''}`}>
+      {/* 3. THÂN TRANG VỚI PADDING TỰ ĐỘNG THEO TRẠNG THÁI THANH THÔNG BÁO */}
+      <main 
+        className={`flex-1 w-full max-w-full transition-[padding] duration-300 ${
+          currentPage !== 'admin' && currentPage !== 'packing' 
+            ? (isAnnouncementVisible ? 'pt-[105px] sm:pt-[121px]' : 'pt-16 sm:pt-20') 
+            : ''
+        }`}
+      >
         {currentPage === 'home' && (
           <HomePage
             products={products}

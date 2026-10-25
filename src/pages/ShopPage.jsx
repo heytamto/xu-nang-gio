@@ -20,6 +20,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import { supabase } from '../supabaseClient';
 
 const CATEGORY_ID_ICON_MAP = {
   cat01: Sparkles, // Combo Ưu Đãi
@@ -32,6 +33,7 @@ const CATEGORY_ID_ICON_MAP = {
 
 const SORT_OPTIONS = [
   { value: 'default', label: 'Mặc định' },
+  { value: 'newest', label: 'Mới nhất lên giàn' },
   { value: 'price-asc', label: 'Giá: Thấp → Cao' },
   { value: 'price-desc', label: 'Giá: Cao → Thấp' },
   { value: 'name', label: 'Tên: A → Z' },
@@ -39,13 +41,63 @@ const SORT_OPTIONS = [
 
 const POPULAR_SEARCHES = ['Táo gió', 'Nho xanh', 'Nho đỏ', 'Chả cá', 'Mực một nắng', 'Tỏi cô đơn'];
 
+// Hàm chuẩn hóa dữ liệu sản phẩm tương thích song song với DB và UI
+function normalizeProductData(p) {
+  const weightsList = Array.isArray(p.product_weights) && p.product_weights.length > 0
+    ? [...p.product_weights]
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((w) => ({
+          id: w.weight_key || String(w.id),
+          weight_key: w.weight_key,
+          label: w.weight_label || w.label,
+          weight_label: w.weight_label || w.label,
+          multiplier: Number(w.multiplier) || 1,
+          priceOverride: w.price_override != null ? Number(w.price_override) : null,
+          price_override: w.price_override != null ? Number(w.price_override) : null,
+          isDefault: Boolean(w.is_default)
+        }))
+    : (Array.isArray(p.weights) && p.weights.length > 0
+        ? p.weights
+        : [{ id: 'std', weight_key: 'std', label: `1 ${p.unit || 'kg'}`, weight_label: `1 ${p.unit || 'kg'}`, multiplier: 1, isDefault: true }]);
+
+  const catId = p.category_id || p.category || 'cat02';
+
+  return {
+    id: p.id,
+    name: p.name || p.title || '',
+    category: catId,
+    category_id: catId,
+    basePrice: Number(p.base_price ?? p.basePrice ?? p.price ?? 0),
+    base_price: Number(p.base_price ?? p.basePrice ?? p.price ?? 0),
+    price: Number(p.base_price ?? p.basePrice ?? p.price ?? 0),
+    unit: typeof p.unit === 'object' ? (p.unit?.label || 'kg') : (p.unit || 'kg'),
+    badge: p.badge || '',
+    source: p.source || '',
+    desc: p.description || p.desc || '',
+    description: p.description || p.desc || '',
+    image: p.image_url || p.image || '',
+    image_url: p.image_url || p.image || '',
+    inStock: p.in_stock !== false && p.inStock !== false,
+    in_stock: p.in_stock !== false && p.inStock !== false,
+    campaign_gift_id: p.campaign_gift_id,
+    campaign_tag: p.campaign_tag,
+    weights: weightsList,
+    product_weights: weightsList,
+    created_at: p.created_at || p.createdAt
+  };
+}
+
 export default function ShopPage({ 
-  products = [], 
+  products: initialProducts = [], 
   categories = [], 
   initialCategory = null, 
   onAddToCart, 
   onNavigate 
 }) {
+  const [localProducts, setLocalProducts] = useState(() => {
+    return Array.isArray(initialProducts) ? initialProducts.map(normalizeProductData) : [];
+  });
+
   const [selectedCategories, setSelectedCategories] = useState(() => {
     if (initialCategory && initialCategory !== 'all') {
       return [initialCategory];
@@ -67,6 +119,78 @@ export default function ShopPage({
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeftState, setScrollLeftState] = useState(0);
+
+  // Đồng bộ khi component cha (App.jsx) truyền danh sách mới
+  useEffect(() => {
+    if (Array.isArray(initialProducts) && initialProducts.length > 0) {
+      setLocalProducts(initialProducts.map(normalizeProductData));
+    }
+  }, [initialProducts]);
+
+  // LẮNG NGHE REALTIME: KHI CÓ SẢN PHẨM HOẶC QUY CÁCH MỚI LẬP TỨC TẢI LẠI
+  useEffect(() => {
+    const fetchFreshProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            id,
+            name,
+            category,
+            category_id,
+            base_price,
+            unit,
+            badge,
+            source,
+            description,
+            image_url,
+            in_stock,
+            campaign_gift_id,
+            campaign_tag,
+            created_at,
+            product_weights (
+              id,
+              weight_key,
+              label,
+              weight_label,
+              multiplier,
+              price_override,
+              is_default,
+              sort_order
+            )
+          `)
+          .order('id', { ascending: true });
+
+        if (!error && Array.isArray(data)) {
+          setLocalProducts(data.map(normalizeProductData));
+        }
+      } catch (err) {
+        console.warn('Lỗi đồng bộ realtime sản phẩm:', err);
+      }
+    };
+
+    const channel = supabase
+      .channel('shop-page-realtime-products')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          fetchFreshProducts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'product_weights' },
+        () => {
+          fetchFreshProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Debounce tìm kiếm 300ms
   useEffect(() => {
@@ -90,7 +214,7 @@ export default function ShopPage({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Đồng bộ category khi chuyển trang
+  // Đồng bộ category khi URL hoặc prop initialCategory thay đổi
   useEffect(() => {
     if (initialCategory && initialCategory !== 'all') {
       setSelectedCategories([initialCategory]);
@@ -142,17 +266,18 @@ export default function ShopPage({
     if (!searchInput.trim()) return [];
     const q = searchInput.toLowerCase().trim();
     const matches = new Set();
-    products.forEach((p) => {
+    localProducts.forEach((p) => {
       if (p.name && p.name.toLowerCase().includes(q)) matches.add(p.name);
       if (p.source && p.source.toLowerCase().includes(q)) matches.add(p.source);
     });
     return Array.from(matches).slice(0, 5);
-  }, [products, searchInput]);
+  }, [localProducts, searchInput]);
 
   const filteredProducts = useMemo(() => {
-    let result = products.filter((p) => {
+    let result = localProducts.filter((p) => {
+      const catKey = p.category_id || p.category;
       const matchCat =
-        selectedCategories.length === 0 || selectedCategories.includes(p.category);
+        selectedCategories.length === 0 || selectedCategories.includes(catKey);
 
       const query = debouncedQuery.toLowerCase();
       const matchSearch =
@@ -173,10 +298,16 @@ export default function ShopPage({
       result.sort((a, b) => getPrice(b) - getPrice(a));
     } else if (sortBy === 'name') {
       result.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'vi'));
+    } else if (sortBy === 'newest') {
+      result.sort((a, b) => {
+        const timeA = new Date(a.created_at || 0).getTime();
+        const timeB = new Date(b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
     }
 
     return result;
-  }, [products, selectedCategories, debouncedQuery, sortBy]);
+  }, [localProducts, selectedCategories, debouncedQuery, sortBy]);
 
   const displayCategories = useMemo(() => {
     return categories.filter((c) => c.id !== 'all');
@@ -184,11 +315,12 @@ export default function ShopPage({
 
   const categoryCounts = useMemo(() => {
     const counts = {};
-    products.forEach((p) => {
-      counts[p.category] = (counts[p.category] || 0) + 1;
+    localProducts.forEach((p) => {
+      const catKey = p.category_id || p.category;
+      counts[catKey] = (counts[catKey] || 0) + 1;
     });
     return counts;
-  }, [products]);
+  }, [localProducts]);
 
   const currentSortLabel = useMemo(() => {
     return SORT_OPTIONS.find((s) => s.value === sortBy)?.label || 'Mặc định';
@@ -374,7 +506,7 @@ export default function ShopPage({
             <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
               selectedCategories.length === 0 ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
             }`}>
-              {products.length}
+              {localProducts.length}
             </span>
           </button>
 

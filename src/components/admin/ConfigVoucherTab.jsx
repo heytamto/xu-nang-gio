@@ -70,7 +70,7 @@ function CustomDropdown({
         className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
             ? "bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold"
-            : "bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium"
+            : "bg-white hover:bg-stone-50/80 border-stone-200 hover:border-amber-500 shadow-2xs text-stone-800 font-medium"
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -220,12 +220,14 @@ export default function ConfigVoucherTab({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // CHỈ LẤY CÁC MÓN QUÀ CÓ TYPE LÀ payment_reward
   const loadGiftsFromDb = useCallback(async () => {
     setIsLoadingGifts(true);
     try {
       const { data, error } = await supabase
         .from("gifts")
         .select("*")
+        .eq("type", "payment_reward")
         .order("id", { ascending: true });
 
       if (error) throw error;
@@ -233,7 +235,7 @@ export default function ConfigVoucherTab({
         setGiftsList(data);
       }
     } catch (err) {
-      console.error("Lỗi tải danh mục quà từ bảng gifts:", err);
+      console.error("Lỗi tải danh mục quà payment_reward từ bảng gifts:", err);
     } finally {
       setIsLoadingGifts(false);
     }
@@ -242,11 +244,17 @@ export default function ConfigVoucherTab({
   useEffect(() => {
     loadGiftsFromDb();
 
+    // Lắng nghe Realtime chỉ riêng type = payment_reward
     const giftsChannel = supabase
-      .channel("admin-gifts-sync")
+      .channel("admin-payment-gifts-sync")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "gifts" },
+        {
+          event: "*",
+          schema: "public",
+          table: "gifts",
+          filter: "type=eq.payment_reward",
+        },
         (payload) => {
           if (payload.eventType === "UPDATE") {
             setGiftsList((prev) =>
@@ -784,9 +792,9 @@ export default function ConfigVoucherTab({
               "Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM",
             warehousePin: cfg.warehousePin,
             autoSendEmail: cfg.autoSendEmail,
-            shippingFee: cfg.shippingFee,
-            freeShippingThreshold: cfg.freeShippingThreshold,
-            enablePaymentGifts: cfg.enablePaymentGifts,
+            shippingFee: Number(cfg.shippingFee) || 0,
+            freeShippingThreshold: Number(cfg.freeShippingThreshold) || 0,
+            enablePaymentGifts: Boolean(cfg.enablePaymentGifts),
           },
           description:
             "Thông tin liên hệ chung, phí vận chuyển và cấu hình vận hành",
@@ -799,11 +807,11 @@ export default function ConfigVoucherTab({
             bankName: cfg.bankName,
             accountNo: cfg.accountNo,
             accountName: cfg.accountName,
-            depositAmount: cfg.depositAmount,
-            shippingFee: cfg.shippingFee,
-            freeShippingThreshold: cfg.freeShippingThreshold,
-            enablePaymentGifts: cfg.enablePaymentGifts,
-            enableGifts: cfg.enablePaymentGifts,
+            depositAmount: Number(cfg.depositAmount) || 0,
+            shippingFee: Number(cfg.shippingFee) || 0,
+            freeShippingThreshold: Number(cfg.freeShippingThreshold) || 0,
+            enablePaymentGifts: Boolean(cfg.enablePaymentGifts),
+            enableGifts: Boolean(cfg.enablePaymentGifts),
           },
           description:
             "Thông tin tài khoản VietQR, tiền cọc và cước vận chuyển",
@@ -812,8 +820,8 @@ export default function ConfigVoucherTab({
         {
           key: "loyalty",
           value: {
-            percent: cfg.loyaltyDiscountPercent,
-            maxDiscount: cfg.loyaltyMaxDiscount,
+            percent: Number(cfg.loyaltyDiscountPercent) || 0,
+            maxDiscount: Number(cfg.loyaltyMaxDiscount) || 0,
           },
           description: "Chính sách chiết khấu tri ân khách quen",
           updated_at: nowIso,
@@ -864,7 +872,7 @@ export default function ConfigVoucherTab({
       }
 
       onShowAlert?.(
-        "Đã lưu thành công cấu hình vận hành & Email templates!",
+        "Đã lưu thành công cấu hình vận hành & Email templates vào Database!",
       );
     } catch (err) {
       console.error("Lỗi lưu cấu hình:", err);
@@ -1129,23 +1137,34 @@ export default function ConfigVoucherTab({
 
                     let generalVal = generalRow?.value || {};
                     if (typeof generalVal === "string") {
-                      try { generalVal = JSON.parse(generalVal); } catch {}
+                      try {
+                        generalVal = JSON.parse(generalVal);
+                      } catch {}
                     }
 
-                    await supabase.from("shop_configs").upsert([
-                      {
-                        key: "general",
-                        value: { ...generalVal, enablePaymentGifts: nextVal },
-                        updated_at: nowIso,
-                      },
-                      {
-                        key: "payment",
-                        value: { ...cfg, enablePaymentGifts: nextVal, enableGifts: nextVal },
-                        updated_at: nowIso,
-                      }
-                    ], { onConflict: "key" });
+                    await supabase.from("shop_configs").upsert(
+                      [
+                        {
+                          key: "general",
+                          value: { ...generalVal, enablePaymentGifts: nextVal },
+                          updated_at: nowIso,
+                        },
+                        {
+                          key: "payment",
+                          value: {
+                            ...cfg,
+                            enablePaymentGifts: nextVal,
+                            enableGifts: nextVal,
+                          },
+                          updated_at: nowIso,
+                        },
+                      ],
+                      { onConflict: "key" },
+                    );
 
-                    onShowAlert?.(`Đã ${nextVal ? "bật" : "tắt"} chương trình quà tặng thành công!`);
+                    onShowAlert?.(
+                      `Đã ${nextVal ? "bật" : "tắt"} chương trình quà tặng thành công!`,
+                    );
                   } catch (err) {
                     console.error("Lỗi cập nhật cấu hình quà:", err);
                   }
@@ -1156,13 +1175,13 @@ export default function ConfigVoucherTab({
             </label>
           </div>
 
-          {/* QUẢN LÝ TRẠNG THÁI TỪNG MÓN CỦA BẢNG GIFTS */}
+          {/* QUẢN LÝ TRẠNG THÁI TỪNG MÓN CỦA BẢNG GIFTS (TYPE = payment_reward) */}
           {cfg.enablePaymentGifts && (
             <div className="p-5 sm:p-6 bg-stone-50/90 rounded-3xl border border-stone-200/80 space-y-4 animate-fadeIn">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-xs sm:text-sm font-bold text-stone-900 flex items-center gap-2">
                   <Gift className="w-4 h-4 text-amber-700" />
-                  <span>Danh Mục Quà Tặng ({giftsList.length} món)</span>
+                  <span>Danh Mục Quà Tặng Thanh Toán ({giftsList.length} món)</span>
                 </span>
                 <span className="text-xs text-stone-500 font-medium">
                   Click nút để đổi trạng thái trực tiếp trong database
@@ -1172,7 +1191,11 @@ export default function ConfigVoucherTab({
               {isLoadingGifts ? (
                 <div className="p-6 text-center text-xs sm:text-sm text-stone-500 flex items-center justify-center gap-2 font-medium">
                   <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
-                  <span>Đang tải danh sách quà từ bảng gifts...</span>
+                  <span>Đang tải danh sách quà tặng chuyển khoản...</span>
+                </div>
+              ) : giftsList.length === 0 ? (
+                <div className="p-6 text-center text-xs sm:text-sm text-stone-500 italic bg-white rounded-2xl border border-dashed border-stone-200 font-medium">
+                  Chưa có quà tặng nào thuộc loại <code>payment_reward</code> trong bảng gifts.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs sm:text-sm">
@@ -1735,7 +1758,7 @@ export default function ConfigVoucherTab({
         </button>
       </div>
 
-      {/* 5. MODAL TẠO MẪU EMAIL MỚI: PHÓNG TO max-w-2xl, KHÔNG GIAN THOÁNG ĐÃNG */}
+      {/* 5. MODAL TẠO MẪU EMAIL MỚI */}
       {isNewTemplateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-6">
@@ -1825,7 +1848,7 @@ export default function ConfigVoucherTab({
         </div>
       )}
 
-      {/* 6. MODAL CHỈNH SỬA VOUCHER: PHÓNG TO max-w-2xl, KHÔNG GIAN RỘNG RÃI */}
+      {/* 6. MODAL CHỈNH SỬA VOUCHER */}
       {editingVoucher && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-stone-200 space-y-6 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

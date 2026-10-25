@@ -1,7 +1,8 @@
 // src/components/admin/EditPostModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, ChevronDown } from 'lucide-react';
+import { X, Check, ChevronDown, Loader2 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
+import { supabase } from '../../supabaseClient';
 
 // BỘ CATEGORY TIẾNG ANH ĐỒNG BỘ CHUẨN
 const CATEGORY_OPTIONS = [
@@ -43,7 +44,7 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
         className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
             ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
+            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -62,7 +63,7 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
 
       {/* Menu dropdown xổ xuống */}
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px]">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px] backdrop-blur-md">
           <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
             DANH SÁCH CHUYÊN MỤC:
           </div>
@@ -104,8 +105,7 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
   );
 }
 
-export default function EditPostModal({ post, onClose, onSave }) {
-  // Chuẩn hóa category cũ về giá trị tiếng Anh nếu có
+export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
   const normalizeCategory = (cat) => {
     const map = {
       'cam-nang': 'handbook',
@@ -117,37 +117,100 @@ export default function EditPostModal({ post, onClose, onSave }) {
   };
 
   const [formData, setFormData] = useState({
-    ...post,
-    title: post?.title || '',
-    category: normalizeCategory(post?.category || post?.tag),
-    excerpt: post?.excerpt || post?.desc || post?.summary || '',
-    readTime: post?.read_time || post?.readTime || '3 phút đọc',
-    author: post?.author || 'Tâm (Vườn Xứ Nắng Gió)',
-    image: post?.image_url || post?.image || '',
-    content: post?.content || ''
+    title: '',
+    category: 'handbook',
+    excerpt: '',
+    readTime: '3 phút đọc',
+    author: 'Vườn Xứ Nắng',
+    image: '',
+    content: ''
   });
 
-  const handleSubmit = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (post) {
+      setFormData({
+        title: post.title || '',
+        category: normalizeCategory(post.category || post.tag),
+        excerpt: post.excerpt || post.desc || post.summary || '',
+        readTime: post.read_time || post.readTime || '3 phút đọc',
+        author: post.author || 'Vườn Xứ Nắng',
+        image: post.image || post.image_url || '',
+        content: post.content || ''
+      });
+      setErrorMessage('');
+    }
+  }, [post]);
+
+  if (!post) return null;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSave({
-      ...formData,
-      desc: formData.excerpt,
-      summary: formData.excerpt,
-      read_time: formData.readTime,
-      image_url: formData.image
-    });
+    if (!formData.title.trim() || !formData.excerpt.trim()) return;
+
+    setIsSubmitting(true);
+    setErrorMessage('');
+
+    try {
+      // Chuẩn hóa payload KHỚP 100% với DDL public.posts (KHÔNG gửi 'desc' hay 'summary')
+      const updatePayload = {
+        title: formData.title.trim(),
+        category: formData.category || 'handbook',
+        excerpt: formData.excerpt.trim(),
+        content: formData.content.trim() || formData.excerpt.trim(),
+        image: formData.image.trim() || null,
+        author: formData.author.trim() || 'Vườn Xứ Nắng',
+        read_time: formData.readTime.trim() || '3 phút đọc'
+      };
+
+      // 1. Cập nhật trực tiếp vào Supabase Database
+      const { data, error } = await supabase
+        .from('posts')
+        .update(updatePayload)
+        .eq('id', post.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const savedResult = data || { ...post, ...updatePayload };
+
+      // 2. Báo alert thành công nếu có
+      onShowAlert?.(`Đã cập nhật bài viết #${post.id} thành công!`);
+
+      // 3. Đồng bộ lên state component cha
+      if (onSave) {
+        onSave(savedResult);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Lỗi khi cập nhật bài viết vào Supabase:', err);
+      setErrorMessage(err.message || 'Không thể cập nhật bài viết vào cơ sở dữ liệu.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      {/* KHUNG MODAL CHUẨN RỘNG max-w-5xl (1024px) */}
+      {/* KHUNG MODAL RỘNG max-w-5xl */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-          <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
-            Cập Nhật Bài Viết & Ảnh Bìa
-          </h3>
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
+              Cập Nhật Bài Viết & Ảnh Bìa
+            </h3>
+            {post.id && (
+              <span className="font-mono text-amber-950 bg-amber-100 px-2.5 py-0.5 rounded-xl text-xs font-bold border border-amber-300/70 shadow-2xs">
+                #{post.id}
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -156,6 +219,12 @@ export default function EditPostModal({ post, onClose, onSave }) {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {errorMessage && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -208,7 +277,7 @@ export default function EditPostModal({ post, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Cập nhật ảnh bìa qua Supabase Storage */}
+          {/* Cập nhật ảnh bìa qua Supabase Storage bucket posts */}
           <ImageUploadField
             label="Cập nhật ảnh bìa bài viết"
             value={formData.image}
@@ -251,10 +320,20 @@ export default function EditPostModal({ post, onClose, onSave }) {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              disabled={isSubmitting}
+              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
-              <Check className="w-4 h-4 stroke-[2.5]" />
-              <span>Lưu Thay Đổi Bài Viết</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                  <span>Lưu Thay Đổi Bài Viết</span>
+                </>
+              )}
             </button>
           </div>
         </form>

@@ -1,10 +1,10 @@
 // src/components/admin/PostsTab.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, RotateCcw, Pencil, Trash2, Calendar, Clock, ChevronDown, Check } from 'lucide-react';
+import { Plus, RotateCcw, Pencil, Trash2, Calendar, Clock, ChevronDown, Check, Loader2 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { formatDate } from '../../utils/dateUtils';
+import { supabase } from '../../supabaseClient';
 
-// DANH MỤC VALUE TIẾNG ANH CHUẨN ĐẸP
 const CATEGORY_OPTIONS = [
   { value: 'handbook', label: 'Cẩm nang' },
   { value: 'health', label: 'Sức khỏe' },
@@ -12,7 +12,6 @@ const CATEGORY_OPTIONS = [
   { value: 'tips', label: 'Mẹo vặt' }
 ];
 
-// DROPDOWN CUSTOM BO TRÒN THEO MẪU DATABASE THƯ
 function CustomCategorySelect({ label, options = [], value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
@@ -37,14 +36,13 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
         </label>
       )}
 
-      {/* Nút kích hoạt */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={`w-full py-3 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
             ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
+            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -61,9 +59,8 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
         />
       </button>
 
-      {/* Menu dropdown xổ xuống */}
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm backdrop-blur-md">
           <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
             DANH SÁCH CHUYÊN MỤC:
           </div>
@@ -106,12 +103,43 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
 }
 
 export default function PostsTab({
-  posts = [],
+  posts: parentPosts = [],
   onAddPost,
   onEditPost,
   onDeletePost,
   onResetPosts
 }) {
+  const [localPosts, setLocalPosts] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (Array.isArray(parentPosts) && parentPosts.length > 0) {
+      setLocalPosts(parentPosts);
+    } else {
+      fetchPosts();
+    }
+  }, [parentPosts]);
+
+  const fetchPosts = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        setLocalPosts(data);
+      }
+    } catch (err) {
+      console.error('Lỗi tải posts:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const [newPost, setNewPost] = useState({
     title: '',
     category: 'handbook',
@@ -119,37 +147,86 @@ export default function PostsTab({
     excerpt: '',
     content: '',
     readTime: '3 phút đọc',
-    author: 'Tâm (Vườn Xứ Nắng Gió)'
+    author: 'Vườn Xứ Nắng'
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newPost.title.trim() || !newPost.excerpt.trim()) return;
 
-    onAddPost({
-      ...newPost,
-      desc: newPost.excerpt,
-      summary: newPost.excerpt,
-      image_url: newPost.image,
-      read_time: newPost.readTime,
-      created_at: new Date().toISOString()
-    });
+    setIsSubmitting(true);
+    setErrorMessage('');
 
-    setNewPost({
-      title: '',
-      category: 'handbook',
-      image: '',
-      excerpt: '',
-      content: '',
-      readTime: '3 phút đọc',
-      author: 'Tâm (Vườn Xứ Nắng Gió)'
-    });
+    try {
+      // Khớp chính xác với cấu trúc cột bảng public.posts
+      // Bỏ trường id để trigger set_post_id() tự động sinh mã
+      const payload = {
+        title: newPost.title.trim(),
+        category: newPost.category || 'handbook',
+        excerpt: newPost.excerpt.trim(),
+        content: newPost.content.trim() || newPost.excerpt.trim(),
+        image: newPost.image.trim() || null,
+        author: newPost.author.trim() || 'Vườn Xứ Nắng',
+        read_time: newPost.readTime.trim() || '3 phút đọc',
+        created_at: new Date().toISOString()
+      };
+
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ Supabase');
+
+      setLocalPosts((prev) => [data, ...prev]);
+
+      if (onAddPost) {
+        onAddPost(data);
+      }
+
+      setNewPost({
+        title: '',
+        category: 'handbook',
+        image: '',
+        excerpt: '',
+        content: '',
+        readTime: '3 phút đọc',
+        author: 'Vườn Xứ Nắng'
+      });
+    } catch (err) {
+      console.error('Lỗi khi lưu bài viết vào Supabase:', err);
+      setErrorMessage(err.message || 'Không thể lưu bài viết vào cơ sở dữ liệu.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id, title) => {
+    if (onDeletePost) {
+      onDeletePost(id, title);
+      return;
+    }
+
+    if (!window.confirm(`Xóa bài viết "${title}"?`)) return;
+
+    try {
+      const { error } = await supabase.from('posts').delete().eq('id', id);
+      if (error) throw error;
+      setLocalPosts((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error('Lỗi xóa bài viết:', err);
+      alert('Không thể xóa bài viết: ' + (err.message || 'Lỗi RLS'));
+    }
   };
 
   const getCategoryLabel = (val) => {
     const found = CATEGORY_OPTIONS.find((c) => c.value === val);
     return found ? found.label : (val || 'Cẩm nang');
   };
+
+  const postsList = localPosts;
 
   return (
     <div className="space-y-6 sm:space-y-7 animate-fadeIn font-sans text-stone-800">
@@ -159,6 +236,12 @@ export default function PostsTab({
           <Plus className="w-5 h-5 text-amber-700" />
           <span>Viết Bài Mới (Cẩm Nang & Mẹo Vặt)</span>
         </div>
+
+        {errorMessage && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -173,7 +256,6 @@ export default function PostsTab({
             />
           </div>
 
-          {/* Chuyên mục, Thời gian đọc & Tác giả */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
               <CustomCategorySelect
@@ -199,7 +281,7 @@ export default function PostsTab({
               <label className="font-bold text-stone-700 block mb-1.5">Tác giả</label>
               <input
                 type="text"
-                placeholder="Tâm (Vườn Xứ Nắng Gió)"
+                placeholder="Vườn Xứ Nắng"
                 value={newPost.author}
                 onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
                 className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
@@ -207,7 +289,6 @@ export default function PostsTab({
             </div>
           </div>
 
-          {/* Upload ảnh trực tiếp lên Supabase Storage bucket posts */}
           <ImageUploadField
             label="Ảnh bìa bài viết (Supabase Storage)"
             value={newPost.image}
@@ -241,10 +322,20 @@ export default function PostsTab({
           <div className="flex justify-end pt-2 border-t border-stone-100">
             <button
               type="submit"
-              className="px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Đăng Bài Viết Ngay</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu bài viết...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Đăng Bài Viết Ngay</span>
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -255,7 +346,7 @@ export default function PostsTab({
         <div className="flex items-center justify-between flex-wrap gap-3 border-b border-stone-100 pb-3.5">
           <div>
             <h2 className="text-base sm:text-lg font-black text-stone-900 tracking-tight">
-              Danh Sách Bài Đã Đăng ({posts.length})
+              Danh Sách Bài Đã Đăng ({postsList.length})
             </h2>
             <p className="text-xs sm:text-sm text-stone-500 font-medium mt-0.5">
               Chỉnh sửa nội dung, đổi ảnh hoặc gỡ bài viết khỏi hệ thống
@@ -273,17 +364,22 @@ export default function PostsTab({
           )}
         </div>
 
-        {posts.length === 0 ? (
+        {isLoading ? (
+          <div className="py-12 text-center text-stone-400 text-xs sm:text-sm flex items-center justify-center gap-2 font-medium">
+            <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
+            <span>Đang tải danh sách bài viết...</span>
+          </div>
+        ) : postsList.length === 0 ? (
           <div className="py-12 text-center text-stone-400 text-xs sm:text-sm italic font-medium">
             Chưa có bài viết nào được lưu.
           </div>
         ) : (
           <div className="divide-y divide-stone-100">
-            {posts.map((post, idx) => {
+            {postsList.map((post, idx) => {
               const displayDate = formatDate(post.created_at || post.date, 'Gần đây');
-              const summaryText = post.excerpt || post.desc || post.summary || '';
-              const postImageUrl = post.image_url || post.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
-              const readTimeText = post.read_time || post.readTime;
+              const summaryText = post.excerpt || '';
+              const postImageUrl = post.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
+              const readTimeText = post.read_time;
 
               return (
                 <div key={post.id || idx} className="py-4 flex items-start justify-between gap-4 text-xs sm:text-sm">
@@ -297,14 +393,23 @@ export default function PostsTab({
                       }}
                     />
                     <div className="space-y-1.5 min-w-0">
-                      <span className="font-bold text-stone-900 text-sm sm:text-base line-clamp-1 block leading-snug">
-                        {post.title}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {post.id && (
+                          <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg text-xs border border-amber-300/70">
+                            #{post.id}
+                          </span>
+                        )}
+                        <span className="font-bold text-stone-900 text-sm sm:text-base line-clamp-1 block leading-snug">
+                          {post.title}
+                        </span>
+                      </div>
+
                       {summaryText && (
                         <p className="text-stone-600 text-xs sm:text-sm line-clamp-2 leading-relaxed font-normal">
                           {summaryText}
                         </p>
                       )}
+
                       <div className="flex items-center gap-3 text-xs text-stone-500 font-medium">
                         <span className="inline-flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5 text-stone-400" />
@@ -322,12 +427,12 @@ export default function PostsTab({
 
                   <div className="shrink-0 flex items-center gap-2.5">
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-950 border border-amber-200/80 uppercase shadow-2xs">
-                      {getCategoryLabel(post.category || post.tag)}
+                      {getCategoryLabel(post.category)}
                     </span>
 
                     <button
                       type="button"
-                      onClick={() => onEditPost(post)}
+                      onClick={() => onEditPost && onEditPost(post)}
                       className="p-2 text-stone-400 hover:text-amber-700 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Chỉnh sửa bài viết"
                     >
@@ -336,7 +441,7 @@ export default function PostsTab({
 
                     <button
                       type="button"
-                      onClick={() => onDeletePost(post.id, post.title)}
+                      onClick={() => handleDelete(post.id, post.title)}
                       className="p-2 text-stone-400 hover:text-red-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Xóa bài viết"
                     >

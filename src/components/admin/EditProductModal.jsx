@@ -1,6 +1,6 @@
 // src/components/admin/EditProductModal.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Plus, Trash2, Star, Layers, ChevronDown } from 'lucide-react';
+import { X, Check, Plus, Trash2, Star, Layers, ChevronDown, Loader2 } from 'lucide-react';
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
@@ -173,8 +173,10 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
   );
 }
 
-export default function EditProductModal({ product, onClose, onSave }) {
+export default function EditProductModal({ product, onClose, onSave, onShowAlert }) {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     async function loadDbCategories() {
@@ -203,8 +205,8 @@ export default function EditProductModal({ product, onClose, onSave }) {
         const hasPriceOverride = w.price_override !== null && w.price_override !== undefined && w.price_override !== '';
         return {
           id: w.id || `opt_${idx + 1}`,
-          weight_key: w.weight_key || w.key || `w_${idx + 1}`,
-          label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
+          weight_key: w.weight_key || w.key || `opt_${idx + 1}`,
+          label: w.weight_label || w.label || `Quy cách ${idx + 1}`,
           calcType: hasPriceOverride ? 'fixed' : 'multiplier',
           val: hasPriceOverride ? Number(w.price_override) : (parseFloat(w.multiplier) || 1),
           multiplier: parseFloat(w.multiplier) || 1,
@@ -245,6 +247,8 @@ export default function EditProductModal({ product, onClose, onSave }) {
       weights: initialWeights
     };
   });
+
+  if (!product) return null;
 
   const handleUpdateWeightRow = (index, field, value) => {
     const updated = [...formData.weights];
@@ -308,41 +312,145 @@ export default function EditProductModal({ product, onClose, onSave }) {
     setFormData({ ...formData, weights: remaining });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.name?.trim() || !formData.basePrice) return;
 
-    const formattedWeights = formData.weights
-      .filter((w) => w.label.trim())
-      .map((w, idx) => ({
-        id: w.id,
-        weight_key: w.weight_key || `opt_${idx + 1}`,
-        label: w.label.trim(),
-        multiplier: w.calcType === 'multiplier' ? (Number(w.val) || 1) : 1,
-        price_override: w.calcType === 'fixed' ? (Number(w.val) || 0) : null,
-        is_default: Boolean(w.is_default),
-        sort_order: idx
-      }));
+    setIsSubmitting(true);
+    setErrorMessage('');
 
-    const payload = {
-      ...formData,
-      name: formData.name.trim(),
-      category: formData.category,
-      category_id: formData.category,
-      price: formData.basePrice,
-      base_price: formData.basePrice,
-      in_stock: formData.inStock,
-      image_url: formData.image,
-      description: formData.desc,
-      product_weights: formattedWeights.length > 0 ? formattedWeights : formData.weights,
-      weights: formattedWeights.length > 0 ? formattedWeights : formData.weights
-    };
+    try {
+      const basePriceNum = Number(formData.basePrice) || 0;
+      const defaultUnit = (formData.unit || 'kg').trim();
 
-    onSave(payload);
+      // 1. Cập nhật trực tiếp bảng products trên Supabase
+      const updateProductPayload = {
+        name: formData.name.trim(),
+        category_id: formData.category,
+        base_price: basePriceNum,
+        unit: defaultUnit,
+        badge: formData.badge?.trim() || '',
+        source: formData.source?.trim() || '',
+        description: formData.desc?.trim() || '',
+        image_url: formData.image?.trim() || '',
+        in_stock: Boolean(formData.inStock)
+      };
+
+      const { data: updatedProduct, error: prodErr } = await supabase
+        .from('products')
+        .update(updateProductPayload)
+        .eq('id', product.id)
+        .select()
+        .single();
+
+      if (prodErr) throw prodErr;
+
+      // 2. Chuẩn hóa và làm mới quy cách trong bảng product_weights
+      const formattedWeights = formData.weights
+        .filter((w) => w.label.trim())
+        .map((w, idx) => ({
+          product_id: product.id,
+          weight_key: w.weight_key || `opt_${idx + 1}`,
+          weight_label: w.label.trim(),
+          multiplier: w.calcType === 'multiplier' ? (Number(w.val) || 1) : 1,
+          price_override: w.calcType === 'fixed' ? (Number(w.val) || 0) : null,
+          is_default: Boolean(w.is_default),
+          sort_order: idx
+        }));
+
+      const resolvedWeightsPayload = formattedWeights.length > 0 ? formattedWeights : [
+        {
+          product_id: product.id,
+          weight_key: 'std',
+          weight_label: `1 ${defaultUnit}`,
+          multiplier: 1,
+          price_override: null,
+          is_default: true,
+          sort_order: 0
+        }
+      ];
+
+      // Xóa các quy cách cũ và chèn lại bộ quy cách mới đã cập nhật
+      const { error: delErr } = await supabase
+        .from('product_weights')
+        .delete()
+        .eq('product_id', product.id);
+
+      if (delErr) {
+        console.warn('Lưu ý khi dọn quy cách cũ:', delErr);
+      }
+
+      const { data: insertedWeights, error: weightsErr } = await supabase
+        .from('product_weights')
+        .insert(resolvedWeightsPayload)
+        .select();
+
+      if (weightsErr) {
+        console.warn('Lỗi khi chèn quy cách mới:', weightsErr);
+      }
+
+      // 3. Đóng gói sản phẩm hoàn chỉnh để đồng bộ state cha
+      const finalWeightsList = (insertedWeights && insertedWeights.length > 0)
+        ? insertedWeights.map((w) => ({
+            id: w.weight_key || String(w.id),
+            weight_key: w.weight_key,
+            label: w.weight_label || w.label,
+            weight_label: w.weight_label || w.label,
+            multiplier: Number(w.multiplier) || 1,
+            priceOverride: w.price_override != null ? Number(w.price_override) : null,
+            price_override: w.price_override != null ? Number(w.price_override) : null,
+            isDefault: Boolean(w.is_default)
+          }))
+        : resolvedWeightsPayload.map((w) => ({
+            id: w.weight_key,
+            weight_key: w.weight_key,
+            label: w.weight_label,
+            weight_label: w.weight_label,
+            multiplier: w.multiplier,
+            priceOverride: w.price_override,
+            isDefault: w.is_default
+          }));
+
+      const completedProduct = {
+        ...product,
+        ...updatedProduct,
+        id: product.id,
+        name: updateProductPayload.name,
+        category: updateProductPayload.category_id,
+        category_id: updateProductPayload.category_id,
+        basePrice: updateProductPayload.base_price,
+        base_price: updateProductPayload.base_price,
+        price: updateProductPayload.base_price,
+        unit: updateProductPayload.unit,
+        badge: updateProductPayload.badge,
+        source: updateProductPayload.source,
+        desc: updateProductPayload.description,
+        description: updateProductPayload.description,
+        image: updateProductPayload.image_url,
+        image_url: updateProductPayload.image_url,
+        inStock: updateProductPayload.in_stock,
+        in_stock: updateProductPayload.in_stock,
+        weights: finalWeightsList,
+        product_weights: finalWeightsList
+      };
+
+      onShowAlert?.(`Đã cập nhật đặc sản #${product.id} thành công!`);
+
+      if (onSave) {
+        onSave(completedProduct);
+      }
+
+      onClose();
+    } catch (err) {
+      console.error('Lỗi cập nhật sản phẩm vào Supabase:', err);
+      setErrorMessage(err.message || 'Không thể cập nhật sản phẩm vào cơ sở dữ liệu. Vui lòng kiểm tra quyền RLS.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      {/* Khung modal mở rộng max-w-5xl (1024px) tạo không gian thoáng đãng */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
@@ -362,6 +470,12 @@ export default function EditProductModal({ product, onClose, onSave }) {
           </button>
         </div>
 
+        {errorMessage && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {errorMessage}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
             <label className="font-bold text-stone-700 block mb-1.5">Tên đặc sản *</label>
@@ -374,7 +488,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
             />
           </div>
 
-          {/* Grid 12 cột: Danh mục 6 cột, Giá chuẩn 3 cột, Đơn vị chuẩn 3 cột */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 sm:gap-4">
             <div className="sm:col-span-6">
               <CustomCategorySelect
@@ -473,7 +586,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
                     key={w.id || index} 
                     className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-white p-3.5 rounded-2xl border border-stone-200 shadow-2xs hover:border-amber-300 transition-all"
                   >
-                    {/* Nút sao vàng mặc định: cố định 44x44px */}
                     <button
                       type="button"
                       onClick={() => handleSetDefaultWeight(index)}
@@ -487,7 +599,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
                       <Star className={`w-4 h-4 ${w.is_default ? 'fill-amber-600 text-amber-600' : ''}`} />
                     </button>
 
-                    {/* Tên quy cách: chiếm toàn bộ phần diện tích còn lại */}
                     <div className="flex-1 min-w-[240px]">
                       <input
                         type="text"
@@ -498,7 +609,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
                       />
                     </div>
 
-                    {/* Dropdown cơ chế tính giá: w-36 */}
                     <div className="w-36 shrink-0">
                       <CustomCalcTypeSelect
                         value={w.calcType}
@@ -506,7 +616,6 @@ export default function EditProductModal({ product, onClose, onSave }) {
                       />
                     </div>
 
-                    {/* Ô nhập hệ số hoặc số tiền: w-24 */}
                     <div className="w-24 shrink-0">
                       <input
                         type="number"
@@ -519,12 +628,10 @@ export default function EditProductModal({ product, onClose, onSave }) {
                       />
                     </div>
 
-                    {/* Thẻ hiển thị thành tiền: w-28 */}
                     <div className="hidden sm:flex h-11 px-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 w-28 shadow-2xs">
                       {calculatedPrice.toLocaleString('vi-VN')}đ
                     </div>
 
-                    {/* Nút xóa quy cách: cố định 44x44px */}
                     {formData.weights.length > 1 ? (
                       <button
                         type="button"
@@ -575,10 +682,20 @@ export default function EditProductModal({ product, onClose, onSave }) {
               </button>
               <button
                 type="submit"
-                className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+                disabled={isSubmitting}
+                className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
               >
-                <Check className="w-4 h-4 stroke-[2.5]" />
-                <span>Lưu Thay Đổi Sản Phẩm</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>Lưu Thay Đổi Sản Phẩm</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

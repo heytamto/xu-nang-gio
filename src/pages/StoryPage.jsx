@@ -1,5 +1,5 @@
 // src/pages/StoryPage.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sun, 
   Flame, 
@@ -13,6 +13,7 @@ import {
   Compass,
   CheckCircle2
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 // Format ngày từ ISO timestamp của Supabase (hoặc định dạng dd/MM/yyyy)
 function formatStoryDate(dateVal) {
@@ -31,17 +32,69 @@ function formatStoryDate(dateVal) {
   return str;
 }
 
-export default function StoryPage({ stories = [], onNavigate }) {
+export default function StoryPage({ stories: initialStories = [], onNavigate }) {
+  const [storiesList, setStoriesList] = useState(() => {
+    return Array.isArray(initialStories) ? [...initialStories] : [];
+  });
+
+  // Đồng bộ khi component cha (App.jsx) truyền danh sách mới
+  useEffect(() => {
+    if (Array.isArray(initialStories) && initialStories.length > 0) {
+      setStoriesList(initialStories);
+    }
+  }, [initialStories]);
+
+  // LẮNG NGHE SUPABASE REALTIME: ĐĂNG BÀI MỚI LẬP TỨC HIỆN RA GIAO DIỆN
+  useEffect(() => {
+    const channel = supabase
+      .channel('story-page-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'stories' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newStory = {
+              ...payload.new,
+              image: payload.new.image || payload.new.image_url,
+              image_url: payload.new.image_url || payload.new.image,
+              content: payload.new.content || payload.new.story
+            };
+            setStoriesList((prev) => [newStory, ...prev.filter((s) => s.id !== newStory.id)]);
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedStory = {
+              ...payload.new,
+              image: payload.new.image || payload.new.image_url,
+              image_url: payload.new.image_url || payload.new.image,
+              content: payload.new.content || payload.new.story
+            };
+            setStoriesList((prev) =>
+              prev.map((s) => (s.id === updatedStory.id ? updatedStory : s))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setStoriesList((prev) => prev.filter((s) => s.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const handleGoToShop = () => {
     if (onNavigate) {
       onNavigate('shop');
     }
   };
 
-  // Đảm bảo stories sắp xếp chuẩn theo "order" hoặc ngày tạo
-  const sortedStories = Array.isArray(stories) 
-    ? [...stories].sort((a, b) => (Number(a.order ?? 0) - Number(b.order ?? 0)))
-    : [];
+  // Sắp xếp: Ưu tiên bài mới đăng nhất lên đầu (theo created_at giảm dần)
+  const sortedStories = [...storiesList].sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    if (timeA !== timeB) return timeB - timeA;
+    return (Number(a.order ?? 0) - Number(b.order ?? 0));
+  });
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">

@@ -14,8 +14,9 @@ export default function StoriesTab({
 }) {
   const [localStories, setLocalStories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Tự động tải từ Supabase nếu component cha truyền mảng rỗng
   useEffect(() => {
     if (Array.isArray(parentStories) && parentStories.length > 0) {
       setLocalStories(parentStories);
@@ -32,7 +33,7 @@ export default function StoriesTab({
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data)) {
         setLocalStories(data);
       }
     } catch (err) {
@@ -56,50 +57,95 @@ export default function StoriesTab({
     e.preventDefault();
     if (!newStory.title.trim() || (!newStory.quote.trim() && !newStory.story.trim())) return;
 
-    const payload = {
-      ...newStory,
-      content: newStory.story || newStory.quote,
-      desc: newStory.quote,
-      image_url: newStory.image,
-      created_at: new Date().toISOString()
-    };
+    setIsSubmitting(true);
+    setErrorMessage('');
 
-    if (onAddStory) {
-      onAddStory(payload);
-    } else {
-      // Tự thêm vào DB nếu không có handler từ cha
+    try {
+      const nowIso = new Date().toISOString();
+      const storyText = newStory.story.trim() || newStory.quote.trim();
+      const imageUrl = newStory.image.trim() || null;
+
+      // KHỚP CHÍNH XÁC CÁC CỘT TRONG public.stories (TUYỆT ĐỐI KHÔNG TRUYỀN 'desc')
+      // Bỏ trường id để trigger trigger_set_story_id tự sinh mã
+      const payload = {
+        title: newStory.title.trim(),
+        season: newStory.season.trim() || 'Vụ Thu Đông',
+        location: newStory.location.trim() || 'Ninh Thuận',
+        author: newStory.author.trim() || 'Tâm Xứ Nắng',
+        quote: newStory.quote.trim() || null,
+        story: storyText,
+        content: storyText,
+        image: imageUrl,
+        image_url: imageUrl,
+        order: 0,
+        created_at: nowIso
+      };
+
       const { data, error } = await supabase
         .from('stories')
         .insert([payload])
         .select()
         .single();
 
-      if (!error && data) {
-        setLocalStories((prev) => [data, ...prev]);
+      if (error) throw error;
+      if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ Supabase');
+
+      setLocalStories((prev) => [data, ...prev]);
+
+      if (onAddStory) {
+        onAddStory(data);
       }
+
+      setNewStory({
+        title: '',
+        season: 'Vụ Thu Đông',
+        quote: '',
+        story: '',
+        image: '',
+        location: 'Giàn nho Thái An',
+        author: 'Tâm Xứ Nắng'
+      });
+    } catch (err) {
+      console.error('Lỗi khi lưu chuyện vườn vào Supabase:', err);
+      setErrorMessage(err.message || 'Không thể lưu câu chuyện vào cơ sở dữ liệu.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id, title) => {
+    if (onDeleteStory) {
+      onDeleteStory(id, title);
+      return;
     }
 
-    setNewStory({
-      title: '',
-      season: 'Vụ Thu Đông',
-      quote: '',
-      story: '',
-      image: '',
-      location: 'Giàn nho Thái An',
-      author: 'Tâm Xứ Nắng'
-    });
+    if (!window.confirm(`Xóa câu chuyện "${title}"?`)) return;
+
+    try {
+      const { error } = await supabase.from('stories').delete().eq('id', id);
+      if (error) throw error;
+      setLocalStories((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error('Lỗi xóa story:', err);
+      alert('Không thể xóa: ' + (err.message || 'Lỗi RLS'));
+    }
   };
 
   const storiesList = localStories;
 
   return (
     <div className="space-y-6 sm:space-y-7 animate-fadeIn font-sans text-stone-800">
-      {/* Form viết chuyện mới */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
         <div className="flex items-center gap-2.5 text-stone-900 font-black text-sm sm:text-base border-b border-stone-100 pb-3.5">
           <Feather className="w-5 h-5 text-amber-700" />
           <span>Viết Chuyện Mới (Chuyện Vườn & Đời Sống Nắng Gió)</span>
         </div>
+
+        {errorMessage && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-bold rounded-2xl">
+            {errorMessage}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
           <div>
@@ -185,16 +231,25 @@ export default function StoriesTab({
           <div className="flex justify-end pt-2 border-t border-stone-100">
             <button
               type="submit"
-              className="px-6 py-3 bg-amber-700 hover:bg-amber-800 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Đăng Chuyện Vườn Ngay</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu câu chuyện...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Đăng Chuyện Vườn Ngay</span>
+                </>
+              )}
             </button>
           </div>
         </form>
       </div>
 
-      {/* Danh sách các câu chuyện */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
         <div className="flex items-center justify-between flex-wrap gap-3 border-b border-stone-100 pb-3.5">
           <div>
@@ -229,9 +284,9 @@ export default function StoriesTab({
         ) : (
           <div className="divide-y divide-stone-100">
             {storiesList.map((storyItem, idx) => {
-              const displayDate = formatDate(storyItem.created_at || storyItem.date, 'Gần đây');
-              const displayExcerpt = storyItem.quote || storyItem.desc || storyItem.story || storyItem.content || 'Chuyện làm vườn mùa nắng gió...';
-              const displayImage = storyItem.image_url || storyItem.image || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
+              const displayDate = formatDate(storyItem.created_at, 'Gần đây');
+              const displayExcerpt = storyItem.quote || storyItem.story || storyItem.content || 'Chuyện làm vườn mùa nắng gió...';
+              const displayImage = storyItem.image || storyItem.image_url || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
 
               return (
                 <div key={storyItem.id || idx} className="py-4 flex items-start justify-between gap-4 text-xs sm:text-sm">
@@ -246,6 +301,11 @@ export default function StoriesTab({
                     />
                     <div className="space-y-1.5 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        {storyItem.id && (
+                          <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg text-xs border border-amber-300/70">
+                            #{storyItem.id}
+                          </span>
+                        )}
                         <span className="font-bold text-stone-900 text-sm sm:text-base line-clamp-1 block leading-snug">
                           {storyItem.title}
                         </span>
@@ -293,7 +353,7 @@ export default function StoriesTab({
 
                     <button
                       type="button"
-                      onClick={() => onDeleteStory && onDeleteStory(storyItem.id, storyItem.title)}
+                      onClick={() => handleDelete(storyItem.id, storyItem.title)}
                       className="p-2 text-stone-400 hover:text-red-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Xóa câu chuyện"
                     >

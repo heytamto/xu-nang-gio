@@ -414,6 +414,105 @@ export default function AdminPage({
     showSavedToast('Đã lưu bài viết cẩm nang!');
   };
 
+  // Xử lý bật/tắt bán đồng bộ trực tiếp Supabase Database
+  const handleToggleProductStock = async (productId) => {
+    const targetProduct = products.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    const nextStock = !(targetProduct.inStock ?? targetProduct.in_stock ?? true);
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ in_stock: nextStock })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      const updated = products.map((p) =>
+        p.id === productId ? { ...p, inStock: nextStock, in_stock: nextStock } : p
+      );
+      handleSaveProducts(updated);
+      showSavedToast(`Đã ${nextStock ? 'mở bán' : 'tắt bán'} sản phẩm #${productId}`);
+    } catch (err) {
+      console.error('Lỗi cập nhật trạng thái kho:', err);
+      setModalConfig({
+        title: 'Lỗi Cập Nhật Kho',
+        message: err.message || 'Không thể đổi trạng thái kho. Vui lòng kiểm tra quyền RLS.',
+        isAlert: true
+      });
+    }
+  };
+
+  // Xử lý xóa sản phẩm đồng bộ trực tiếp Supabase Database
+  const handleDeleteProduct = (productId, productName) => {
+    setModalConfig({
+      title: 'Gỡ Khỏi Kệ Bán',
+      message: `Bạn có chắc muốn xóa vĩnh viễn "${productName}" (#${productId}) khỏi cơ sở dữ liệu?`,
+      confirmLabel: 'Đồng ý xóa',
+      onConfirm: async () => {
+        try {
+          // Xóa quy cách trước tránh vướng khóa ngoại
+          await supabase.from('product_weights').delete().eq('product_id', productId);
+          const { error } = await supabase.from('products').delete().eq('id', productId);
+
+          if (error) throw error;
+
+          const updated = products.filter((p) => p.id !== productId);
+          handleSaveProducts(updated);
+          showSavedToast(`Đã xóa vĩnh viễn "${productName}"`);
+        } catch (err) {
+          console.error('Lỗi xóa sản phẩm:', err);
+          setModalConfig({ title: 'Lỗi Xóa Sản Phẩm', message: err.message, isAlert: true });
+        }
+      }
+    });
+  };
+
+  // Xử lý xóa câu chuyện đồng bộ trực tiếp Supabase Database
+  const handleDeleteStory = (storyId, storyTitle) => {
+    setModalConfig({
+      title: 'Xóa Chuyện Vườn',
+      message: `Bạn có chắc muốn xóa mẩu chuyện "${storyTitle}" (#${storyId}) khỏi cơ sở dữ liệu?`,
+      confirmLabel: 'Xóa chuyện',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('stories').delete().eq('id', storyId);
+          if (error) throw error;
+
+          const updated = stories.filter((s) => s.id !== storyId);
+          handleSaveStories(updated);
+          showSavedToast(`Đã xóa câu chuyện "${storyTitle}"`);
+        } catch (err) {
+          console.error('Lỗi xóa câu chuyện:', err);
+          setModalConfig({ title: 'Lỗi Xóa Câu Chuyện', message: err.message, isAlert: true });
+        }
+      }
+    });
+  };
+
+  // Xử lý xóa bài viết cẩm nang đồng bộ trực tiếp Supabase Database
+  const handleDeletePost = (postId, postTitle) => {
+    setModalConfig({
+      title: 'Xóa Bài Viết',
+      message: `Bạn có chắc muốn xóa bài "${postTitle}" (#${postId}) khỏi cẩm nang?`,
+      confirmLabel: 'Xóa bài',
+      onConfirm: async () => {
+        try {
+          const { error } = await supabase.from('posts').delete().eq('id', postId);
+          if (error) throw error;
+
+          const updated = posts.filter((p) => p.id !== postId);
+          handleSavePosts(updated);
+          showSavedToast(`Đã xóa bài viết "${postTitle}"`);
+        } catch (err) {
+          console.error('Lỗi xóa bài viết:', err);
+          setModalConfig({ title: 'Lỗi Xóa Bài Viết', message: err.message, isAlert: true });
+        }
+      }
+    });
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4 py-12 font-sans animate-fadeIn text-stone-800">
@@ -430,7 +529,6 @@ export default function AdminPage({
           </div>
 
           <div className="space-y-4">
-            {/* Nút đăng nhập Google tuỳ chỉnh sạch sẽ với useGoogleLogin */}
             <button
               type="button"
               disabled={isGoogleLoading}
@@ -674,28 +772,12 @@ export default function AdminPage({
           <ProductsTab
             products={products}
             onAddProduct={(newProd) => {
-              const item = {
-                id: 'sp-' + Date.now(),
-                ...newProd,
-                basePrice: Number(newProd.basePrice) || 0,
-              };
-              handleSaveProducts([item, ...products]);
+              // newProd đã được lưu vào Supabase và có ID chuẩn từ DB
+              handleSaveProducts([newProd, ...products]);
             }}
             onEditProduct={(p) => setEditingProduct(p)}
-            onToggleStock={(id) => {
-              const updated = products.map((p) => (p.id === id ? { ...p, inStock: !p.inStock } : p));
-              handleSaveProducts(updated);
-            }}
-            onDeleteProduct={(id, name) => {
-              setModalConfig({
-                title: 'Gỡ Khỏi Kệ Bán',
-                message: `Xóa "${name}" khỏi kệ hàng?`,
-                confirmLabel: 'Đồng ý xóa',
-                onConfirm: () => {
-                  handleSaveProducts(products.filter((p) => p.id !== id));
-                }
-              });
-            }}
+            onToggleStock={handleToggleProductStock}
+            onDeleteProduct={handleDeleteProduct}
             onResetProducts={() => {
               setModalConfig({
                 title: 'Khôi Phục',
@@ -711,24 +793,11 @@ export default function AdminPage({
           <StoriesTab
             stories={stories}
             onAddStory={(newStory) => {
-              const item = {
-                id: 'story-' + Date.now(),
-                ...newStory,
-                date: formatDate(new Date())
-              };
-              handleSaveStories([item, ...stories]);
+              // newStory đã được lưu vào Supabase và có ID chuẩn từ DB
+              handleSaveStories([newStory, ...stories]);
             }}
             onEditStory={(s) => setEditingStory(s)}
-            onDeleteStory={(id, title) => {
-              setModalConfig({
-                title: 'Xóa Chuyện Vườn',
-                message: `Xóa mẩu chuyện "${title}" khỏi hệ thống?`,
-                confirmLabel: 'Xóa chuyện',
-                onConfirm: () => {
-                  handleSaveStories(stories.filter((s) => s.id !== id));
-                }
-              });
-            }}
+            onDeleteStory={handleDeleteStory}
             onResetStories={onResetStories ? () => {
               setModalConfig({
                 title: 'Khôi Phục',
@@ -744,24 +813,11 @@ export default function AdminPage({
           <PostsTab
             posts={posts}
             onAddPost={(newPost) => {
-              const item = {
-                id: 'post-' + Date.now(),
-                ...newPost,
-                date: formatDate(new Date())
-              };
-              handleSavePosts([item, ...posts]);
+              // newPost đã được lưu vào Supabase và có ID chuẩn từ DB
+              handleSavePosts([newPost, ...posts]);
             }}
             onEditPost={(p) => setEditingPost(p)}
-            onDeletePost={(id, title) => {
-              setModalConfig({
-                title: 'Xóa Bài Viết',
-                message: `Xóa bài "${title}" khỏi cẩm nang?`,
-                confirmLabel: 'Xóa bài',
-                onConfirm: () => {
-                  handleSavePosts(posts.filter((p) => p.id !== id));
-                }
-              });
-            }}
+            onDeletePost={handleDeletePost}
             onResetPosts={() => {
               setModalConfig({
                 title: 'Khôi Phục',
@@ -808,6 +864,7 @@ export default function AdminPage({
             handleSaveProducts(products.map((p) => (p.id === updated.id ? updated : p)));
             setEditingProduct(null);
           }}
+          onShowAlert={showSavedToast}
         />
       )}
 
@@ -819,6 +876,7 @@ export default function AdminPage({
             handleSaveStories(stories.map((s) => (s.id === updated.id ? updated : s)));
             setEditingStory(null);
           }}
+          onShowAlert={showSavedToast}
         />
       )}
 
@@ -830,6 +888,7 @@ export default function AdminPage({
             handleSavePosts(posts.map((p) => (p.id === updated.id ? updated : p)));
             setEditingPost(null);
           }}
+          onShowAlert={showSavedToast}
         />
       )}
 

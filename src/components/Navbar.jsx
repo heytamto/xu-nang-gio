@@ -10,7 +10,8 @@ export default function Navbar({
   onOpenLookup,
   isCartBouncing = false,
   forceVisible = false,
-  shopConfig = {}
+  shopConfig = {},
+  hasAnnouncement = false
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -26,7 +27,6 @@ export default function Navbar({
     { id: 'blog', label: 'Cẩm Nang' },
   ];
 
-  // Luôn giữ Navbar hiển thị ở trang checkout hoặc khi forceVisible = true
   const shouldAlwaysShow = forceVisible || currentPage === 'checkout';
 
   useEffect(() => {
@@ -56,29 +56,25 @@ export default function Navbar({
 
   const handleCartClick = () => {
     setIsMobileMenuOpen(false);
-    if (onNavigate) {
-      onNavigate('checkout');
-    }
+    if (onNavigate) onNavigate('checkout');
   };
 
   const handleLookupClick = () => {
     setIsMobileMenuOpen(false);
-    if (onOpenLookup) {
-      onOpenLookup();
-    }
+    if (onOpenLookup) onOpenLookup();
   };
 
   const handleNavClick = (id) => {
     setIsMobileMenuOpen(false);
-    if (onNavigate) {
-      onNavigate(id);
-    }
+    if (onNavigate) onNavigate(id);
   };
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 transition-transform duration-300 ease-in-out font-sans ${
-        isVisible ? 'translate-y-0 shadow-lg' : '-translate-y-full shadow-none'
+      className={`fixed left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 transition-all duration-300 ease-in-out font-sans ${
+        hasAnnouncement ? 'top-[41px]' : 'top-0'
+      } ${
+        isVisible ? 'translate-y-0 shadow-lg' : '-translate-y-[150%] shadow-none'
       }`}
     >
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
@@ -185,7 +181,7 @@ export default function Navbar({
             )}
           </button>
 
-          {/* Nút Toggle Menu Mobile trên Header */}
+          {/* Nút Toggle Menu Mobile */}
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -200,7 +196,6 @@ export default function Navbar({
       {/* Menu thả xuống trên Mobile */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-stone-900/98 border-b border-stone-800 px-4 sm:px-6 py-4 space-y-2 animate-fadeIn shadow-2xl">
-          {/* Header phụ của Menu: Tiêu đề & Nút bấm X đóng nhanh */}
           <div className="flex items-center justify-between pb-2 border-b border-stone-800/80 text-xs font-bold text-stone-400 uppercase tracking-wider">
             <span>Danh mục điều hướng</span>
             <button
@@ -214,7 +209,6 @@ export default function Navbar({
             </button>
           </div>
 
-          {/* Danh sách các tab */}
           <div className="space-y-1 pt-1">
             {navItems.map((item) => (
               <button
@@ -233,7 +227,6 @@ export default function Navbar({
             ))}
           </div>
 
-          {/* Nút Tra cứu đơn hàng */}
           <button
             type="button"
             onClick={handleLookupClick}
