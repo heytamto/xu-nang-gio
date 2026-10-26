@@ -49,8 +49,8 @@ function normalizeProductData(p) {
         .map((w) => ({
           id: w.weight_key || String(w.id),
           weight_key: w.weight_key,
-          label: w.weight_label || w.label,
-          weight_label: w.weight_label || w.label,
+          label: w.label || w.weight_label,
+          weight_label: w.label || w.weight_label,
           multiplier: Number(w.multiplier) || 1,
           priceOverride: w.price_override != null ? Number(w.price_override) : null,
           price_override: w.price_override != null ? Number(w.price_override) : null,
@@ -60,7 +60,7 @@ function normalizeProductData(p) {
         ? p.weights
         : [{ id: 'std', weight_key: 'std', label: `1 ${p.unit || 'kg'}`, weight_label: `1 ${p.unit || 'kg'}`, multiplier: 1, isDefault: true }]);
 
-  const catId = p.category_id || p.category || 'cat02';
+  const catId = p.category || p.category_id || 'cat02';
 
   return {
     id: p.id,
@@ -91,6 +91,7 @@ export default function ShopPage({
   products: initialProducts = [], 
   categories = [], 
   initialCategory = null, 
+  highlightedProductId = null, // ID sản phẩm cần nhấp nháy
   onAddToCart, 
   onNavigate 
 }) {
@@ -105,6 +106,7 @@ export default function ShopPage({
     return [];
   });
 
+  const [isFilterNewOnly, setIsFilterNewOnly] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -120,6 +122,19 @@ export default function ShopPage({
   const [startX, setStartX] = useState(0);
   const [scrollLeftState, setScrollLeftState] = useState(0);
 
+  // TỰ ĐỘNG CUỘN ĐẾN THẺ SẢN PHẨM KHI BẤM "XEM NGAY"
+  useEffect(() => {
+    if (highlightedProductId) {
+      const scrollTimer = setTimeout(() => {
+        const el = document.getElementById(`product-card-${highlightedProductId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 250);
+      return () => clearTimeout(scrollTimer);
+    }
+  }, [highlightedProductId]);
+
   // Đồng bộ khi component cha (App.jsx) truyền danh sách mới
   useEffect(() => {
     if (Array.isArray(initialProducts) && initialProducts.length > 0) {
@@ -127,7 +142,7 @@ export default function ShopPage({
     }
   }, [initialProducts]);
 
-  // LẮNG NGHE REALTIME: KHI CÓ SẢN PHẨM HOẶC QUY CÁCH MỚI LẬP TỨC TẢI LẠI
+  // LẮNG NGHE REALTIME: ĐÃ CHUẨN HÓA CỘT THEO ĐÚNG DDL
   useEffect(() => {
     const fetchFreshProducts = async () => {
       try {
@@ -137,7 +152,6 @@ export default function ShopPage({
             id,
             name,
             category,
-            category_id,
             base_price,
             unit,
             badge,
@@ -152,7 +166,6 @@ export default function ShopPage({
               id,
               weight_key,
               label,
-              weight_label,
               multiplier,
               price_override,
               is_default,
@@ -218,6 +231,7 @@ export default function ShopPage({
   useEffect(() => {
     if (initialCategory && initialCategory !== 'all') {
       setSelectedCategories([initialCategory]);
+      setIsFilterNewOnly(false);
     } else if (initialCategory === 'all') {
       setSelectedCategories([]);
     }
@@ -249,6 +263,7 @@ export default function ShopPage({
   };
 
   const handleToggleCategory = (catId) => {
+    setIsFilterNewOnly(false);
     setSelectedCategories((prev) => {
       if (prev.includes(catId)) {
         return prev.filter((id) => id !== catId);
@@ -260,7 +275,18 @@ export default function ShopPage({
 
   const handleSelectAllCategories = () => {
     setSelectedCategories([]);
+    setIsFilterNewOnly(false);
   };
+
+  // Đếm số món mới được tạo trong vòng 7 ngày
+  const newProductsCount = useMemo(() => {
+    const now = Date.now();
+    const thresholdMs = 7 * 24 * 60 * 60 * 1000;
+    return localProducts.filter((p) => {
+      const createdTime = new Date(p.created_at || 0).getTime();
+      return createdTime > 0 && (now - createdTime) <= thresholdMs;
+    }).length;
+  }, [localProducts]);
 
   const searchSuggestions = useMemo(() => {
     if (!searchInput.trim()) return [];
@@ -274,8 +300,17 @@ export default function ShopPage({
   }, [localProducts, searchInput]);
 
   const filteredProducts = useMemo(() => {
+    const now = Date.now();
+    const thresholdMs = 7 * 24 * 60 * 60 * 1000;
+
     let result = localProducts.filter((p) => {
-      const catKey = p.category_id || p.category;
+      // Lọc theo tag món mới
+      if (isFilterNewOnly) {
+        const createdTime = new Date(p.created_at || 0).getTime();
+        if (createdTime <= 0 || (now - createdTime) > thresholdMs) return false;
+      }
+
+      const catKey = p.category || p.category_id;
       const matchCat =
         selectedCategories.length === 0 || selectedCategories.includes(catKey);
 
@@ -307,7 +342,7 @@ export default function ShopPage({
     }
 
     return result;
-  }, [localProducts, selectedCategories, debouncedQuery, sortBy]);
+  }, [localProducts, selectedCategories, isFilterNewOnly, debouncedQuery, sortBy]);
 
   const displayCategories = useMemo(() => {
     return categories.filter((c) => c.id !== 'all');
@@ -316,7 +351,7 @@ export default function ShopPage({
   const categoryCounts = useMemo(() => {
     const counts = {};
     localProducts.forEach((p) => {
-      const catKey = p.category_id || p.category;
+      const catKey = p.category || p.category_id;
       counts[catKey] = (counts[catKey] || 0) + 1;
     });
     return counts;
@@ -480,7 +515,7 @@ export default function ShopPage({
           </div>
         </div>
 
-        {/* HÀNG 2: THANH DANH MỤC CHIPS */}
+        {/* HÀNG 2: THANH DANH MỤC CHIPS (CÓ THÊM TAB 'MỚI LÊN GIÀN') */}
         <div
           ref={catScrollRef}
           onWheel={handleWheel}
@@ -492,11 +527,12 @@ export default function ShopPage({
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
         >
+          {/* TAB TẤT CẢ */}
           <button
             type="button"
             onClick={handleSelectAllCategories}
             className={`shrink-0 py-2 px-4 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 border ${
-              selectedCategories.length === 0
+              selectedCategories.length === 0 && !isFilterNewOnly
                 ? 'bg-amber-900 text-white border-amber-900 shadow-xs'
                 : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
             }`}
@@ -504,12 +540,37 @@ export default function ShopPage({
             <Sparkles className="w-4 h-4" />
             <span>Tất cả</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
-              selectedCategories.length === 0 ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
+              selectedCategories.length === 0 && !isFilterNewOnly ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
             }`}>
               {localProducts.length}
             </span>
           </button>
 
+          {/* TAB LỌC MÓN MỚI LÊN GIÀN */}
+          {newProductsCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsFilterNewOnly((prev) => !prev);
+                setSelectedCategories([]);
+              }}
+              className={`shrink-0 py-2 px-4 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 border whitespace-nowrap ${
+                isFilterNewOnly
+                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs ring-1 ring-amber-600'
+                  : 'bg-amber-50 hover:bg-amber-100/80 text-amber-950 border-amber-200'
+              }`}
+            >
+              <Sun className={`w-4 h-4 shrink-0 transition-transform ${isFilterNewOnly ? 'rotate-45' : 'text-amber-700'}`} />
+              <span>Mới lên giàn</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                isFilterNewOnly ? 'bg-amber-800 text-white' : 'bg-amber-200 text-amber-950'
+              }`}>
+                {newProductsCount}
+              </span>
+            </button>
+          )}
+
+          {/* CÁC DANH MỤC TRUY VẤN TỪ DATABASE */}
           {displayCategories.map((cat) => {
             const IconComponent = CATEGORY_ID_ICON_MAP[cat.id] || Sparkles;
             const isCatActive = selectedCategories.includes(cat.id);
@@ -522,15 +583,15 @@ export default function ShopPage({
                 type="button"
                 onClick={() => handleToggleCategory(cat.id)}
                 className={`shrink-0 py-2 px-4 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 border whitespace-nowrap ${
-                  isCatActive
+                  isCatActive && !isFilterNewOnly
                     ? 'bg-amber-900 text-white border-amber-900 shadow-xs ring-1 ring-amber-900'
                     : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
                 }`}
               >
-                <IconComponent className={`w-4 h-4 shrink-0 transition-transform ${isCatActive ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
+                <IconComponent className={`w-4 h-4 shrink-0 transition-transform ${isCatActive && !isFilterNewOnly ? 'text-amber-200 scale-110' : 'text-amber-700'}`} />
                 <span>{catName}</span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
-                  isCatActive ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
+                  isCatActive && !isFilterNewOnly ? 'bg-amber-950 text-amber-200' : 'bg-stone-200 text-stone-600'
                 }`}>
                   {itemCount}
                 </span>
@@ -559,6 +620,7 @@ export default function ShopPage({
               type="button"
               onClick={() => {
                 setSelectedCategories([]);
+                setIsFilterNewOnly(false);
                 setSearchInput('');
                 setDebouncedQuery('');
                 setSortBy('default');
@@ -578,13 +640,26 @@ export default function ShopPage({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onAddToCart={onAddToCart}
-              />
-            ))}
+            {filteredProducts.map((product) => {
+              const isTargetHighlighted = highlightedProductId === product.id;
+
+              return (
+                <div
+                  key={product.id}
+                  id={`product-card-${product.id}`}
+                  className={`rounded-3xl transition-all duration-300 ${
+                    isTargetHighlighted 
+                      ? 'animate-highlight-card ring-4 ring-amber-500/50 shadow-2xl scale-[1.02]' 
+                      : ''
+                  }`}
+                >
+                  <ProductCard
+                    product={product}
+                    onAddToCart={onAddToCart}
+                  />
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

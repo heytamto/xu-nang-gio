@@ -4,15 +4,6 @@ import { X, Check, Plus, Trash2, Star, Layers, ChevronDown, Loader2 } from 'luci
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
-const DEFAULT_CATEGORIES = [
-  { id: 'cat01', label: 'Combo Ưu Đãi' },
-  { id: 'cat02', label: 'Trái Cây Tươi Giàn' },
-  { id: 'cat03', label: 'Nem & Chả Đặc Sản' },
-  { id: 'cat04', label: 'Hải Sản Gió Biển' },
-  { id: 'cat05', label: 'Gia Vị Xứ Nắng' },
-  { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
-];
-
 const CALC_TYPE_OPTIONS = [
   { value: 'multiplier', label: 'Nhân hệ số (x)' },
   { value: 'fixed', label: 'Giá cố định (VNĐ)' }
@@ -113,14 +104,18 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
         className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
           isOpen
             ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-white hover:bg-stone-50/80 border-amber-400/90 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
+            : 'bg-white hover:bg-stone-50/80 border-stone-300 hover:border-amber-400 shadow-2xs text-stone-800 font-medium'
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-stone-900 whitespace-nowrap">{selectedOpt?.label}</span>
-          <span className="text-xs font-mono text-stone-400 font-normal shrink-0">
-            ({selectedOpt?.id})
+          <span className="font-bold text-stone-900 whitespace-nowrap">
+            {selectedOpt?.name || selectedOpt?.label || selectedOpt?.id || 'Chọn danh mục'}
           </span>
+          {selectedOpt?.id && (
+            <span className="text-xs font-mono text-stone-400 font-normal shrink-0">
+              ({selectedOpt?.id})
+            </span>
+          )}
         </div>
 
         <ChevronDown
@@ -131,12 +126,12 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
       </button>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px]">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px] backdrop-blur-md">
           <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
-            DANH SÁCH DANH MỤC DATABASE:
+            DANH MỤC TRONG CƠ SỞ DỮ LIỆU:
           </div>
 
-          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:thin] [scrollbar-color:#e7e5e4_transparent]">
             {options.map((opt) => {
               const isSelected = opt.id === value;
 
@@ -154,7 +149,7 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
                   }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate">{opt.label}</span>
+                    <span className="truncate">{opt.name || opt.label}</span>
                     <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
                       ({opt.id})
                     </span>
@@ -173,28 +168,48 @@ function CustomCategorySelect({ label, options = [], value, onChange }) {
   );
 }
 
-export default function EditProductModal({ product, onClose, onSave, onShowAlert }) {
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+export default function EditProductModal({ 
+  product, 
+  categories: propCategories = [], 
+  onClose, 
+  onSave, 
+  onShowAlert 
+}) {
+  const [categories, setCategories] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Tải danh mục động: Ưu tiên propCategories, nếu rỗng thì query Supabase categories
   useEffect(() => {
+    if (Array.isArray(propCategories) && propCategories.length > 0) {
+      setCategories(
+        propCategories
+          .filter((c) => c.id !== 'all')
+          .map((c) => ({ id: c.id, label: c.name || c.label, name: c.name || c.label }))
+      );
+      return;
+    }
+
     async function loadDbCategories() {
       try {
         const { data, error } = await supabase
           .from('categories')
-          .select('id, name, order')
+          .select('id, name, "order"')
           .order('order', { ascending: true });
 
         if (!error && Array.isArray(data) && data.length > 0) {
-          setCategories(data.map((c) => ({ id: c.id, label: c.name })));
+          setCategories(
+            data
+              .filter((c) => c.id !== 'all')
+              .map((c) => ({ id: c.id, label: c.name, name: c.name }))
+          );
         }
       } catch (e) {
-        // Fallback dùng DEFAULT_CATEGORIES
+        console.error('Lỗi tải categories trong EditProductModal:', e);
       }
     }
     loadDbCategories();
-  }, []);
+  }, [propCategories]);
 
   const [formData, setFormData] = useState(() => {
     const rawWeights = product?.product_weights || product?.weights;
@@ -206,7 +221,7 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
         return {
           id: w.id || `opt_${idx + 1}`,
           weight_key: w.weight_key || w.key || `opt_${idx + 1}`,
-          label: w.weight_label || w.label || `Quy cách ${idx + 1}`,
+          label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
           calcType: hasPriceOverride ? 'fixed' : 'multiplier',
           val: hasPriceOverride ? Number(w.price_override) : (parseFloat(w.multiplier) || 1),
           multiplier: parseFloat(w.multiplier) || 1,
@@ -231,22 +246,29 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
       ];
     }
 
-    const currentCatId = product?.category_id || product?.category || 'cat02';
+    const currentCat = product?.category || product?.category_id || '';
 
     return {
       ...product,
       name: product?.name || '',
-      category: currentCatId,
+      category: currentCat,
       unit: typeof product?.unit === 'object' ? (product?.unit?.label || 'kg') : (product?.unit || 'kg'),
       basePrice: Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0),
       badge: product?.badge || '',
       source: product?.source || 'Vườn nhà Tâm (Phước Hậu)',
       image: product?.image_url || product?.image || '',
-      desc: product?.desc || product?.description || '',
+      desc: product?.description || product?.desc || '',
       inStock: product?.inStock ?? product?.in_stock ?? true,
       weights: initialWeights
     };
   });
+
+  // Tự động gán category ban đầu nếu sản phẩm chưa có category hợp lệ
+  useEffect(() => {
+    if (categories.length > 0 && !formData.category) {
+      setFormData((prev) => ({ ...prev, category: categories[0].id }));
+    }
+  }, [categories, formData.category]);
 
   if (!product) return null;
 
@@ -322,18 +344,20 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
     try {
       const basePriceNum = Number(formData.basePrice) || 0;
       const defaultUnit = (formData.unit || 'kg').trim();
+      const resolvedCategory = formData.category || categories[0]?.id || 'fresh';
 
-      // 1. Cập nhật trực tiếp bảng products trên Supabase
+      // 1. Cập nhật trực tiếp bảng products (CHUẨN DDL: cột 'category', KHÔNG GỬI 'category_id')
       const updateProductPayload = {
         name: formData.name.trim(),
-        category_id: formData.category,
+        category: resolvedCategory,
         base_price: basePriceNum,
         unit: defaultUnit,
         badge: formData.badge?.trim() || '',
         source: formData.source?.trim() || '',
         description: formData.desc?.trim() || '',
         image_url: formData.image?.trim() || '',
-        in_stock: Boolean(formData.inStock)
+        in_stock: Boolean(formData.inStock),
+        updated_at: new Date().toISOString()
       };
 
       const { data: updatedProduct, error: prodErr } = await supabase
@@ -345,13 +369,13 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
 
       if (prodErr) throw prodErr;
 
-      // 2. Chuẩn hóa và làm mới quy cách trong bảng product_weights
+      // 2. Chuẩn hóa và làm mới quy cách trong bảng product_weights (CHUẨN DDL: cột 'label', KHÔNG GỬI 'weight_label')
       const formattedWeights = formData.weights
         .filter((w) => w.label.trim())
         .map((w, idx) => ({
           product_id: product.id,
           weight_key: w.weight_key || `opt_${idx + 1}`,
-          weight_label: w.label.trim(),
+          label: w.label.trim(),
           multiplier: w.calcType === 'multiplier' ? (Number(w.val) || 1) : 1,
           price_override: w.calcType === 'fixed' ? (Number(w.val) || 0) : null,
           is_default: Boolean(w.is_default),
@@ -362,7 +386,7 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
         {
           product_id: product.id,
           weight_key: 'std',
-          weight_label: `1 ${defaultUnit}`,
+          label: `1 ${defaultUnit}`,
           multiplier: 1,
           price_override: null,
           is_default: true,
@@ -370,7 +394,7 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
         }
       ];
 
-      // Xóa các quy cách cũ và chèn lại bộ quy cách mới đã cập nhật
+      // Dọn các quy cách cũ và chèn lại bộ quy cách mới
       const { error: delErr } = await supabase
         .from('product_weights')
         .delete()
@@ -390,34 +414,24 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
       }
 
       // 3. Đóng gói sản phẩm hoàn chỉnh để đồng bộ state cha
-      const finalWeightsList = (insertedWeights && insertedWeights.length > 0)
-        ? insertedWeights.map((w) => ({
-            id: w.weight_key || String(w.id),
-            weight_key: w.weight_key,
-            label: w.weight_label || w.label,
-            weight_label: w.weight_label || w.label,
-            multiplier: Number(w.multiplier) || 1,
-            priceOverride: w.price_override != null ? Number(w.price_override) : null,
-            price_override: w.price_override != null ? Number(w.price_override) : null,
-            isDefault: Boolean(w.is_default)
-          }))
-        : resolvedWeightsPayload.map((w) => ({
-            id: w.weight_key,
-            weight_key: w.weight_key,
-            label: w.weight_label,
-            weight_label: w.weight_label,
-            multiplier: w.multiplier,
-            priceOverride: w.price_override,
-            isDefault: w.is_default
-          }));
+      const finalWeightsList = (insertedWeights && insertedWeights.length > 0 ? insertedWeights : resolvedWeightsPayload).map((w) => ({
+        id: w.weight_key || String(w.id),
+        weight_key: w.weight_key,
+        label: w.label,
+        weight_label: w.label,
+        multiplier: Number(w.multiplier) || 1,
+        priceOverride: w.price_override != null ? Number(w.price_override) : null,
+        price_override: w.price_override != null ? Number(w.price_override) : null,
+        isDefault: Boolean(w.is_default)
+      }));
 
       const completedProduct = {
         ...product,
         ...updatedProduct,
         id: product.id,
         name: updateProductPayload.name,
-        category: updateProductPayload.category_id,
-        category_id: updateProductPayload.category_id,
+        category: updateProductPayload.category,
+        category_id: updateProductPayload.category,
         basePrice: updateProductPayload.base_price,
         base_price: updateProductPayload.base_price,
         price: updateProductPayload.base_price,
@@ -434,7 +448,7 @@ export default function EditProductModal({ product, onClose, onSave, onShowAlert
         product_weights: finalWeightsList
       };
 
-      onShowAlert?.(`Đã cập nhật đặc sản #${product.id} thành công!`);
+      onShowAlert?.(`Đã cập nhật đặc sản "${completedProduct.name}" (#${product.id}) thành công!`);
 
       if (onSave) {
         onSave(completedProduct);

@@ -42,6 +42,9 @@ export default function App() {
   // Trạng thái hiển thị thực tế của Dải băng thông báo món mới
   const [isAnnouncementVisible, setIsAnnouncementVisible] = useState(false);
 
+  // State lưu ID sản phẩm cần nhấp nháy làm nổi bật khi bấm "Xem ngay"
+  const [highlightedProductId, setHighlightedProductId] = useState(null);
+
   // Lưu danh mục được chọn từ HomePage để truyền sang ShopPage
   const [selectedShopCategory, setSelectedShopCategory] = useState(() => {
     try {
@@ -110,6 +113,7 @@ export default function App() {
   const navTimerRef = useRef(null);
   const bounceTimerRef = useRef(null);
   const cartUpdateTimerRef = useRef(null);
+  const highlightTimerRef = useRef(null);
 
   const [successOrderInfo, setSuccessOrderInfo] = useState(null);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
@@ -235,6 +239,7 @@ export default function App() {
       if (navTimerRef.current) clearTimeout(navTimerRef.current);
       if (bounceTimerRef.current) clearTimeout(bounceTimerRef.current);
       if (cartUpdateTimerRef.current) clearTimeout(cartUpdateTimerRef.current);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     };
   }, []);
 
@@ -615,7 +620,6 @@ export default function App() {
     } catch (e) { console.error(e); }
 
     try {
-      // 1. Ghi đơn hàng vào Database Supabase ngầm
       submitOrderToSupabase(orderPayload)
         .then((res) => {
           if (!res?.success) {
@@ -626,7 +630,6 @@ export default function App() {
           console.error('Lỗi network khi gửi đơn ngầm:', err);
         });
 
-      // 2. PHÂN LUỒNG GỬI EMAIL: CHỈ GỬI NGAY NẾU LÀ ĐƠN COD HOẶC ĐÃ XÁC NHẬN THANH TOÁN
       const currentMethod = String(orderPayload.paymentMethod || orderPayload.payment_method || 'deposit').toLowerCase();
       const isCodOrder = currentMethod === 'cod';
       const isAutoPrepaidVerified = Boolean(orderData.isPaymentVerified || orderPayload.payment_verified);
@@ -727,6 +730,35 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // HÀM XỬ LÝ KHI BẤM "XEM NGAY" TRÊN BANNER:
+  // - Nếu là 1 sản phẩm: Chuyển sang danh mục của nó, lưu ID để nhấp nháy card
+  // - Nếu là danh sách nhiều sản phẩm mới: Chuyển sang Shop và mở tab 'all'
+  const handleAnnouncementNavigate = (target) => {
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+
+    if (target && target.id) {
+      // Trường hợp xem 1 sản phẩm cụ thể
+      const targetCat = target.category || 'all';
+      setSelectedShopCategory(targetCat);
+      setCurrentPage('shop');
+      setHighlightedProductId(target.id);
+
+      try {
+        sessionStorage.setItem('shop_selected_category', targetCat);
+        sessionStorage.setItem('shop_current_page', 'shop');
+        window.history.pushState({ page: 'shop', category: targetCat }, '', `?page=shop&cat=${targetCat}`);
+      } catch (e) { console.error(e); }
+
+      // Tự động tắt nhấp nháy sau 3.5 giây
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlightedProductId(null);
+      }, 3500);
+    } else {
+      // Trường hợp có danh sách nhiều món mới
+      handleNavigateToShopCategory('all');
+    }
+  };
+
   const totalCartCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
   const totalCartAmount = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
 
@@ -746,47 +778,40 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
-      {/* 1. DẢI BĂNG THÔNG BÁO MÓN MỚI (CHỈ HIỆN Ở CÁC TRANG CỦA KHÁCH HÀNG) */}
+      
+      {/* 1. KHỐI HEADER DÍNH TỰ NHIÊN: GỒM BANNER VÀ NAVBAR NỐI TIẾP NHAU */}
       {currentPage !== 'admin' && currentPage !== 'packing' && (
-        <NewProductAnnouncementBar
-          products={products}
-          daysThreshold={7}
-          onVisibilityChange={setIsAnnouncementVisible}
-          onNavigateProduct={(product) => {
-            handleNavigateToShopCategory(product.category || 'all');
-          }}
-        />
+        <header className="sticky top-0 z-40 w-full flex flex-col shadow-md">
+          {/* Dải băng thông báo món mới */}
+          <NewProductAnnouncementBar
+            products={products}
+            daysThreshold={7}
+            onVisibilityChange={setIsAnnouncementVisible}
+            onNavigateProduct={handleAnnouncementNavigate}
+          />
+
+          {/* Thanh Navbar điều hướng */}
+          <Navbar
+            currentPage={currentPage}
+            onNavigate={(page) => {
+              if (page === 'shop') handleNavigateToShopCategory('all');
+              else navigateTo(page);
+            }}
+            cartCount={totalCartCount}
+            cartTotal={totalCartAmount}
+            onOpenLookup={() => {
+              setInitialLookupCode('');
+              setIsLookupModalOpen(true);
+            }}
+            isCartBouncing={isCartBouncing}
+            forceVisible={forceNavVisible}
+            shopConfig={shopConfig}
+          />
+        </header>
       )}
 
-      {/* 2. THANH NAVBAR ĐIỀU HƯỚNG */}
-      {currentPage !== 'admin' && currentPage !== 'packing' && (
-        <Navbar
-          currentPage={currentPage}
-          hasAnnouncement={isAnnouncementVisible}
-          onNavigate={(page) => {
-            if (page === 'shop') handleNavigateToShopCategory('all');
-            else navigateTo(page);
-          }}
-          cartCount={totalCartCount}
-          cartTotal={totalCartAmount}
-          onOpenLookup={() => {
-            setInitialLookupCode('');
-            setIsLookupModalOpen(true);
-          }}
-          isCartBouncing={isCartBouncing}
-          forceVisible={forceNavVisible}
-          shopConfig={shopConfig}
-        />
-      )}
-
-      {/* 3. THÂN TRANG VỚI PADDING TỰ ĐỘNG THEO TRẠNG THÁI THANH THÔNG BÁO */}
-      <main 
-        className={`flex-1 w-full max-w-full transition-[padding] duration-300 ${
-          currentPage !== 'admin' && currentPage !== 'packing' 
-            ? (isAnnouncementVisible ? 'pt-[105px] sm:pt-[121px]' : 'pt-16 sm:pt-20') 
-            : ''
-        }`}
-      >
+      {/* 2. THÂN TRANG */}
+      <main className="flex-1 w-full max-w-full">
         {currentPage === 'home' && (
           <HomePage
             products={products}
@@ -804,6 +829,7 @@ export default function App() {
             products={products}
             categories={categories}
             initialCategory={selectedShopCategory}
+            highlightedProductId={highlightedProductId} // Truyền ID cần nhấp nháy xuống ShopPage
             onAddToCart={handleAddToCart}
             onNavigate={navigateTo}
           />
@@ -845,6 +871,7 @@ export default function App() {
           }>
             <AdminPage
               products={products}
+              categories={categories}
               orders={orders}
               onSaveProducts={(newList) => {
                 setProducts(newList);
@@ -923,7 +950,7 @@ export default function App() {
         />
       )}
 
-      {/* HIỆU ỨNG THÊM VÀO GIỎ TO BẢN, SẮC NÉT & CÂN ĐỐI */}
+      {/* HIỆU ỨNG THÊM VÀO GIỎ TO BẢN */}
       {centerSplash && (
         <div 
           key={centerSplash.id} 

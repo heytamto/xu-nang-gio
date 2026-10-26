@@ -1,5 +1,5 @@
 // src/components/Navbar.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ShoppingBag, Sprout, Menu, X, Search } from 'lucide-react';
 
 export default function Navbar({ 
@@ -9,13 +9,9 @@ export default function Navbar({
   cartTotal = 0,
   onOpenLookup,
   isCartBouncing = false,
-  forceVisible = false,
-  shopConfig = {},
-  hasAnnouncement = false
+  shopConfig = {}
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
 
   const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
   const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận';
@@ -26,33 +22,6 @@ export default function Navbar({
     { id: 'story', label: 'Chuyện Vườn' },
     { id: 'blog', label: 'Cẩm Nang' },
   ];
-
-  const shouldAlwaysShow = forceVisible || currentPage === 'checkout';
-
-  useEffect(() => {
-    if (shouldAlwaysShow) {
-      setIsVisible(true);
-    }
-  }, [shouldAlwaysShow]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (isMobileMenuOpen || shouldAlwaysShow) return;
-
-      if (currentScrollY < 20) {
-        setIsVisible(true);
-      } else if (currentScrollY < lastScrollY) {
-        setIsVisible(true);
-      } else if (currentScrollY > lastScrollY && currentScrollY > 80) {
-        setIsVisible(false);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY, isMobileMenuOpen, shouldAlwaysShow]);
 
   const handleCartClick = () => {
     setIsMobileMenuOpen(false);
@@ -70,14 +39,10 @@ export default function Navbar({
   };
 
   return (
-    <header 
-      className={`fixed left-0 right-0 z-40 bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 transition-all duration-300 ease-in-out font-sans ${
-        hasAnnouncement ? 'top-[41px]' : 'top-0'
-      } ${
-        isVisible ? 'translate-y-0 shadow-lg' : '-translate-y-[150%] shadow-none'
-      }`}
-    >
+    // ĐÃ BỎ 'fixed', 'top-0', 'top-[41px]'. Thanh Nav giờ nằm tự nhiên ngay dưới Banner
+    <div className="w-full bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 font-sans shadow-md">
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+        
         {/* Logo Vườn */}
         <button
           type="button"
@@ -195,7 +160,7 @@ export default function Navbar({
 
       {/* Menu thả xuống trên Mobile */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-stone-900/98 border-b border-stone-800 px-4 sm:px-6 py-4 space-y-2 animate-fadeIn shadow-2xl">
+        <div className="md:hidden bg-stone-900/98 border-t border-stone-800 px-4 sm:px-6 py-4 space-y-2 animate-fadeIn shadow-2xl">
           <div className="flex items-center justify-between pb-2 border-b border-stone-800/80 text-xs font-bold text-stone-400 uppercase tracking-wider">
             <span>Danh mục điều hướng</span>
             <button
@@ -237,6 +202,6 @@ export default function Navbar({
           </button>
         </div>
       )}
-    </header>
+    </div>
   );
 }

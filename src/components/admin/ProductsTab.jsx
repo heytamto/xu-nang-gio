@@ -16,15 +16,6 @@ import {
 import ImageUploadField from '../ImageUploadField';
 import { supabase } from '../../supabaseClient';
 
-const DEFAULT_CATEGORIES = [
-  { id: 'cat01', label: 'Combo Ưu Đãi' },
-  { id: 'cat02', label: 'Trái Cây Tươi Giàn' },
-  { id: 'cat03', label: 'Nem & Chả Đặc Sản' },
-  { id: 'cat04', label: 'Hải Sản Gió Biển' },
-  { id: 'cat05', label: 'Gia Vị Xứ Nắng' },
-  { id: 'cat06', label: 'Đặc Sản Sấy Dẻo' }
-];
-
 const CALC_TYPE_OPTIONS = [
   { value: 'multiplier', label: 'Nhân hệ số (x)' },
   { value: 'fixed', label: 'Giá cố định (VNĐ)' }
@@ -118,7 +109,7 @@ function CustomSelect({
   options = [], 
   value, 
   onChange, 
-  renderOption,
+  renderOption, 
   renderSelected,
   icon: Icon
 }) {
@@ -157,7 +148,7 @@ function CustomSelect({
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon className="w-4 h-4 text-amber-700 shrink-0" />}
           <div className="truncate font-bold text-stone-900">
-            {renderSelected ? renderSelected(selectedOpt) : (selectedOpt?.label || selectedOpt?.name)}
+            {renderSelected ? renderSelected(selectedOpt) : (selectedOpt?.name || selectedOpt?.label)}
           </div>
         </div>
 
@@ -199,7 +190,7 @@ function CustomSelect({
                       renderOption(opt, isSelected)
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="truncate">{opt.label || opt.name}</span>
+                        <span className="truncate">{opt.name || opt.label}</span>
                         {opt.id && (
                           <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
                             ({opt.id})
@@ -224,45 +215,68 @@ function CustomSelect({
 
 export default function ProductsTab({
   products = [],
+  categories: propCategories = [],
   onAddProduct,
   onEditProduct,
   onToggleStock,
   onDeleteProduct,
-  onResetProducts
+  onResetProducts,
+  onShowAlert
 }) {
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
 
+  // Tải danh mục động trực tiếp từ DB
   useEffect(() => {
+    if (Array.isArray(propCategories) && propCategories.length > 0) {
+      setCategories(
+        propCategories
+          .filter((c) => c.id !== 'all')
+          .map((c) => ({ id: c.id, label: c.name || c.label, name: c.name || c.label }))
+      );
+      return;
+    }
+
     async function loadDbCategories() {
       try {
         const { data, error } = await supabase
           .from('categories')
-          .select('id, name, order')
+          .select('id, name, "order"')
           .order('order', { ascending: true });
 
         if (!error && Array.isArray(data) && data.length > 0) {
-          setCategories(data.map((c) => ({ id: c.id, label: c.name })));
+          setCategories(
+            data
+              .filter((c) => c.id !== 'all')
+              .map((c) => ({ id: c.id, label: c.name, name: c.name }))
+          );
         }
-      } catch {
-        // Fallback dùng DEFAULT_CATEGORIES
+      } catch (err) {
+        console.error('Lỗi tải danh mục categories:', err);
       }
     }
     loadDbCategories();
-  }, []);
+  }, [propCategories]);
 
   const [newProduct, setNewProduct] = useState({
     name: '',
     basePrice: '',
     unit: 'kg',
-    category: 'cat02',
+    category: '',
     badge: 'Đặc sản mới',
     source: 'Vườn nhà Tâm (Phước Hậu)',
     desc: '',
     image: '',
     inStock: true,
   });
+
+  // Gán ID danh mục đầu tiên từ DB khi categories tải xong
+  useEffect(() => {
+    if (categories.length > 0 && !newProduct.category) {
+      setNewProduct((prev) => ({ ...prev, category: categories[0].id }));
+    }
+  }, [categories, newProduct.category]);
 
   const [weightsList, setWeightsList] = useState([
     { label: 'Thùng 2kg (Ăn thử)', calcType: 'multiplier', value: 2 },
@@ -286,7 +300,6 @@ export default function ProductsTab({
     );
   };
 
-  // Ghi trực tiếp xuống Supabase Database và tự kích hoạt Sequence ID
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newProduct.name.trim() || !newProduct.basePrice) return;
@@ -297,13 +310,18 @@ export default function ProductsTab({
     try {
       const basePriceNum = Number(newProduct.basePrice) || 0;
       const defaultUnitLabel = newProduct.unit.trim() || 'kg';
+      const categoryToSave = newProduct.category || (categories[0]?.id || 'fresh');
+      
+      // SINH MÃ ID CHO PRODUCT VÌ BẢNG CHƯA CÓ DEFAULT/TRIGGER TỰ SINH
+      const generatedProductId = `prd_${Date.now()}`;
 
-      // 1. Thêm bản ghi vào bảng products (KHÔNG truyền ID để Supabase sequence tự sinh prd...)
+      // 1. Thêm bản ghi vào bảng products (Gửi kèm id để thỏa mãn NOT NULL constraint)
       const productInsertPayload = {
+        id: generatedProductId,
         name: newProduct.name.trim(),
         base_price: basePriceNum,
         unit: defaultUnitLabel,
-        category_id: newProduct.category,
+        category: categoryToSave,
         badge: newProduct.badge.trim(),
         source: newProduct.source.trim(),
         description: newProduct.desc.trim(),
@@ -321,7 +339,7 @@ export default function ProductsTab({
       if (prodErr) throw prodErr;
       if (!insertedProduct) throw new Error('Không nhận được dữ liệu phản hồi từ Supabase');
 
-      // 2. Chuẩn hóa và thêm danh sách quy cách vào bảng product_weights
+      // 2. Thêm danh sách quy cách vào bảng product_weights
       const finalWeights = weightsList
         .filter((w) => w.label.trim())
         .map((w, idx) => {
@@ -331,7 +349,7 @@ export default function ProductsTab({
           return {
             product_id: insertedProduct.id,
             weight_key: `opt_${idx + 1}`,
-            weight_label: w.label.trim(),
+            label: w.label.trim(),
             multiplier: isMultiplier ? (numVal > 0 ? numVal : 1) : 1,
             price_override: isMultiplier ? null : numVal,
             is_default: idx === 0,
@@ -343,7 +361,7 @@ export default function ProductsTab({
         {
           product_id: insertedProduct.id,
           weight_key: 'std',
-          weight_label: `1 ${defaultUnitLabel}`,
+          label: `1 ${defaultUnitLabel}`,
           multiplier: 1,
           price_override: null,
           is_default: true,
@@ -360,29 +378,38 @@ export default function ProductsTab({
         console.warn('Lỗi khi chèn quy cách sản phẩm:', weightsErr);
       }
 
-      // 3. Đóng gói sản phẩm hoàn chỉnh để đồng bộ lên State cha
+      const resolvedWeightsForState = (insertedWeights && insertedWeights.length > 0 ? insertedWeights : resolvedWeightsPayload).map(w => ({
+        ...w,
+        id: w.weight_key || String(w.id),
+        weight_label: w.label
+      }));
+
+      // 3. Đóng gói đồng bộ state cha
       const completedProduct = {
         ...insertedProduct,
         id: insertedProduct.id,
+        category_id: insertedProduct.category,
+        category: insertedProduct.category,
         basePrice: insertedProduct.base_price,
         image: insertedProduct.image_url,
         inStock: insertedProduct.in_stock,
-        category: insertedProduct.category_id,
         desc: insertedProduct.description,
-        weights: insertedWeights || resolvedWeightsPayload,
-        product_weights: insertedWeights || resolvedWeightsPayload
+        weights: resolvedWeightsForState,
+        product_weights: resolvedWeightsForState
       };
 
       if (onAddProduct) {
         onAddProduct(completedProduct);
       }
 
-      // 4. Reset Form về trạng thái rỗng ban đầu
+      onShowAlert?.(`Đã thêm đặc sản "${completedProduct.name}" lên kệ (#${completedProduct.id})!`);
+
+      // 4. Reset Form
       setNewProduct({
         name: '',
         basePrice: '',
         unit: 'kg',
-        category: 'cat02',
+        category: categories[0]?.id || '',
         badge: 'Đặc sản mới',
         source: 'Vườn nhà Tâm (Phước Hậu)',
         desc: '',
@@ -397,6 +424,7 @@ export default function ProductsTab({
     } catch (err) {
       console.error('Lỗi khi lưu sản phẩm vào Supabase:', err);
       setFormError(err.message || 'Lỗi khi lưu vào cơ sở dữ liệu. Hãy kiểm tra lại quyền RLS.');
+      onShowAlert?.('Lỗi thêm sản phẩm: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -418,7 +446,6 @@ export default function ProductsTab({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
-          {/* Hàng 1: Tên đặc sản + Danh mục */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 sm:gap-4">
             <div className="sm:col-span-8">
               <label className="font-bold text-stone-700 block mb-1.5">Tên đặc sản *</label>
@@ -442,13 +469,13 @@ export default function ProductsTab({
                 onChange={(newCatId) => setNewProduct({ ...newProduct, category: newCatId })}
                 renderSelected={(opt) => (
                   <span className="flex items-center gap-2">
-                    <span className="font-bold text-stone-900">{opt?.label}</span>
+                    <span className="font-bold text-stone-900">{opt?.name || opt?.label}</span>
                     <span className="text-xs font-mono text-stone-400 font-normal">({opt?.id})</span>
                   </span>
                 )}
                 renderOption={(opt, isSelected) => (
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold">{opt.label}</span>
+                    <span className="font-bold">{opt.name || opt.label}</span>
                     <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
                       {opt.id}
                     </span>
@@ -458,7 +485,6 @@ export default function ProductsTab({
             </div>
           </div>
 
-          {/* Hàng 2: Giá chuẩn + Đơn vị + Huy hiệu */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
             <div>
               <label className="font-bold text-stone-700 block mb-1.5">Giá chuẩn 1 đơn vị (VNĐ) *</label>
@@ -497,7 +523,6 @@ export default function ProductsTab({
             </div>
           </div>
 
-          {/* Hàng 3: Nguồn gốc + Trạng thái kho */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 sm:gap-4">
             <div className="sm:col-span-8">
               <label className="font-bold text-stone-700 block mb-1.5">Nguồn gốc / Xuất xứ</label>
@@ -538,7 +563,6 @@ export default function ProductsTab({
             </div>
           </div>
 
-          {/* Hàng 4: Upload Ảnh */}
           <ImageUploadField
             label="Ảnh đặc sản (Supabase Storage)"
             value={newProduct.image}
@@ -546,7 +570,6 @@ export default function ProductsTab({
             onChange={(url) => setNewProduct({ ...newProduct, image: url })}
           />
 
-          {/* Hàng 5: Quy cách đóng gói & tính giá */}
           <div className="p-4 sm:p-5 bg-stone-50/90 rounded-3xl border border-stone-200 space-y-4 shadow-2xs">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
@@ -619,7 +642,6 @@ export default function ProductsTab({
             </div>
           </div>
 
-          {/* Hàng 6: Mô tả */}
           <div>
             <label className="font-bold text-stone-700 block mb-1.5">Mô tả đặc điểm</label>
             <textarea
@@ -683,7 +705,7 @@ export default function ProductsTab({
         ) : (
           <div className="divide-y divide-stone-100">
             {products.map((p) => {
-              const catKey = p.category_id || p.category;
+              const catKey = p.category || p.category_id;
               const currentCat = categories.find((c) => c.id === catKey);
               const isAvailable = p.inStock ?? p.in_stock ?? true;
               const productImg = p.image_url || p.image || "https://images.unsplash.com/photo-1616684000067-36952fde56ec?auto=format&fit=crop&w=600&q=80";
@@ -712,7 +734,7 @@ export default function ProductsTab({
                           </span>
                         )}
                         <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-950 border border-amber-200 font-semibold shrink-0">
-                          {currentCat?.label || catKey}
+                          {currentCat?.name || currentCat?.label || catKey}
                         </span>
                       </div>
                       <span className="text-stone-600 text-xs sm:text-sm font-mono font-semibold block">

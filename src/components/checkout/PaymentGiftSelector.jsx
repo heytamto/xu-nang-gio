@@ -16,15 +16,17 @@ export default function PaymentGiftSelector({
     hasMoved: false,
   });
 
-  // 1. Hook useMemo: Lọc danh sách quà khả dụng
+  // 1. Hook useMemo: Lọc chuẩn các món quà thanh toán khả dụng (type === 'payment_reward' & đang bật)
   const activeGifts = useMemo(() => {
     if (!Array.isArray(paymentGifts)) return [];
     return paymentGifts.filter((g) => {
-      return g.is_active !== false && g.inStock !== false && g.active !== false;
+      const matchType = !g.type || g.type === 'payment_reward' || g.type === 'payment';
+      const isAvailable = g.is_active !== false && g.inStock !== false && g.active !== false;
+      return matchType && isAvailable;
     });
   }, [paymentGifts]);
 
-  // 2. Hook useEffect: Tự động chọn quà đầu tiên nếu chưa chọn
+  // 2. Hook useEffect: Tự động chọn món quà đầu tiên nếu chưa chọn hoặc quà hiện tại bị tắt
   useEffect(() => {
     if (isEnabled && activeGifts.length > 0 && onSelectGift) {
       const isCurrentSelectionValid = activeGifts.some((g) => g.id === selectedGiftId);
@@ -34,7 +36,7 @@ export default function PaymentGiftSelector({
     }
   }, [isEnabled, activeGifts, selectedGiftId, onSelectGift]);
 
-  // 3. Xử lý lăn chuột (Mouse Wheel) để cuộn ngang
+  // 3. Xử lý lăn chuột (Mouse Wheel) cuộn ngang mượt mà
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -51,7 +53,7 @@ export default function PaymentGiftSelector({
     return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // 4. Xử lý kéo thả bằng chuột (Mouse Drag to Scroll)
+  // 4. Kéo thả bằng chuột trên máy tính (Mouse Drag to Scroll)
   const handleMouseDown = useCallback((e) => {
     const el = scrollRef.current;
     if (!el) return;
@@ -104,7 +106,7 @@ export default function PaymentGiftSelector({
         </span>
       </div>
 
-      {/* Danh sách thẻ quà: Ẩn thanh cuộn, hỗ trợ kéo chuột & lăn chuột mượt mà */}
+      {/* Danh sách thẻ quà: cuộn ngang, ẩn thanh cuộn, kéo thả mượt mà */}
       <div 
         ref={scrollRef}
         onMouseDown={handleMouseDown}
@@ -117,18 +119,19 @@ export default function PaymentGiftSelector({
       >
         {activeGifts.map((gift) => {
           const isSelected = selectedGiftId === gift.id;
+          const giftImage = gift.image_url || gift.image;
 
           return (
             <div
               key={gift.id}
               onClick={() => handleCardClick(gift.id)}
-              className={`min-w-[240px] sm:min-w-[260px] max-w-[270px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none ${
+              className={`min-w-[250px] sm:min-w-[270px] max-w-[280px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none cursor-pointer ${
                 isSelected
                   ? 'bg-white border-amber-600 ring-2 ring-amber-600/25 shadow-sm'
                   : 'bg-white/85 border-amber-200/80 hover:bg-white hover:border-amber-400'
               }`}
             >
-              <div className="space-y-1.5 pointer-events-none">
+              <div className="space-y-2 pointer-events-none">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg truncate max-w-[160px] bg-amber-100 text-amber-900">
                     {gift.tag || 'Quà Quê'}
@@ -145,9 +148,21 @@ export default function PaymentGiftSelector({
                   </div>
                 </div>
 
-                <strong className="font-bold text-sm sm:text-base block leading-snug line-clamp-2 text-stone-900">
-                  {gift.title || gift.name}
-                </strong>
+                <div className="flex items-center gap-3">
+                  {giftImage && (
+                    <img 
+                      src={giftImage} 
+                      alt={gift.title || gift.name} 
+                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-stone-200 bg-stone-100"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <strong className="font-bold text-sm sm:text-base leading-snug line-clamp-2 text-stone-900">
+                    {gift.title || gift.name}
+                  </strong>
+                </div>
               </div>
 
               <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed font-normal pointer-events-none">

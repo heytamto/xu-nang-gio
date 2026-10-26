@@ -36,6 +36,7 @@ const ALLOWED_ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || 'xunanggio@gm
 
 export default function AdminPage({ 
   products = [], 
+  categories = [], // 1. Nhận danh mục từ DB truyền xuống qua App.jsx
   onSaveProducts, 
   onResetProducts,
   posts = [], 
@@ -66,7 +67,7 @@ export default function AdminPage({
 
   const isAuthenticated = Boolean(adminUser);
 
-  // Hook đăng nhập Google chính chủ, gọi userinfo an toàn không dính iframe và permissions-policy
+  // Hook đăng nhập Google
   const loginWithGoogle = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       setIsGoogleLoading(true);
@@ -414,7 +415,7 @@ export default function AdminPage({
     showSavedToast('Đã lưu bài viết cẩm nang!');
   };
 
-  // Xử lý bật/tắt bán đồng bộ trực tiếp Supabase Database
+  // Bật/tắt bán đồng bộ trực tiếp Supabase Database
   const handleToggleProductStock = async (productId) => {
     const targetProduct = products.find((p) => p.id === productId);
     if (!targetProduct) return;
@@ -444,7 +445,7 @@ export default function AdminPage({
     }
   };
 
-  // Xử lý xóa sản phẩm đồng bộ trực tiếp Supabase Database
+  // Xóa sản phẩm đồng bộ trực tiếp Supabase Database
   const handleDeleteProduct = (productId, productName) => {
     setModalConfig({
       title: 'Gỡ Khỏi Kệ Bán',
@@ -452,7 +453,6 @@ export default function AdminPage({
       confirmLabel: 'Đồng ý xóa',
       onConfirm: async () => {
         try {
-          // Xóa quy cách trước tránh vướng khóa ngoại
           await supabase.from('product_weights').delete().eq('product_id', productId);
           const { error } = await supabase.from('products').delete().eq('id', productId);
 
@@ -469,7 +469,7 @@ export default function AdminPage({
     });
   };
 
-  // Xử lý xóa câu chuyện đồng bộ trực tiếp Supabase Database
+  // Xóa câu chuyện đồng bộ trực tiếp Supabase Database
   const handleDeleteStory = (storyId, storyTitle) => {
     setModalConfig({
       title: 'Xóa Chuyện Vườn',
@@ -491,7 +491,7 @@ export default function AdminPage({
     });
   };
 
-  // Xử lý xóa bài viết cẩm nang đồng bộ trực tiếp Supabase Database
+  // Xóa bài viết cẩm nang đồng bộ trực tiếp Supabase Database
   const handleDeletePost = (postId, postTitle) => {
     setModalConfig({
       title: 'Xóa Bài Viết',
@@ -771,8 +771,8 @@ export default function AdminPage({
         {activeTab === 'products' && (
           <ProductsTab
             products={products}
+            categories={categories} // 2. Truyền danh mục động xuống ProductsTab
             onAddProduct={(newProd) => {
-              // newProd đã được lưu vào Supabase và có ID chuẩn từ DB
               handleSaveProducts([newProd, ...products]);
             }}
             onEditProduct={(p) => setEditingProduct(p)}
@@ -786,6 +786,7 @@ export default function AdminPage({
                 onConfirm: onResetProducts
               });
             }}
+            onShowAlert={showSavedToast} // 3. Kích hoạt khung toast xanh góc phải
           />
         )}
 
@@ -793,7 +794,6 @@ export default function AdminPage({
           <StoriesTab
             stories={stories}
             onAddStory={(newStory) => {
-              // newStory đã được lưu vào Supabase và có ID chuẩn từ DB
               handleSaveStories([newStory, ...stories]);
             }}
             onEditStory={(s) => setEditingStory(s)}
@@ -813,7 +813,6 @@ export default function AdminPage({
           <PostsTab
             posts={posts}
             onAddPost={(newPost) => {
-              // newPost đã được lưu vào Supabase và có ID chuẩn từ DB
               handleSavePosts([newPost, ...posts]);
             }}
             onEditPost={(p) => setEditingPost(p)}
@@ -859,6 +858,7 @@ export default function AdminPage({
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
+          categories={categories} // 4. Truyền danh mục động vào modal chỉnh sửa
           onClose={() => setEditingProduct(null)}
           onSave={(updated) => {
             handleSaveProducts(products.map((p) => (p.id === updated.id ? updated : p)));

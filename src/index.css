@@ -80,3 +80,21 @@ body {
 .animate-receiptFeed {
   animation: receiptFeed 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.45), 0 16px 32px -4px rgba(245, 158, 11, 0.3);
+  }
+}
+
+.animate-highlight-card {
+  animation: highlight-pulse 0.8s ease-in-out 3;
+  border-radius: 1.5rem;
+  position: relative;
+  z-index: 20;
+}

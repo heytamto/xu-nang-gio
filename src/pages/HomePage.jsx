@@ -523,13 +523,10 @@ export default function HomePage({
 
         const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
 
-        // Khi trôi chạm đến mép cuối (còn cách 4px)
         if (scrollContainer.scrollLeft >= maxScroll - 4) {
           if (hasMoreReviews && !isLoadingMoreReviews && !isFetchingRef.current) {
-            // Nếu còn dữ liệu thì fetch trang kế tiếp
             loadReviewsBatch(reviewPage + 1);
           } else if (!hasMoreReviews) {
-            // ĐÃ HẾT ĐÁNH GIÁ: Tự động trượt mượt mà về đầu và tạm dừng 1.2s rồi chạy lại tiếp
             isLoopResetting.current = true;
             scrollContainer.scrollTo({ left: 0, behavior: "smooth" });
             setTimeout(() => {
@@ -619,6 +616,7 @@ export default function HomePage({
     else if (onNavigate) onNavigate("story");
   };
 
+  // Tính toán sản phẩm nổi bật
   const featuredProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
     const salesCountMap = new Map();
@@ -659,8 +657,10 @@ export default function HomePage({
         return salesB - salesA;
       }
 
-      if (a.category === "cat01" && b.category !== "cat01") return -1;
-      if (b.category === "cat01" && a.category !== "cat01") return 1;
+      const catA = a.category || a.category_id;
+      const catB = b.category || b.category_id;
+      if (catA === "cat01" && catB !== "cat01") return -1;
+      if (catB === "cat01" && catA !== "cat01") return 1;
 
       return 0;
     });
@@ -668,7 +668,9 @@ export default function HomePage({
     return sorted.slice(0, 8);
   }, [products, shopConfig?.orders]);
 
-  const displayCategories = categories.filter((c) => c.id !== "all");
+  const displayCategories = useMemo(() => {
+    return categories.filter((c) => c.id !== "all");
+  }, [categories]);
 
   const activeMonthData = useMemo(() => {
     return (
@@ -1353,7 +1355,7 @@ export default function HomePage({
       {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA */}
       <ExperienceGuideSection />
 
-      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG (TỰ CUỘN MƯỢT & QUAY ĐẦU CHỐNG GIẬT) */}
+      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG */}
       {isReviewsEnabled && (
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-stone-200 pb-4">
@@ -1399,14 +1401,12 @@ export default function HomePage({
               const orderCode = rev.order_code || rev.orderCode || "";
               const ratingNum = Number(rev.rating) || 5;
 
-              // 1. Ảnh do khách tải lên
               const customerImages = Array.isArray(rev.image_urls)
                 ? rev.image_urls
                 : rev.image_url
                   ? [rev.image_url]
                   : [];
 
-              // 2. Ảnh do nhà vườn đóng gói (Map fallback toàn bộ trường)
               const shopImage =
                 rev.shop_packing_image ||
                 rev.packing_image ||
@@ -1454,10 +1454,9 @@ export default function HomePage({
                       </p>
                     </div>
 
-                    {/* KHỐI ẢNH ĐỐI CHIẾU: ẢNH VƯỜN ĐÓNG & ẢNH KHÁCH NHẬN */}
+                    {/* Khối ảnh đối chiếu */}
                     {hasAnyPhoto && (
                       <div className="flex items-center gap-2.5 pt-1 pl-3 overflow-x-auto [scrollbar-width:none]">
-                        {/* 1. Ảnh của nhà vườn đóng */}
                         {shopImage && (
                           <div className="relative shrink-0">
                             <button
@@ -1487,7 +1486,6 @@ export default function HomePage({
                           </div>
                         )}
 
-                        {/* 2. Ảnh thực tế khách khui thùng */}
                         {customerImages.slice(0, shopImage ? 2 : 3).map((imgUrl, imgIdx) => (
                           <div key={imgIdx} className="relative shrink-0">
                             <button
@@ -1520,7 +1518,7 @@ export default function HomePage({
                     )}
                   </div>
 
-                  {/* Thông tin người đánh giá & Ngày tháng */}
+                  {/* Thông tin người đánh giá */}
                   <div className="pt-2.5 border-t border-stone-100 flex items-center justify-between">
                     <div className="min-w-0 pr-2">
                       <strong className="text-sm font-bold text-stone-900 block truncate">
@@ -1664,7 +1662,7 @@ export default function HomePage({
   );
 }
 
-// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH (ĐÃ CỐ ĐỊNH MIN-HEIGHT CHỐNG GIẬT)
+// COMPONENT CON: KINH NGHIỆM CHỌN NÔNG SẢN SẠCH
 function ExperienceGuideSection() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -1838,23 +1836,22 @@ function ExperienceGuideSection() {
               ))}
             </div>
 
-            {/* Khối mẹo bảo quản: Trên mobile xuống dòng (flex-col), desktop nằm ngang (sm:flex-row) */}
-{currentItem.storageTip ? (
-  <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-amber-200/70 text-xs sm:text-sm text-stone-700 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2.5 shadow-2xs">
-    <span className="font-bold text-amber-900 shrink-0 flex items-center gap-1.5">
-      <span>🧊</span>
-      <span>Mẹo bảo quản:</span>
-    </span>
-    <p className="text-stone-700 leading-relaxed font-normal">
-      {currentItem.storageTip}
-    </p>
-  </div>
-) : (
-  <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/40 border border-amber-200/40 text-xs sm:text-sm text-stone-500 italic flex items-center gap-2">
-    <span>🍃</span>
-    <span>Sản phẩm tươi tự nhiên, nên dùng sớm để trọn vị ngon.</span>
-  </div>
-)}
+            {currentItem.storageTip ? (
+              <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/90 border border-amber-200/70 text-xs sm:text-sm text-stone-700 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2.5 shadow-2xs">
+                <span className="font-bold text-amber-900 shrink-0 flex items-center gap-1.5">
+                  <span>🧊</span>
+                  <span>Mẹo bảo quản:</span>
+                </span>
+                <p className="text-stone-700 leading-relaxed font-normal">
+                  {currentItem.storageTip}
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 sm:mt-4 p-3.5 sm:p-4 rounded-2xl bg-white/40 border border-amber-200/40 text-xs sm:text-sm text-stone-500 italic flex items-center gap-2">
+                <span>🍃</span>
+                <span>Sản phẩm tươi tự nhiên, nên dùng sớm để trọn vị ngon.</span>
+              </div>
+            )}
           </div>
 
           <div className="pt-2 text-xs text-stone-500 italic flex items-center gap-2 border-t border-amber-200/40">

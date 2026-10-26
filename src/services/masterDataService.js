@@ -16,14 +16,17 @@ export async function fetchAllMasterDataFromSupabase() {
       configRes,
       reviewRes
     ] = await Promise.all([
-      supabase.from('categories').select('*').order('id', { ascending: true }),
+      // Lấy danh mục, sắp xếp theo cột "order"
+      supabase
+        .from('categories')
+        .select('id, name, "order", created_at')
+        .order('order', { ascending: true }),
       
-      // Quan hệ 1-N chuẩn 3NF với bảng product_weights
+      // Khớp 100% DDL: bảng products chỉ có 'category', product_weights chỉ có 'label'
       supabase.from('products').select(`
         id,
         name,
         category,
-        category_id,
         base_price,
         unit,
         badge,
@@ -33,15 +36,18 @@ export async function fetchAllMasterDataFromSupabase() {
         in_stock,
         campaign_gift_id,
         campaign_tag,
+        created_at,
+        updated_at,
         product_weights (
           id,
+          product_id,
           weight_key,
           label,
-          weight_label,
           multiplier,
           price_override,
           is_default,
-          sort_order
+          sort_order,
+          created_at
         )
       `).order('id', { ascending: true }),
 
@@ -163,7 +169,7 @@ export async function fetchAllMasterDataFromSupabase() {
       }
     }
 
-    // Chuẩn hóa danh sách sản phẩm & quy cách
+    // Chuẩn hóa danh sách sản phẩm & quy cách (map bí danh an toàn để frontend luôn đọc được)
     const formattedProducts = (products || []).map((p) => {
       const weightsList = Array.isArray(p.product_weights) && p.product_weights.length > 0
         ? [...p.product_weights]
@@ -171,8 +177,8 @@ export async function fetchAllMasterDataFromSupabase() {
             .map((w) => ({
               id: w.weight_key || String(w.id),
               weight_key: w.weight_key,
-              label: w.weight_label || w.label,
-              weight_label: w.weight_label || w.label,
+              label: w.label,
+              weight_label: w.label, // Map ngược tương thích cho UI
               multiplier: Number(w.multiplier) || 1,
               priceOverride: w.price_override != null ? Number(w.price_override) : null,
               price_override: w.price_override != null ? Number(w.price_override) : null,
@@ -183,10 +189,11 @@ export async function fetchAllMasterDataFromSupabase() {
       return {
         id: p.id,
         name: p.name,
-        category: p.category_id || p.category,
-        category_id: p.category_id || p.category,
+        category: p.category,
+        category_id: p.category, // Map ngược tương thích cho UI
         basePrice: Number(p.base_price) || 0,
         base_price: Number(p.base_price) || 0,
+        price: Number(p.base_price) || 0,
         unit: p.unit,
         badge: p.badge,
         source: p.source,
@@ -199,7 +206,9 @@ export async function fetchAllMasterDataFromSupabase() {
         campaign_gift_id: p.campaign_gift_id,
         campaign_tag: p.campaign_tag,
         weights: weightsList,
-        product_weights: weightsList
+        product_weights: weightsList,
+        created_at: p.created_at,
+        updated_at: p.updated_at
       };
     });
 
@@ -207,7 +216,10 @@ export async function fetchAllMasterDataFromSupabase() {
     const validPaymentGifts = (gifts || []).filter(g => g.type === 'payment_reward' && g.is_active !== false);
 
     return {
-      categories: categories || [],
+      categories: (categories || []).map(c => ({
+        ...c,
+        label: c.name // Đồng bộ thuộc tính hiển thị
+      })),
       products: formattedProducts,
       posts: (posts || []).map((post) => ({
         ...post,
