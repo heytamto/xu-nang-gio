@@ -3,11 +3,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, PackageCheck, Clock, X, Copy, Check, 
   Gift, PhoneCall, AlertCircle, Ban, Loader2, Star, CheckCircle, ShieldAlert,
-  ChevronDown, Camera, ZoomIn
+  Camera, ZoomIn
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { supabase } from '../supabaseClient';
 import { lookupOrderDirect, cancelOrderDirect } from '../services/orderService';
+import { reviewRepo } from '../repositories';
+import CustomDropdown from './CustomDropdown';
 import { 
   formatDateTime, 
   isRecentOrder, 
@@ -17,81 +19,12 @@ import {
 import OrderReviewModal from './OrderReviewModal';
 
 const CANCEL_REASONS = [
-  'Đổi ý / Không còn nhu cầu',
-  'Muốn đặt lại món khác / đổi số lượng',
-  'Điền sai địa chỉ hoặc số điện thoại',
-  'Bận không đón được xe khách đúng giờ',
-  'Lý do khác'
+  { value: 'Đổi ý / Không còn nhu cầu', label: 'Đổi ý / Không còn nhu cầu' },
+  { value: 'Muốn đặt lại món khác / đổi số lượng', label: 'Muốn đặt lại món khác / đổi số lượng' },
+  { value: 'Điền sai địa chỉ hoặc số điện thoại', label: 'Điền sai địa chỉ hoặc số điện thoại' },
+  { value: 'Bận không đón được xe khách đúng giờ', label: 'Bận không đón được xe khách đúng giờ' },
+  { value: 'Lý do khác', label: 'Lý do khác' }
 ];
-
-function CustomCancelReasonSelect({ value, onChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
-          isOpen
-            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-stone-50 hover:bg-white border-stone-200 hover:border-amber-400 shadow-2xs text-stone-800 font-medium'
-        }`}
-      >
-        <span className="truncate">{value || 'Chọn lý do hủy đơn...'}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
-            isOpen ? 'rotate-180 text-amber-700' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm">
-          <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
-            CHỌN LÝ DO HỦY ĐƠN:
-          </div>
-
-          <div className="max-h-56 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {CANCEL_REASONS.map((reason) => {
-              const isSelected = reason === value;
-              return (
-                <div
-                  key={reason}
-                  onClick={() => {
-                    onChange(reason);
-                    setIsOpen(false);
-                  }}
-                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
-                    isSelected
-                      ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs'
-                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
-                  }`}
-                >
-                  <span className="truncate">{reason}</span>
-                  {isSelected && (
-                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function OrderLookupModal({ 
   isOpen, 
@@ -141,7 +74,7 @@ export default function OrderLookupModal({
     setTimeout(() => setCopiedCode(''), 2000);
   };
 
-  // Tra cứu đơn hàng & kiểm tra đơn nào đã từng review trong DB
+  // Tra cứu đơn hàng & kiểm tra đơn nào đã từng review qua reviewRepo
   const performLookup = useCallback(async (queryValue) => {
     setErrorMessage('');
     setCancelSuccessNote('');
@@ -170,21 +103,21 @@ export default function OrderLookupModal({
         setErrorMessage('Không tìm thấy đơn hàng nào khớp với thông tin bạn nhập.');
       } else {
         const codes = data.map((d) => d.code);
-        const { data: revList } = await supabase
-          .from('reviews')
-          .select('order_code')
-          .in('order_code', codes);
-
-        if (Array.isArray(revList) && revList.length > 0) {
-          setReviewedCodes((prev) => {
-            const nextSet = new Set(prev);
-            revList.forEach((r) => nextSet.add(r.order_code));
-            return nextSet;
-          });
+        const allReviews = await reviewRepo.getAll();
+        
+        if (Array.isArray(allReviews) && allReviews.length > 0) {
+          const matchingReviews = allReviews.filter((r) => codes.includes(r.order_code));
+          if (matchingReviews.length > 0) {
+            setReviewedCodes((prev) => {
+              const nextSet = new Set(prev);
+              matchingReviews.forEach((r) => nextSet.add(r.order_code));
+              return nextSet;
+            });
+          }
         }
       }
     } catch (err) {
-      console.error('Lỗi tra cứu Supabase:', err);
+      console.error('Lỗi tra cứu:', err);
       setErrorMessage('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
@@ -206,37 +139,97 @@ export default function OrderLookupModal({
         setOrders(null);
         setErrorMessage('');
       }
+    } else {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     }
   }, [isOpen, initialCode, performLookup]);
 
-  // Realtime Supabase
+  // Tự động nhận trạng thái mới nhất qua WebSocket và Polling ngầm (Không gắn badge giao diện)
   useEffect(() => {
-    if (!isOpen || !orders || orders.length === 0) return;
+    if (!isOpen || !Array.isArray(orders) || orders.length === 0) return;
 
-    if (channelRef.current) supabase.removeChannel(channelRef.current);
+    const activeOrderCodes = orders.map((o) => o.code).filter(Boolean);
+    if (activeOrderCodes.length === 0) return;
 
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    const uniqueChannelKey = `lookup_orders_${Date.now()}`;
     const channel = supabase
-      .channel('public:orders:lookup-realtime')
+      .channel(uniqueChannelKey)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'orders' },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
         (payload) => {
-          const updatedRow = payload.new;
-          if (!updatedRow?.code) return;
+          const updatedRow = payload.new || payload.record;
+          if (!updatedRow?.code || !activeOrderCodes.includes(updatedRow.code)) return;
 
-          setOrders((prev) => 
-            prev ? prev.map((o) => (o.code === updatedRow.code ? { ...o, ...updatedRow } : o)) : prev
-          );
+          setOrders((prev) => {
+            if (!prev) return prev;
+            return prev.map((o) => {
+              if (o.code === updatedRow.code) {
+                return {
+                  ...o,
+                  ...updatedRow,
+                  status: normalizeOrderStatus(updatedRow.status),
+                  order_items: updatedRow.order_items || o.order_items || []
+                };
+              }
+              return o;
+            });
+          });
         }
       )
       .subscribe();
 
     channelRef.current = channel;
 
+    // Polling ngầm mỗi 3.5 giây đảm bảo đồng bộ tuyệt đối
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data: freshOrders, error } = await supabase
+          .from('orders')
+          .select('*')
+          .in('code', activeOrderCodes);
+
+        if (!error && Array.isArray(freshOrders)) {
+          setOrders((prev) => {
+            if (!prev) return prev;
+            return prev.map((curr) => {
+              const matched = freshOrders.find((f) => f.code === curr.code);
+              if (matched && (matched.status !== curr.status || matched.payment_verified !== curr.payment_verified)) {
+                return {
+                  ...curr,
+                  ...matched,
+                  status: normalizeOrderStatus(matched.status)
+                };
+              }
+              return curr;
+            });
+          });
+        }
+      } catch (e) {
+        console.warn('Lỗi đồng bộ ngầm:', e);
+      }
+    }, 3500);
+
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+      clearInterval(pollInterval);
     };
-  }, [isOpen, orders]);
+  }, [isOpen, orders?.length]);
 
   // Xác nhận hủy đơn
   const handleConfirmCancelOrder = async () => {
@@ -283,7 +276,7 @@ export default function OrderLookupModal({
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn font-sans text-stone-800">
         <div className="w-full max-w-xl rounded-3xl bg-white p-5 sm:p-7 shadow-2xl space-y-4 max-h-[90vh] flex flex-col relative border border-stone-200/90">
           
-          {/* Header */}
+          {/* Header - Đã bỏ badge Live Sync */}
           <div className="flex justify-between items-center border-b border-stone-100 pb-3.5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
@@ -291,7 +284,7 @@ export default function OrderLookupModal({
               </div>
               <div>
                 <h3 className="font-black text-lg sm:text-xl text-stone-900 leading-tight">Tra Cứu Đơn Hàng</h3>
-                <p className="text-xs sm:text-sm text-stone-500 font-normal">Tra cứu trực tiếp từ hệ thống vườn</p>
+                <p className="text-xs sm:text-sm text-stone-500 font-normal">Trạng thái tự động cập nhật từ hệ thống vườn</p>
               </div>
             </div>
             <button 
@@ -374,14 +367,13 @@ export default function OrderLookupModal({
               const depositPaid = Number(ord.deposit_paid ?? 0);
               const remainingCod = Number(ord.remaining_cod ?? (displayTotal - depositPaid));
 
-              // Trích xuất hình ảnh đóng gói (hỗ trợ nhiều định dạng từ DB)
               const packingImage = ord.packing_image_url || ord.packed_image_url || ord.packing_image || (Array.isArray(ord.packing_photos) && ord.packing_photos[0]);
 
               const cardColorClass = isCompleted 
                 ? 'border-emerald-300 bg-emerald-50/40 shadow-xs' 
                 : isNew 
-                ? 'border-emerald-300 bg-emerald-50/20 shadow-2xs' 
-                : 'border-stone-200 bg-stone-50/60';
+                  ? 'border-emerald-300 bg-emerald-50/20 shadow-2xs' 
+                  : 'border-stone-200 bg-stone-50/60';
 
               return (
                 <div 
@@ -646,9 +638,11 @@ export default function OrderLookupModal({
 
                   <div className="space-y-1.5 pt-1 text-left">
                     <label className="block text-xs font-bold text-stone-700">Lý do hủy đơn:</label>
-                    <CustomCancelReasonSelect
+                    <CustomDropdown
+                      options={CANCEL_REASONS}
                       value={cancelReason}
-                      onChange={setCancelReason}
+                      onChange={(val) => setCancelReason(val)}
+                      searchable={false}
                     />
                   </div>
                 </div>

@@ -74,7 +74,6 @@ export default function OrderItemsList({
                     {itemName}
                   </span>
                   
-                  {/* Bỏ truncate ở đây để không bị cắt chữ '19...' */}
                   <div className="text-xs sm:text-sm text-stone-600 leading-normal flex flex-wrap items-center gap-1">
                     <span>Quy cách:</span>
                     <strong className="text-stone-800 font-semibold">{specLabel}</strong>
@@ -101,20 +100,17 @@ export default function OrderItemsList({
                 </div>
               </div>
 
-              {/* Cụm điều khiển số lượng */}
-              <div className="flex items-center gap-3 shrink-0">
+              {/* Cụm điều khiển số lượng & Giá tiền */}
+              <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                {/* Cụm tăng giảm số lượng tinh gọn (Nút trừ luôn là dấu trừ nhẹ nhàng) */}
                 <div className="flex items-center bg-white p-1 rounded-2xl border border-stone-200/90 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => handleQtyChange(item, -1)}
-                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer active:scale-95"
+                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center font-bold text-base transition-colors cursor-pointer active:scale-95"
                     title={qty === 1 ? "Bỏ món này khỏi giỏ" : "Giảm 1"}
                   >
-                    {qty === 1 ? (
-                      <Trash2 className="w-4 h-4 text-stone-400 hover:text-rose-600 transition-colors" />
-                    ) : (
-                      "-"
-                    )}
+                    -
                   </button>
                   
                   <span className="w-8 text-center font-black font-mono text-stone-900 text-sm sm:text-base">
@@ -124,12 +120,22 @@ export default function OrderItemsList({
                   <button
                     type="button"
                     onClick={() => handleQtyChange(item, 1)}
-                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-800 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer active:scale-95"
+                    className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center font-bold text-base transition-colors cursor-pointer active:scale-95"
                     title="Tăng 1"
                   >
                     +
                   </button>
                 </div>
+
+                {/* Duy nhất 1 nút Thùng rác xóa nhanh */}
+                <button
+                  type="button"
+                  onClick={() => onRemoveItem && onRemoveItem(item)}
+                  className="w-9 h-9 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200/80 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
+                  title="Xóa hẳn món này"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
 
                 {/* Thành tiền Desktop */}
                 <span className="hidden sm:inline-block font-mono font-black text-amber-950 whitespace-nowrap text-sm sm:text-base w-24 text-right">

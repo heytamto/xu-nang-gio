@@ -15,7 +15,25 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
-// Format ngày từ ISO timestamp của Supabase (hoặc định dạng dd/MM/yyyy)
+// Helper chuẩn hóa định dạng một Story Object từ mọi nguồn (API, LocalStorage, Socket Realtime)
+function normalizeStoryItem(raw) {
+  if (!raw) return null;
+  return {
+    ...raw,
+    id: raw.id || raw._id || `story-${Date.now()}-${Math.random()}`,
+    title: raw.title || 'Câu chuyện vườn nhà',
+    season: raw.season || raw.season_label || null,
+    location: raw.location || raw.origin || 'Phan Rang - Ninh Thuận',
+    author: raw.author || raw.author_name || 'Tâm Xứ Nắng Gió',
+    image: raw.image || raw.image_url || raw.imageUrl || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80",
+    image_url: raw.image_url || raw.image || raw.imageUrl || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80",
+    content: raw.content || raw.story || raw.desc || raw.description || '',
+    created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+    order: Number(raw.order ?? raw.priority ?? 0)
+  };
+}
+
+// Format ngày từ ISO timestamp hoặc dd/MM/yyyy
 function formatStoryDate(dateVal) {
   if (!dateVal) return 'Mùa vụ gần đây';
   const str = String(dateVal).trim();
@@ -34,48 +52,60 @@ function formatStoryDate(dateVal) {
 
 export default function StoryPage({ stories: initialStories = [], onNavigate }) {
   const [storiesList, setStoriesList] = useState(() => {
-    return Array.isArray(initialStories) ? [...initialStories] : [];
+    try {
+      const local = JSON.parse(localStorage.getItem('shop_stories') || '[]');
+      const source = Array.isArray(initialStories) && initialStories.length > 0 ? initialStories : local;
+      return source.map(normalizeStoryItem).filter(Boolean);
+    } catch {
+      return Array.isArray(initialStories) ? initialStories.map(normalizeStoryItem).filter(Boolean) : [];
+    }
   });
 
-  // Đồng bộ khi component cha (App.jsx) truyền danh sách mới
+  // Đồng bộ tức thì khi component cha truyền stories mới
   useEffect(() => {
     if (Array.isArray(initialStories) && initialStories.length > 0) {
-      setStoriesList(initialStories);
+      setStoriesList(initialStories.map(normalizeStoryItem).filter(Boolean));
     }
   }, [initialStories]);
 
-  // LẮNG NGHE SUPABASE REALTIME: ĐĂNG BÀI MỚI LẬP TỨC HIỆN RA GIAO DIỆN
+  // LẮNG NGHE SUPABASE REALTIME VỚI FILTER BẢO ĐẢM NHẢY LIỀN KHÔNG CẦN F5
   useEffect(() => {
     const channel = supabase
-      .channel('story-page-realtime')
+      .channel('story-page-realtime-sub')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'stories' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            const newStory = {
-              ...payload.new,
-              image: payload.new.image || payload.new.image_url,
-              image_url: payload.new.image_url || payload.new.image,
-              content: payload.new.content || payload.new.story
-            };
-            setStoriesList((prev) => [newStory, ...prev.filter((s) => s.id !== newStory.id)]);
+            const freshStory = normalizeStoryItem(payload.new);
+            setStoriesList((prev) => {
+              // Chèn bài mới trực tiếp lên đầu mảng
+              const next = [freshStory, ...prev.filter((s) => s.id !== freshStory.id)];
+              try { localStorage.setItem('shop_stories', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
           } else if (payload.eventType === 'UPDATE') {
-            const updatedStory = {
-              ...payload.new,
-              image: payload.new.image || payload.new.image_url,
-              image_url: payload.new.image_url || payload.new.image,
-              content: payload.new.content || payload.new.story
-            };
-            setStoriesList((prev) =>
-              prev.map((s) => (s.id === updatedStory.id ? updatedStory : s))
-            );
+            const updatedStory = normalizeStoryItem(payload.new);
+            setStoriesList((prev) => {
+              const next = prev.map((s) => (s.id === updatedStory.id ? updatedStory : s));
+              try { localStorage.setItem('shop_stories', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
           } else if (payload.eventType === 'DELETE') {
-            setStoriesList((prev) => prev.filter((s) => s.id !== payload.old.id));
+            const targetId = payload.old?.id;
+            setStoriesList((prev) => {
+              const next = prev.filter((s) => s.id !== targetId);
+              try { localStorage.setItem('shop_stories', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Channel đã kết nối thành công, sẵn sàng nhận dữ liệu thời gian thực
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -88,7 +118,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
     }
   };
 
-  // Sắp xếp: Ưu tiên bài mới đăng nhất lên đầu (theo created_at giảm dần)
+  // Sắp xếp: Ưu tiên bài mới tạo lên đầu
   const sortedStories = [...storiesList].sort((a, b) => {
     const timeA = new Date(a.created_at || 0).getTime();
     const timeB = new Date(b.created_at || 0).getTime();
@@ -99,7 +129,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900">
       
-      {/* ================= 1. HERO BANNER: TINH THẦN ĐẤT NẮNG ================= */}
+      {/* 1. HERO BANNER: TINH THẦN ĐẤT NẮNG */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-amber-500/10 via-amber-100/20 to-transparent border border-amber-200/50 p-8 sm:p-14 text-center">
         <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 rounded-full bg-orange-400/10 blur-3xl pointer-events-none" />
@@ -135,7 +165,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
         </div>
       </section>
 
-      {/* ================= 2. BA NGUYÊN BẢN CỦA NÔNG SẢN XỨ NẮNG ================= */}
+      {/* 2. BA THƯỚC ĐO NÔNG SẢN */}
       <section className="space-y-6">
         <div className="text-center space-y-1">
           <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
@@ -188,7 +218,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
         </div>
       </section>
 
-      {/* ================= 3. DÒNG THỜI GIAN NHẬT KÝ VƯỜN ================= */}
+      {/* 3. DÒNG THỜI GIAN NHẬT KÝ VƯỜN */}
       <section className="space-y-10">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-stone-200 pb-4 gap-2">
           <div>
@@ -220,12 +250,12 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
               return (
                 <article
                   key={storyItem.id || index}
-                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-6 sm:p-8 items-center group"
+                  className="bg-white rounded-3xl border border-stone-200/90 shadow-xs hover:shadow-xl transition-all duration-300 overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 p-6 sm:p-8 items-center group animate-fadeIn"
                 >
-                  {/* CỘT ẢNH: KHÓA CHIỀU CAO ĐỒNG NHẤT */}
+                  {/* CỘT ẢNH */}
                   <div className={`lg:col-span-5 h-72 sm:h-80 lg:h-96 w-full rounded-2xl overflow-hidden relative shadow-inner bg-stone-100 shrink-0 ${isEven ? 'lg:order-1' : 'lg:order-2'}`}>
                     <img
-                      src={storyItem.image || storyItem.image_url || "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1400&q=80"}
+                      src={storyItem.image || storyItem.image_url}
                       alt={storyItem.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
                       loading="lazy"
@@ -243,7 +273,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
                     <div className="absolute inset-0 bg-gradient-to-t from-stone-950/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
 
-                  {/* CỘT NỘI DUNG: CHỮ TO RÕ, ĐỘ DÀI VỪA VẶN */}
+                  {/* CỘT NỘI DUNG */}
                   <div className={`lg:col-span-7 space-y-4 flex flex-col justify-center ${isEven ? 'lg:order-2' : 'lg:order-1'}`}>
                     <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-stone-500">
                       <span className="flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-3 py-1.5 rounded-xl">
@@ -285,7 +315,7 @@ export default function StoryPage({ stories: initialStories = [], onNavigate }) 
         )}
       </section>
 
-      {/* ================= 4. KHỐI TÂM TÌNH VƯỜN NHÀ ================= */}
+      {/* 4. KHỐI TÂM TÌNH VƯỜN NHÀ */}
       <section className="relative overflow-hidden bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white rounded-3xl p-8 sm:p-14 shadow-2xl border border-stone-800">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 

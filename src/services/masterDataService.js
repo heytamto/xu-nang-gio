@@ -1,85 +1,33 @@
 // src/services/masterDataService.js
-import { supabase } from '../supabaseClient';
+import { productRepo } from '../repositories/productRepository';
+import { contentRepo } from '../repositories/contentRepository';
+import { marketingRepo } from '../repositories/marketingRepository';
 
 /**
- * Tải toàn bộ Master Data trực tiếp từ Supabase (3NF Products + Product Weights + Safe Config + Reviews + Payment Rewards)
+ * Tải toàn bộ Master Data thông qua các Repository đã tách biệt
  */
 export async function fetchAllMasterDataFromSupabase() {
   try {
+    // Gọi song song qua các Repository
     const [
-      { data: categories, error: errCats },
-      { data: products, error: errProds },
-      { data: posts, error: errPosts },
-      { data: stories, error: errStories },
-      { data: vouchers, error: errVouchers },
-      { data: gifts, error: errGifts },
-      configRes,
-      reviewRes
+      categories,
+      rawProducts,
+      posts,
+      stories,
+      vouchers,
+      gifts,
+      configs,
+      reviews
     ] = await Promise.all([
-      // Lấy danh mục, sắp xếp theo cột "order"
-      supabase
-        .from('categories')
-        .select('id, name, "order", created_at')
-        .order('order', { ascending: true }),
-      
-      // Khớp 100% DDL: bảng products chỉ có 'category', product_weights chỉ có 'label'
-      supabase.from('products').select(`
-        id,
-        name,
-        category,
-        base_price,
-        unit,
-        badge,
-        source,
-        description,
-        image_url,
-        in_stock,
-        campaign_gift_id,
-        campaign_tag,
-        created_at,
-        updated_at,
-        product_weights (
-          id,
-          product_id,
-          weight_key,
-          label,
-          multiplier,
-          price_override,
-          is_default,
-          sort_order,
-          created_at
-        )
-      `).order('id', { ascending: true }),
-
-      supabase.from('posts').select('*').order('created_at', { ascending: false }),
-      supabase.from('stories').select('*').order('created_at', { ascending: false }),
-      supabase.from('vouchers').select('*'),
-
-      // CHỈ LẤY QUÀ TẶNG CHUYỂN KHOẢN (type = 'payment_reward' & đang bật is_active)
-      supabase
-        .from('gifts')
-        .select('*')
-        .eq('type', 'payment_reward')
-        .order('id', { ascending: true }),
-
-      // Safe Query cho bảng shop_configs
-      supabase.from('shop_configs').select('*').then(res => res, () => ({ data: null, error: null })),
-      
-      // Safe Query cho reviews đã duyệt
-      supabase.from('reviews')
-        .select('*')
-        .eq('is_approved', true)
-        .order('created_at', { ascending: false })
-        .limit(8)
-        .then(res => res, () => ({ data: null, error: null }))
+      contentRepo.getCategories(),
+      productRepo.getAllWithWeights(),
+      contentRepo.getPosts(),
+      contentRepo.getStories(),
+      marketingRepo.getVouchers(),
+      marketingRepo.getPaymentRewardsGifts(),
+      marketingRepo.getShopConfigs(),
+      marketingRepo.getApprovedReviews(8)
     ]);
-
-    if (errCats) console.warn('Lưu ý categories:', errCats.message);
-    if (errProds) console.warn('Lưu ý products:', errProds.message);
-    if (errPosts) console.warn('Lưu ý posts:', errPosts.message);
-    if (errStories) console.warn('Lưu ý stories:', errStories.message);
-    if (errVouchers) console.warn('Lưu ý vouchers:', errVouchers.message);
-    if (errGifts) console.warn('Lưu ý gifts:', errGifts.message);
 
     // Cấu hình mặc định của shop
     let parsedConfig = {
@@ -96,10 +44,8 @@ export async function fetchAllMasterDataFromSupabase() {
       vouchers: []
     };
 
-    const configs = configRes?.data;
     if (Array.isArray(configs) && configs.length > 0) {
       if (configs[0].bank_bin || configs[0].bank_name || configs[0].hotline) {
-        // Cấu hình dạng 1 row (main_config / default_config)
         const row = configs[0];
         parsedConfig = {
           ...parsedConfig,
@@ -122,7 +68,6 @@ export async function fetchAllMasterDataFromSupabase() {
           vouchers: row.vouchers || []
         };
       } else {
-        // Cấu hình dạng key-value JSON
         const rawMap = {};
         configs.forEach((item) => {
           if (!item.key) return;
@@ -169,8 +114,8 @@ export async function fetchAllMasterDataFromSupabase() {
       }
     }
 
-    // Chuẩn hóa danh sách sản phẩm & quy cách (map bí danh an toàn để frontend luôn đọc được)
-    const formattedProducts = (products || []).map((p) => {
+    // Chuẩn hóa danh sách sản phẩm & quy cách
+    const formattedProducts = (rawProducts || []).map((p) => {
       const weightsList = Array.isArray(p.product_weights) && p.product_weights.length > 0
         ? [...p.product_weights]
             .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -178,7 +123,7 @@ export async function fetchAllMasterDataFromSupabase() {
               id: w.weight_key || String(w.id),
               weight_key: w.weight_key,
               label: w.label,
-              weight_label: w.label, // Map ngược tương thích cho UI
+              weight_label: w.label,
               multiplier: Number(w.multiplier) || 1,
               priceOverride: w.price_override != null ? Number(w.price_override) : null,
               price_override: w.price_override != null ? Number(w.price_override) : null,
@@ -190,7 +135,7 @@ export async function fetchAllMasterDataFromSupabase() {
         id: p.id,
         name: p.name,
         category: p.category,
-        category_id: p.category, // Map ngược tương thích cho UI
+        category_id: p.category,
         basePrice: Number(p.base_price) || 0,
         base_price: Number(p.base_price) || 0,
         price: Number(p.base_price) || 0,
@@ -212,14 +157,10 @@ export async function fetchAllMasterDataFromSupabase() {
       };
     });
 
-    // Chỉ giữ quà tặng thanh toán hợp lệ (loại trừ các món bị tắt)
     const validPaymentGifts = (gifts || []).filter(g => g.type === 'payment_reward' && g.is_active !== false);
 
     return {
-      categories: (categories || []).map(c => ({
-        ...c,
-        label: c.name // Đồng bộ thuộc tính hiển thị
-      })),
+      categories: (categories || []).map(c => ({ ...c, label: c.name })),
       products: formattedProducts,
       posts: (posts || []).map((post) => ({
         ...post,
@@ -239,7 +180,7 @@ export async function fetchAllMasterDataFromSupabase() {
       giftsCatalog: validPaymentGifts,
       paymentGifts: validPaymentGifts,
       config: parsedConfig,
-      reviews: reviewRes?.data || []
+      reviews: reviews || []
     };
   } catch (err) {
     console.error('Lỗi fetchAllMasterDataFromSupabase:', err);

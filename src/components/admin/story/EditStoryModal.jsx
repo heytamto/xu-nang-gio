@@ -1,9 +1,16 @@
-// src/components/admin/EditStoryModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Check, Calendar, MapPin, Loader2 } from 'lucide-react';
-import ImageUploadField from '../ImageUploadField';
-import { formatDate } from '../../utils/dateUtils';
-import { supabase } from '../../supabaseClient';
+import { X, Check, Calendar, MapPin, Loader2, Sun } from 'lucide-react';
+import ImageUploadField from '../../ImageUploadField';
+import CustomDropdown from '../../CustomDropdown';
+import { formatDate } from '../../../utils/dateUtils';
+import { storyRepo } from '../../../repositories';
+
+const SEASON_OPTIONS = [
+  { value: 'Vụ Thu Đông', label: 'Vụ Thu Đông (Tháng 9 - 12)' },
+  { value: 'Vụ Xuân Hè', label: 'Vụ Xuân Hè (Tháng 1 - 4)' },
+  { value: 'Vụ Hè Thu', label: 'Vụ Hè Thu (Tháng 5 - 8)' },
+  { value: 'Mùa Gió Khan', label: 'Mùa Gió Khan Ninh Thuận' }
+];
 
 export default function EditStoryModal({ story = {}, onClose, onSave, onShowAlert }) {
   const [formData, setFormData] = useState({
@@ -22,9 +29,9 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    if (story) {
+    if (story && story.id) {
       setFormData({
-        id: story.id || '',
+        id: story.id,
         title: story.title || '',
         date: formatDate(story.created_at || story.date || new Date(), '15/10/2026'),
         season: story.season || 'Vụ Thu Đông',
@@ -51,7 +58,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
       const storyText = formData.story.trim() || formData.quote.trim();
       const imageUrl = formData.image.trim() || null;
 
-      // Payload CHÍNH XÁC theo cấu trúc DDL public.stories (TUYỆT ĐỐI KHÔNG GỬI 'desc')
+      // Payload đồng bộ schema Supabase public.stories
       const updatePayload = {
         title: formData.title.trim(),
         season: formData.season.trim() || 'Vụ Thu Đông',
@@ -61,22 +68,16 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
         story: storyText,
         content: storyText,
         image: imageUrl,
-        image_url: imageUrl
+        image_url: imageUrl,
+        updated_at: new Date().toISOString()
       };
 
-      // 1. Cập nhật trực tiếp xuống Supabase Database
-      const { data, error } = await supabase
-        .from('stories')
-        .update(updatePayload)
-        .eq('id', story.id)
-        .select()
-        .single();
+      // 1. Cập nhật thông qua storyRepo
+      const updatedStory = await storyRepo.update(story.id, updatePayload);
 
-      if (error) throw error;
+      const savedResult = updatedStory || { ...story, ...updatePayload };
 
-      const savedResult = data || { ...story, ...updatePayload };
-
-      // 2. Thông báo thành công nếu có
+      // 2. Thông báo thành công
       onShowAlert?.(`Đã cập nhật câu chuyện #${story.id} thành công!`);
 
       // 3. Cập nhật state ở component cha
@@ -86,7 +87,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
 
       onClose();
     } catch (err) {
-      console.error('Lỗi khi cập nhật chuyện vườn:', err);
+      console.error('Lỗi khi cập nhật chuyện vườn qua storyRepo:', err);
       setErrorMessage(err.message || 'Không thể cập nhật câu chuyện vào cơ sở dữ liệu.');
     } finally {
       setIsSubmitting(false);
@@ -95,7 +96,6 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      {/* Khung modal chuẩn rộng max-w-5xl (1024px) */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
@@ -135,11 +135,11 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-bold focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 sm:gap-4">
             <div>
               <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-stone-500" />
@@ -154,15 +154,14 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
             </div>
 
             <div>
-              <label className="font-bold text-stone-700 block mb-1.5">
-                Mùa vụ (season)
-              </label>
-              <input
-                type="text"
-                placeholder="Vụ Thu Đông"
+              <CustomDropdown
+                label="Mùa vụ"
+                headerLabel="DANH SÁCH MÙA VỤ:"
+                icon={Sun}
+                options={SEASON_OPTIONS}
                 value={formData.season}
-                onChange={(e) => setFormData({ ...formData, season: e.target.value })}
-                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                onChange={(val) => setFormData({ ...formData, season: val })}
+                searchable={false}
               />
             </div>
 
@@ -179,9 +178,21 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
                 className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
+
+            <div>
+              <label className="font-bold text-stone-700 block mb-1.5">
+                Người kể
+              </label>
+              <input
+                type="text"
+                placeholder="Tâm Xứ Nắng"
+                value={formData.author}
+                onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+              />
+            </div>
           </div>
 
-          {/* Cập nhật ảnh qua Supabase Storage bucket stories */}
           <ImageUploadField
             label="Ảnh đại diện mẩu chuyện (Supabase Storage)"
             value={formData.image}
@@ -191,11 +202,11 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
 
           <div>
             <label className="font-bold text-stone-700 block mb-1.5">
-              Lời đề từ / Trích dẫn ngắn (quote)
+              Lời đề từ / Trích dẫn ngắn (Quote)
             </label>
             <input
               type="text"
-              placeholder="VD: Nắng rát mặt nhưng trái nho lại mọng mật nhất vào những ngày gió khan..."
+              placeholder="VD: Nắng rát mặt nhưng trái nho lại mọng mật nhất..."
               value={formData.quote}
               onChange={(e) => setFormData({ ...formData, quote: e.target.value })}
               className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 italic focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
@@ -204,7 +215,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
 
           <div>
             <label className="font-bold text-stone-700 block mb-1.5">
-              Nội dung câu chuyện chi tiết (story) *
+              Nội dung câu chuyện chi tiết (Story) *
             </label>
             <textarea
               rows="7"
@@ -227,7 +238,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>

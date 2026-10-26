@@ -8,6 +8,7 @@ import {
   findEligiblePreviousOrderVoucher,
   checkCustomerOrderRisk 
 } from '../services/orderService';
+import { generatePrefixedDateId } from '../utils/idGenerator';
 
 import { 
   validateName, 
@@ -15,7 +16,7 @@ import {
   validateEmail, 
   validateAddress, 
   isValidVietnamesePhone 
-} from '../utils/checkoutValidation';
+} from '../utils/validationUtils';
 
 import OrderItemsList from '../components/checkout/OrderItemsList';
 import PaymentGiftSelector from '../components/checkout/PaymentGiftSelector';
@@ -76,12 +77,6 @@ function parseDateForSort(dateStr) {
   return isNaN(t) ? 0 : t;
 }
 
-function generateUniqueOrderCode() {
-  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
-  const randomChars = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `XNG${dateStr}-${randomChars}`;
-}
-
 export default function CheckoutPage({
   cart = [],
   onSubmitOrder,
@@ -90,7 +85,7 @@ export default function CheckoutPage({
   onUpdateQuantity,
   onRemoveItem,
 }) {
-  const [orderCode] = useState(() => generateUniqueOrderCode());
+  const [orderCode] = useState(() => generatePrefixedDateId('XNG'));
 
   // 1. STATE QUYỀN LỢI ĐỒNG BỘ REALTIME
   const [syncedCart, setSyncedCart] = useState(cart);
@@ -98,6 +93,26 @@ export default function CheckoutPage({
   const [liveConfig, setLiveConfig] = useState(shopConfig);
   const [priceChangeNotice, setPriceChangeNotice] = useState(null);
   const [isSyncingPrice, setIsSyncingPrice] = useState(false);
+
+  // FIX LỖI CỐT LÕI: Tự động cập nhật syncedCart ngay khi prop cart ở App.jsx bị sửa số lượng hoặc xóa món
+  useEffect(() => {
+    setSyncedCart((prevSynced) => {
+      // Map lại cart mới nhưng vẫn giữ các thông tin giá realtime đã được vườn sync
+      const priceMap = new Map();
+      prevSynced.forEach((item) => {
+        const itemKey = item.key || item.productId || item.id;
+        priceMap.set(itemKey, item.price);
+      });
+
+      return cart.map((item) => {
+        const itemKey = item.key || item.productId || item.id;
+        return {
+          ...item,
+          price: priceMap.has(itemKey) ? priceMap.get(itemKey) : item.price
+        };
+      });
+    });
+  }, [cart]);
 
   const [customer, setCustomer] = useState(() => {
     try {
@@ -134,9 +149,7 @@ export default function CheckoutPage({
     isChecking: false
   });
 
-  // --------------------------------------------------------------------------
-  // MASTER REALTIME SYNC: LẮNG NGHE TỨC THỜI CẢ 4 BẢNG (GIFTS, PRODUCTS, VOUCHERS, SHOP_CONFIGS)
-  // --------------------------------------------------------------------------
+  // REALTIME LISTENER
   useEffect(() => {
     let isMounted = true;
 
@@ -167,7 +180,6 @@ export default function CheckoutPage({
 
     const masterChannel = supabase
       .channel('master-checkout-realtime-listener')
-      // 1. Quà tặng (gifts): Tắt/bật là cập nhật ngay
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gifts' },
@@ -189,7 +201,6 @@ export default function CheckoutPage({
           }
         }
       )
-      // 2. Sản phẩm (products): Đổi giá hoặc tồn kho là đồng bộ giỏ hàng ngay (Có tính quy cách chuẩn)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'products' },
@@ -242,7 +253,6 @@ export default function CheckoutPage({
           });
         }
       )
-      // 3. Voucher (vouchers): Sửa chiết khấu/xóa voucher là tính lại ngay
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vouchers' },
@@ -272,7 +282,6 @@ export default function CheckoutPage({
           }
         }
       )
-      // 4. Cấu hình vận hành (shop_configs): Đổi cọc, phí ship, mốc freeship
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'shop_configs' },
@@ -302,7 +311,7 @@ export default function CheckoutPage({
     return liveConfig?.enablePaymentGifts ?? liveConfig?.payment?.enableGifts ?? true;
   }, [liveConfig]);
 
-  // Đồng bộ giá phòng thủ lần đầu khi giỏ hàng được nạp (Tính chuẩn quy cách không bị ghi đè base_price)
+  // Đồng bộ giá từ cơ sở dữ liệu cho lần đầu mở trang
   useEffect(() => {
     if (!cart.length) {
       setSyncedCart([]);
@@ -319,12 +328,8 @@ export default function CheckoutPage({
           })
           .filter(Boolean);
 
-        if (!productIds.length) {
-          setSyncedCart(cart);
-          return;
-        }
+        if (!productIds.length) return;
 
-        // Tải kèm bảng liên kết product_weights để tính đúng theo quy cách
         const { data: latestProducts, error } = await supabase
           .from('products')
           .select('id, name, base_price, in_stock, product_weights(*)')
@@ -336,76 +341,67 @@ export default function CheckoutPage({
           const productMap = new Map(latestProducts.map((p) => [String(p.id), p]));
           let hasPriceChanged = false;
 
-          const updated = cart.map((cartItem) => {
-            const rawId = cartItem.product_id || cartItem.productId || cartItem.id || '';
-            const cleanId = String(rawId).split('-opt-')[0].split('_')[0].trim();
-            const fresh = productMap.get(cleanId);
-            if (!fresh) return cartItem;
+          setSyncedCart((currentSynced) =>
+            currentSynced.map((cartItem) => {
+              const rawId = cartItem.product_id || cartItem.productId || cartItem.id || '';
+              const cleanId = String(rawId).split('-opt-')[0].split('_')[0].trim();
+              const fresh = productMap.get(cleanId);
+              if (!fresh) return cartItem;
 
-            const base = Number(fresh.base_price ?? fresh.basePrice ?? 0);
-            let finalPrice = Number(cartItem.price || base);
+              const base = Number(fresh.base_price ?? fresh.basePrice ?? 0);
+              let finalPrice = Number(cartItem.price || base);
 
-            // Kiểm tra quy cách chính xác
-            const rawWeights = fresh.product_weights || fresh.weights;
-            if (Array.isArray(rawWeights) && rawWeights.length > 0) {
-              const matchedWeight = rawWeights.find(
-                (w) => String(w.id) === String(cartItem.weightId) || (w.weight_label || w.label) === cartItem.weightLabel
-              );
+              const rawWeights = fresh.product_weights || fresh.weights;
+              if (Array.isArray(rawWeights) && rawWeights.length > 0) {
+                const matchedWeight = rawWeights.find(
+                  (w) => String(w.id) === String(cartItem.weightId) || (w.weight_label || w.label) === cartItem.weightLabel
+                );
 
-              if (matchedWeight) {
-                const override = matchedWeight.price_override != null && matchedWeight.price_override !== ''
-                  ? Number(matchedWeight.price_override)
-                  : null;
-                const mult = parseFloat(matchedWeight.multiplier) || 1;
+                if (matchedWeight) {
+                  const override = matchedWeight.price_override != null && matchedWeight.price_override !== ''
+                    ? Number(matchedWeight.price_override)
+                    : null;
+                  const mult = parseFloat(matchedWeight.multiplier) || 1;
 
-                if (override != null && override > 0) {
-                  finalPrice = override;
-                } else {
-                  finalPrice = Math.round(base * mult);
+                  if (override != null && override > 0) {
+                    finalPrice = override;
+                  } else {
+                    finalPrice = Math.round(base * mult);
+                  }
                 }
+              } else {
+                finalPrice = base;
               }
-            } else {
-              finalPrice = base;
-            }
 
-            if (finalPrice !== Number(cartItem.price)) {
-              hasPriceChanged = true;
-            }
+              if (finalPrice !== Number(cartItem.price)) {
+                hasPriceChanged = true;
+              }
 
-            return {
-              ...cartItem,
-              name: fresh.name || cartItem.name,
-              title: fresh.name || cartItem.title,
-              price: finalPrice,
-              basePrice: base,
-              base_price: base,
-              inStock: fresh.in_stock ?? true,
-            };
-          });
-
-          setSyncedCart(updated);
+              return {
+                ...cartItem,
+                name: fresh.name || cartItem.name,
+                title: fresh.name || cartItem.title,
+                price: finalPrice,
+                basePrice: base,
+                base_price: base,
+                inStock: fresh.in_stock ?? true,
+              };
+            })
+          );
 
           if (hasPriceChanged) {
             setPriceChangeNotice('Giá một số sản phẩm trong giỏ vừa được đồng bộ cập nhật theo bảng giá mới nhất từ vườn.');
-            try {
-              localStorage.setItem('shop_cart', JSON.stringify(updated));
-            } catch (e) {
-              console.error(e);
-            }
           }
-        } else {
-          setSyncedCart(cart);
         }
       } catch (err) {
-        console.warn('Không thể đồng bộ giá realtime, dùng giá cache:', err);
-        setSyncedCart(cart);
+        console.warn('Không thể đồng bộ giá realtime:', err);
       } finally {
         setIsSyncingPrice(false);
       }
     };
 
     syncPricesWithDatabase();
-  }, [cart]);
+  }, [cart.length]);
 
   // Kiểm tra rủi ro khách hàng
   useEffect(() => {
@@ -437,6 +433,7 @@ export default function CheckoutPage({
     return () => clearTimeout(timer);
   }, [cleanPhone, isPhoneValid]);
 
+  // Reset voucher khi số điện thoại đổi
   useEffect(() => {
     if (!isPhoneValid) {
       if (appliedVouchers.length > 0) {
@@ -452,6 +449,7 @@ export default function CheckoutPage({
     prevPhoneRef.current = cleanPhone;
   }, [cleanPhone, isPhoneValid, appliedVouchers.length]);
 
+  // Lịch sử khách hàng
   const customerHistory = useMemo(() => {
     if (!isPhoneValid) return null;
 
@@ -574,6 +572,7 @@ export default function CheckoutPage({
     return () => { isMounted = false; };
   }, [customerHistory]);
 
+  // Luôn lấy dữ liệu syncedCart chuẩn để tính toán
   const clientSubtotal = useMemo(() => {
     return syncedCart.reduce(
       (sum, item) => sum + (Number(item.price || item.base_price || item.basePrice || 0) * Number(item.quantity || 1)), 
@@ -702,11 +701,9 @@ export default function CheckoutPage({
     setVoucherError('');
   };
 
-  // QUY TRÌNH DUYỆT THỦ CÔNG: ĐƠN HÀNG LUÔN KHỞI TẠO PENDING CHỜ ADMIN KIỂM TRA SỔ SÁCH
   const processCheckoutSubmission = useCallback(async () => {
     const chosenGiftObj = paymentGifts.find((g) => g.id === selectedGiftId);
     
-    // Kiểm tra cờ is_active từ bảng gifts
     const isGiftInStock = chosenGiftObj && chosenGiftObj.is_active !== false && chosenGiftObj.inStock !== false;
     const isGiftApplicable = isPaymentGiftsEnabled && paymentMethod !== 'cod' && isGiftInStock;
     const giftTitleToSave = isGiftApplicable 
@@ -815,16 +812,15 @@ export default function CheckoutPage({
     }
   };
 
+  // Nếu giỏ hàng trống hoàn toàn
   if (!cart.length) {
     return (
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 font-sans text-stone-800">
         <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl p-8 sm:p-12 text-center max-w-xl mx-auto space-y-7 animate-fadeIn">
-          {/* Icon giỏ hàng to rõ, ấm cúng */}
           <div className="w-24 h-24 rounded-3xl bg-amber-50 border-2 border-amber-200/80 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
             <ShoppingBag className="w-12 h-12 stroke-[2.2]" />
           </div>
 
-          {/* Tiêu đề & Diễn giải */}
           <div className="space-y-2.5 max-w-md mx-auto">
             <h2 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
               Giỏ hàng của bạn đang trống
@@ -834,7 +830,6 @@ export default function CheckoutPage({
             </p>
           </div>
 
-          {/* 2 Nút bấm chuẩn h-12 (48px) bấm êm tay */}
           <div className="flex flex-col sm:flex-row gap-3.5 justify-center pt-2">
             <button
               type="button"
@@ -853,7 +848,6 @@ export default function CheckoutPage({
             </button>
           </div>
 
-          {/* Dải cam kết phía dưới dàn hàng ngang thoáng */}
           <div className="pt-6 border-t border-stone-100 flex flex-wrap items-center justify-center gap-4 sm:gap-7 text-xs sm:text-sm font-semibold text-stone-600">
             <span>🌿 Hái tươi tại vườn</span>
             <span className="w-1.5 h-1.5 rounded-full bg-stone-300 hidden sm:inline-block" />

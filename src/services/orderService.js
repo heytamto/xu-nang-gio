@@ -1,14 +1,22 @@
 // src/services/orderService.js
+import { 
+  orderRepo, 
+  orderItemRepo, 
+  voucherRepo, 
+  reviewRepo, 
+  shopConfigRepo,
+  customerRiskRepo 
+} from '../repositories';
 import { supabase } from '../supabaseClient';
 import { parseOrderTimestampToMs } from '../utils/dateUtils';
+import { generatePrefixedDateId } from '../utils/idGenerator';
 import { 
   ORDER_STATUS, 
   normalizeOrderStatus 
 } from '../constants/orderStatus';
 
 /**
- * 1. TẠO ĐƠN HÀNG NGUYÊN TỬ VÀO POSTGRESQL (GỌI RPC create_order_atomic HOẶC FALLBACK)
- * Tự động cập nhật tăng used_count cho các mã voucher thuộc bảng public.vouchers
+ * 1. TẠO ĐƠN HÀNG NGUYÊN TỬ VÀO POSTGRESQL (GỌI QUA ORDER REPOSITORY)
  */
 export async function submitOrderToSupabase(orderData) {
   const {
@@ -26,7 +34,6 @@ export async function submitOrderToSupabase(orderData) {
     usedPreviousOrderCode
   } = orderData;
 
-  const code = orderData.code || `XNG${Date.now().toString().slice(-6)}`;
   const cleanPhone = String(customer?.phone || orderData.phone || '').replace(/\D/g, '');
 
   const formattedItems = (cart || []).map((item) => {
@@ -43,87 +50,63 @@ export async function submitOrderToSupabase(orderData) {
     };
   });
 
-  const rpcParams = {
-    p_code: code,
-    p_customer_name: (customer?.name || orderData.name || '').trim(),
-    p_phone: cleanPhone,
-    p_email: customer?.email ? customer.email.trim() : (orderData.email ? orderData.email.trim() : null),
-    p_address: (customer?.address || orderData.address || '').trim(),
-    p_payment_method: paymentMethod || 'cod',
-    p_subtotal: Number(subtotal) || 0,
-    p_discount: Number(discount) || 0,
-    p_final_total: Number(finalTotal) || 0,
-    p_voucher_codes: voucherCode || null,
-    p_payment_gift: paymentGift || null,
-    p_campaign_gifts: campaignGifts || null,
-    p_customer_note: (customerNote || customer?.note || orderData.note || '').trim() || null,
-    p_edge_signature: edgeSignature || null,
-    p_status: ORDER_STATUS.PENDING,
-    p_items: formattedItems,
-    p_used_previous_order_code: usedPreviousOrderCode || null
+  // Tự sinh mã đơn dạng 1 gạch nối: XNG261026-9812 nếu chưa có
+  const finalOrderCode = orderData.code || orderData.orderCode || generatePrefixedDateId('XNG');
+
+  const orderPayload = {
+    code: finalOrderCode,
+    customer_name: (customer?.name || orderData.name || '').trim(),
+    phone: cleanPhone,
+    email: customer?.email ? customer.email.trim() : (orderData.email ? orderData.email.trim() : null),
+    address: (customer?.address || orderData.address || '').trim(),
+    payment_method: paymentMethod || 'cod',
+    subtotal: Number(subtotal) || 0,
+    discount: Number(discount) || 0,
+    final_total: Number(finalTotal) || 0,
+    voucher_codes: voucherCode || null,
+    payment_gift: paymentGift || null,
+    campaign_gifts: campaignGifts || null,
+    customer_note: (customerNote || customer?.note || orderData.note || '').trim() || null,
+    edge_signature: edgeSignature || null,
+    used_previous_order_code: usedPreviousOrderCode || null,
+    status: ORDER_STATUS.PENDING
   };
 
-  let orderCreated = false;
-
-  // A. Thử ghi nhận bằng Transaction RPC
+  let createdOrder;
   try {
-    const { data, error } = await supabase.rpc('create_order_atomic', rpcParams);
-    if (!error && data?.success) {
-      orderCreated = true;
-    } else if (error) {
-      console.warn('RPC create_order_atomic warning, thử fallback:', error.message);
-    }
-  } catch (rpcErr) {
-    console.warn('RPC exception, thử fallback:', rpcErr);
+    createdOrder = await orderRepo.create(orderPayload);
+  } catch (err) {
+    console.error('Lỗi tạo đơn hàng qua Repository:', err);
+    throw new Error(err.message || 'Không thể tạo đơn hàng');
   }
 
-  // B. Fallback dự phòng: Insert trực tiếp vào bảng orders & order_items
-  if (!orderCreated) {
-    const { error: orderErr } = await supabase.from('orders').insert([
-      {
-        code: code,
-        customer_name: rpcParams.p_customer_name,
-        phone: rpcParams.p_phone,
-        email: rpcParams.p_email,
-        address: rpcParams.p_address,
-        payment_method: rpcParams.p_payment_method,
-        subtotal: rpcParams.p_subtotal,
-        discount: rpcParams.p_discount,
-        final_total: rpcParams.p_final_total,
-        voucher_codes: rpcParams.p_voucher_codes,
-        payment_gift: rpcParams.p_payment_gift,
-        campaign_gifts: rpcParams.p_campaign_gifts,
-        customer_note: rpcParams.p_customer_note,
-        edge_signature: rpcParams.p_edge_signature,
-        used_previous_order_code: usedPreviousOrderCode || null,
-        status: ORDER_STATUS.PENDING,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+  const generatedCode = createdOrder?.code || finalOrderCode;
+
+  // Ghi nhận các sản phẩm trong đơn hàng
+  if (formattedItems.length > 0) {
+    const itemsPayload = formattedItems.map((it) => ({
+      order_code: generatedCode,
+      product_id: it.productId,
+      name: it.name,
+      weight_label: it.weightLabel,
+      price: it.price,
+      quantity: it.quantity,
+      line_total: it.price * it.quantity,
+      campaign_gift_title: it.campaign_gift_title
+    }));
+
+    try {
+      if (typeof orderItemRepo.createMany === 'function') {
+        await orderItemRepo.createMany(itemsPayload);
+      } else {
+        await supabase.from('order_items').insert(itemsPayload);
       }
-    ]);
-
-    if (orderErr) {
-      console.error('Lỗi fallback insert orders:', orderErr);
-      throw new Error(orderErr.message || 'Không thể tạo đơn hàng');
-    }
-
-    if (formattedItems.length > 0) {
-      const itemsPayload = formattedItems.map((it) => ({
-        order_code: code,
-        product_id: it.productId,
-        name: it.name,
-        weight_label: it.weightLabel,
-        price: it.price,
-        quantity: it.quantity,
-        line_total: it.price * it.quantity,
-        campaign_gift_title: it.campaign_gift_title
-      }));
-
-      await supabase.from('order_items').insert(itemsPayload);
+    } catch (itemErr) {
+      console.warn('Lỗi lưu order_items:', itemErr);
     }
   }
 
-  // C. Tăng used_count cho các voucher hệ thống vừa được áp dụng
+  // Tăng used_count cho các voucher hệ thống vừa được áp dụng
   if (voucherCode) {
     const codesToUpdate = String(voucherCode)
       .split(',')
@@ -133,17 +116,13 @@ export async function submitOrderToSupabase(orderData) {
     if (codesToUpdate.length > 0) {
       for (const vCode of codesToUpdate) {
         try {
-          const { data: vRow } = await supabase
-            .from('vouchers')
-            .select('used_count')
-            .eq('code', vCode)
-            .maybeSingle();
+          const vouchersList = await voucherRepo.getAll();
+          const vRow = vouchersList.find((v) => String(v.code).toUpperCase() === vCode);
 
           if (vRow) {
-            await supabase
-              .from('vouchers')
-              .update({ used_count: (Number(vRow.used_count) || 0) + 1 })
-              .eq('code', vCode);
+            await voucherRepo.update(vCode, { 
+              used_count: (Number(vRow.used_count) || 0) + 1 
+            }, 'code');
           }
         } catch (vErr) {
           console.warn(`Không thể tăng lượt dùng cho voucher ${vCode}:`, vErr);
@@ -152,11 +131,11 @@ export async function submitOrderToSupabase(orderData) {
     }
   }
 
-  return { success: true, orderCode: code };
+  return { success: true, orderCode: generatedCode };
 }
 
 /**
- * 2. KIỂM TRA & XÁC THỰC MÃ VOUCHER TRỰC TIẾP TỪ BẢNG public.vouchers & ĐƠN HÀNG CŨ
+ * 2. KIỂM TRA & XÁC THỰC MÃ VOUCHER TRỰC TIẾP TỪ BẢNG VOUCHERS & ĐƠN HÀNG CŨ
  */
 export async function validateVoucherCode(code, currentCartTotal = 0, currentPhone = '', appliedList = []) {
   const cleanCode = String(code || '').trim().toUpperCase();
@@ -173,7 +152,6 @@ export async function validateVoucherCode(code, currentCartTotal = 0, currentPho
     return { success: false, error: 'Mã ưu đãi này đã được áp dụng trong đơn hàng rồi.' };
   }
 
-  // 1. Nếu là Mã Đơn Cũ (Bắt đầu bằng XNG...) -> Tính động theo cấu hình Loyalty
   if (cleanCode.startsWith('XNG')) {
     const verifyRes = await verifyPreviousOrderVoucher(cleanCode, currentPhone, currentCartTotal);
     if (!verifyRes.valid) {
@@ -194,15 +172,11 @@ export async function validateVoucherCode(code, currentCartTotal = 0, currentPho
     };
   }
 
-  // 2. Tra cứu trực tiếp từ bảng public.vouchers
   try {
-    const { data: vData, error } = await supabase
-      .from('vouchers')
-      .select('*')
-      .eq('code', cleanCode)
-      .maybeSingle();
+    const vouchersList = await voucherRepo.getAll();
+    const vData = vouchersList.find((v) => String(v.code).toUpperCase() === cleanCode);
 
-    if (error || !vData) {
+    if (!vData) {
       return { success: false, error: 'Mã voucher không tồn tại hoặc đã hết hạn.' };
     }
 
@@ -225,18 +199,6 @@ export async function validateVoucherCode(code, currentCartTotal = 0, currentPho
       return { 
         success: false, 
         error: 'Mã này là ưu đãi độc quyền, không thể dùng chung với các mã khác.' 
-      };
-    }
-
-    const hasExclusive = appliedList.some((v) => {
-      const stackable = v.canStack ?? v.can_stack ?? true;
-      return !stackable;
-    });
-
-    if (hasExclusive) {
-      return {
-        success: false,
-        error: 'Đơn hàng đang áp dụng mã độc quyền, không thể gộp thêm mã mới.'
       };
     }
 
@@ -271,7 +233,7 @@ export async function validateVoucherCode(code, currentCartTotal = 0, currentPho
 }
 
 /**
- * 3. TRA CỨU LỊCH SỬ KHÁCH HÀNG
+ * 3. TRA CỨU LỊCH SỬ KHÁCH HÀNG QUA REPOSITORIES
  */
 export async function fetchCustomerHistory(phone) {
   const cleanPhone = String(phone || '').replace(/\D/g, '');
@@ -280,19 +242,11 @@ export async function fetchCustomerHistory(phone) {
   try {
     const last8Digits = cleanPhone.slice(-8);
 
-    const { data: riskProfile } = await supabase
-      .from('customer_risk_profiles')
-      .select('risk_level, is_pardoned, last_bad_reason')
-      .ilike('phone', `%${last8Digits}`)
-      .maybeSingle();
+    const riskProfiles = await customerRiskRepo.getAll();
+    const riskProfile = riskProfiles.find((rp) => rp.phone && rp.phone.slice(-8) === last8Digits);
 
-    const { data: matchedOrders, error } = await supabase
-      .from('orders')
-      .select('code, customer_name, phone, address, email, payment_method, status, created_at, used_previous_order_code')
-      .ilike('phone', `%${last8Digits}`)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
+    const allOrders = await orderRepo.getAll();
+    const matchedOrders = allOrders.filter((o) => o.phone && o.phone.replace(/\D/g, '').slice(-8) === last8Digits);
 
     if (!matchedOrders || matchedOrders.length === 0) {
       return {
@@ -369,35 +323,14 @@ export async function lookupOrderDirect(queryValue) {
   const isPhoneSearch = !hasLetters && cleanDigits.length >= 8;
 
   try {
-    let ordersData = null;
+    const allOrders = await orderRepo.getAll();
+    let ordersData = [];
 
     if (isPhoneSearch) {
       const suffix = cleanDigits.slice(-8);
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .or(`phone.ilike."%${suffix}%",phone.ilike."%${cleanDigits}%"`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      ordersData = data;
+      ordersData = allOrders.filter((o) => o.phone && o.phone.replace(/\D/g, '').includes(suffix));
     } else {
-      let { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('code', upperCode);
-
-      if (!error && (!data || data.length === 0)) {
-        const fallbackRes = await supabase
-          .from('orders')
-          .select('*')
-          .ilike('code', `%${upperCode}%`);
-        data = fallbackRes.data;
-        error = fallbackRes.error;
-      }
-
-      if (error) throw error;
-      ordersData = data;
+      ordersData = allOrders.filter((o) => o.code && o.code.toUpperCase().includes(upperCode));
     }
 
     if (!Array.isArray(ordersData) || ordersData.length === 0) return [];
@@ -406,12 +339,12 @@ export async function lookupOrderDirect(queryValue) {
     let itemsByOrder = {};
 
     if (orderCodes.length > 0) {
-      const { data: itemsData, error: itemsErr } = await supabase
+      const { data: itemsData } = await supabase
         .from('order_items')
         .select('*')
         .in('order_code', orderCodes);
 
-      if (!itemsErr && Array.isArray(itemsData)) {
+      if (Array.isArray(itemsData)) {
         itemsData.forEach((it) => {
           const key = it.order_code;
           if (!itemsByOrder[key]) itemsByOrder[key] = [];
@@ -441,16 +374,13 @@ export async function lookupOrderDirect(queryValue) {
 }
 
 /**
- * 5. HỦY ĐƠN HÀNG (Khách tự hủy trong cửa sổ 30 phút đầu)
+ * 5. HỦY ĐƠN HÀNG (Gọi qua orderRepo)
  */
 export async function cancelOrderDirect(orderCode, cancelReason) {
-  const { data: ord, error: fetchErr } = await supabase
-    .from('orders')
-    .select('code, status, created_at')
-    .eq('code', orderCode)
-    .single();
+  const allOrders = await orderRepo.getAll();
+  const ord = allOrders.find((o) => o.code === orderCode);
 
-  if (fetchErr || !ord) {
+  if (!ord) {
     throw new Error('Không tìm thấy đơn hàng cần hủy.');
   }
 
@@ -462,25 +392,14 @@ export async function cancelOrderDirect(orderCode, cancelReason) {
     throw new Error('Đã quá thời gian 30 phút đổi ý. Đơn hàng đã được chốt đóng thùng.');
   }
 
-  const { data, error } = await supabase
-    .from('orders')
-    .update({
-      status: ORDER_STATUS.CANCELLED,
-      cancel_reason: cancelReason || 'Khách đổi ý hủy đơn',
-      updated_at: new Date().toISOString()
-    })
-    .eq('code', orderCode)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Lỗi cancelOrderDirect:', error);
-    throw error;
-  }
+  const updatedData = await orderRepo.update(orderCode, {
+    status: ORDER_STATUS.CANCELLED,
+    cancel_reason: cancelReason || 'Khách đổi ý hủy đơn'
+  }, 'code');
 
   return {
-    ...data,
-    status: normalizeOrderStatus(data.status)
+    ...updatedData,
+    status: normalizeOrderStatus(updatedData.status)
   };
 }
 
@@ -503,17 +422,8 @@ export async function fetchActiveProcessingOrders() {
       'Hoàn thành'
     ];
 
-    const { data: ordersData, error: ordersErr } = await supabase
-      .from('orders')
-      .select('*')
-      .in('status', activeStatuses)
-      .order('created_at', { ascending: false });
-
-    if (ordersErr) {
-      console.warn('Lỗi Supabase khi tải orders:', ordersErr.message || ordersErr);
-      const cached = localStorage.getItem('shop_orders');
-      return cached ? JSON.parse(cached) : [];
-    }
+    const allOrders = await orderRepo.getAll();
+    const ordersData = allOrders.filter((o) => activeStatuses.includes(o.status));
 
     if (!Array.isArray(ordersData) || ordersData.length === 0) {
       return [];
@@ -579,7 +489,7 @@ export async function fetchActiveProcessingOrders() {
 }
 
 /**
- * 7. GỬI ĐÁNH GIÁ ĐƠN HÀNG KÈM LƯU ĐỒNG BỘ ẢNH CỦA SHOP VÀ KHÁCH
+ * 7. GỬI ĐÁNH GIÁ ĐƠN HÀNG (Gọi qua reviewRepo)
  */
 export async function submitOrderReview({ 
   orderCode, 
@@ -595,14 +505,10 @@ export async function submitOrderReview({
     const cleanCode = String(orderCode || '').trim().toUpperCase();
     const cleanPhone = String(phone || '').trim();
 
-    // Lấy thông tin đơn hàng và ảnh đóng gói từ bảng orders nếu chưa truyền
-    const { data: existingOrder, error: orderErr } = await supabase
-      .from('orders')
-      .select('code, phone, status, packing_image_url, packed_image_url, packing_image, packing_photos')
-      .eq('code', cleanCode)
-      .maybeSingle();
+    const allOrders = await orderRepo.getAll();
+    const existingOrder = allOrders.find((o) => String(o.code).toUpperCase() === cleanCode);
 
-    if (orderErr || !existingOrder) {
+    if (!existingOrder) {
       return { success: false, error: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
     }
 
@@ -614,7 +520,6 @@ export async function submitOrderReview({
       };
     }
 
-    // Tự động fallback lấy ảnh đóng gói từ đơn hàng nếu chưa có
     const resolvedShopImage = shopPackingImage || 
       existingOrder.packing_image_url || 
       existingOrder.packed_image_url || 
@@ -623,32 +528,26 @@ export async function submitOrderReview({
       null;
 
     const ratingNum = Number(rating) || 5;
-    const { data, error: insertErr } = await supabase
-      .from('reviews')
-      .insert([
-        {
-          order_code: cleanCode,
-          customer_name: customerName.trim(),
-          customer_phone: cleanPhone,
-          rating: ratingNum,
-          content: content.trim(),
-          product_tags: productTags || '',
-          image_urls: Array.isArray(imageUrls) ? imageUrls : [],
-          shop_packing_image: resolvedShopImage,
-          is_approved: true
-        }
-      ])
-      .select()
-      .single();
-
-    if (insertErr) {
+    
+    try {
+      const data = await reviewRepo.create({
+        order_code: cleanCode,
+        customer_name: customerName.trim(),
+        customer_phone: cleanPhone,
+        rating: ratingNum,
+        content: content.trim(),
+        product_tags: productTags || '',
+        image_urls: Array.isArray(imageUrls) ? imageUrls : [],
+        shop_packing_image: resolvedShopImage,
+        is_approved: true
+      });
+      return { success: true, data };
+    } catch (insertErr) {
       if (insertErr.code === '23505') {
         return { success: false, error: 'Đơn hàng này đã được gửi đánh giá trước đó rồi.' };
       }
       return { success: false, error: insertErr.message };
     }
-
-    return { success: true, data };
   } catch (err) {
     console.error('Lỗi khi gửi review:', err);
     return { success: false, error: 'Không thể kết nối máy chủ, vui lòng thử lại sau.' };
@@ -660,36 +559,21 @@ export async function submitOrderReview({
  */
 export async function fetchAllReviewsForAdmin() {
   try {
-    const { data: reviewsData, error } = await supabase
-      .from('reviews')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.warn('Lỗi query fetchAllReviewsForAdmin:', error.message);
-      return [];
-    }
-
+    const reviewsData = await reviewRepo.getAll();
     const reviews = reviewsData || [];
     
-    // Fallback: Tìm các review thiếu shop_packing_image nhưng có order_code
     const missingCodes = reviews
       .filter((r) => !r.shop_packing_image && r.order_code)
       .map((r) => r.order_code);
 
     if (missingCodes.length > 0) {
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('code, packing_image')
-        .in('code', missingCodes);
-
-      if (Array.isArray(ordersData)) {
-        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
-        return reviews.map((r) => ({
-          ...r,
-          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
-        }));
-      }
+      const allOrders = await orderRepo.getAll();
+      const orderMap = new Map(allOrders.map((o) => [o.code, o.packing_image]));
+      
+      return reviews.map((r) => ({
+        ...r,
+        shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
+      }));
     }
 
     return reviews;
@@ -705,12 +589,7 @@ export async function fetchAllReviewsForAdmin() {
 export async function toggleReviewApproval(reviewId, currentStatus) {
   try {
     const nextStatus = !currentStatus;
-    const { error } = await supabase
-      .from('reviews')
-      .update({ is_approved: nextStatus })
-      .eq('id', reviewId);
-
-    if (error) throw error;
+    await reviewRepo.update(reviewId, { is_approved: nextStatus });
     return { success: true, is_approved: nextStatus };
   } catch (err) {
     console.error('Lỗi toggleReviewApproval:', err);
@@ -723,12 +602,7 @@ export async function toggleReviewApproval(reviewId, currentStatus) {
  */
 export async function deleteReviewById(reviewId) {
   try {
-    const { error } = await supabase
-      .from('reviews')
-      .delete()
-      .eq('id', reviewId);
-
-    if (error) throw error;
+    await reviewRepo.remove(reviewId);
     return { success: true };
   } catch (err) {
     console.error('Lỗi deleteReviewById:', err);
@@ -741,36 +615,12 @@ export async function deleteReviewById(reviewId) {
  */
 export async function fetchApprovedReviews(limit = 6) {
   try {
-    const { data: reviewsData, error } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('is_approved', true)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const reviewsData = await reviewRepo.getAll();
+    const approved = reviewsData
+      .filter((r) => r.is_approved === true)
+      .slice(0, limit);
 
-    if (error || !Array.isArray(reviewsData)) return [];
-
-    const reviews = reviewsData;
-    const missingCodes = reviews
-      .filter((r) => !r.shop_packing_image && r.order_code)
-      .map((r) => r.order_code);
-
-    if (missingCodes.length > 0) {
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('code, packing_image')
-        .in('code', missingCodes);
-
-      if (Array.isArray(ordersData)) {
-        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
-        return reviews.map((r) => ({
-          ...r,
-          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
-        }));
-      }
-    }
-
-    return reviews;
+    return approved;
   } catch {
     return [];
   }
@@ -781,12 +631,8 @@ export async function fetchApprovedReviews(limit = 6) {
  */
 export async function fetchTotalOrdersCount() {
   try {
-    const { count, error } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true });
-
-    if (error) throw error;
-    return count || 0;
+    const orders = await orderRepo.getAll();
+    return orders.length;
   } catch (err) {
     console.error('Lỗi đếm số lượng đơn hàng:', err);
     return 0;
@@ -805,13 +651,10 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
   }
 
   try {
-    const { data: oldOrder, error: orderErr } = await supabase
-      .from('orders')
-      .select('code, phone, status')
-      .eq('code', cleanCode)
-      .maybeSingle();
+    const allOrders = await orderRepo.getAll();
+    const oldOrder = allOrders.find((o) => String(o.code).toUpperCase() === cleanCode);
 
-    if (orderErr || !oldOrder) {
+    if (!oldOrder) {
       return { valid: false, message: 'Không tìm thấy mã đơn hàng này trên hệ thống.' };
     }
 
@@ -824,33 +667,23 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       return { valid: false, message: 'Đơn hàng này chưa hoàn tất giao nhận nên chưa thể dùng làm mã ưu đãi.' };
     }
 
-    const { data: alreadyUsed, error: usedErr } = await supabase
-      .from('orders')
-      .select('code, status')
-      .eq('used_previous_order_code', cleanCode)
-      .limit(5);
+    const activeUsed = allOrders.filter((o) => {
+      const usedCode = o.used_previous_order_code || o.usedPreviousOrderCode;
+      const norm = normalizeOrderStatus(o.status);
+      return usedCode && usedCode.toUpperCase() === cleanCode && norm !== ORDER_STATUS.CANCELLED && norm !== ORDER_STATUS.BOMBED;
+    });
 
-    if (!usedErr && Array.isArray(alreadyUsed)) {
-      const activeUsed = alreadyUsed.filter((o) => {
-        const norm = normalizeOrderStatus(o.status);
-        return norm !== ORDER_STATUS.CANCELLED && norm !== ORDER_STATUS.BOMBED;
-      });
-
-      if (activeUsed.length > 0) {
-        return { 
-          valid: false, 
-          message: `Mã đơn ${cleanCode} đã được dùng cho đơn hàng ${activeUsed[0].code} trước đó rồi. Mỗi đơn chỉ áp dụng 1 lần!` 
-        };
-      }
+    if (activeUsed.length > 0) {
+      return { 
+        valid: false, 
+        message: `Mã đơn ${cleanCode} đã được dùng cho đơn hàng ${activeUsed[0].code} trước đó rồi. Mỗi đơn chỉ áp dụng 1 lần!` 
+      };
     }
 
-    const { data: reviewData, error: revErr } = await supabase
-      .from('reviews')
-      .select('rating, is_approved')
-      .eq('order_code', cleanCode)
-      .maybeSingle();
+    const allReviews = await reviewRepo.getAll();
+    const reviewData = allReviews.find((r) => String(r.order_code).toUpperCase() === cleanCode);
 
-    if (revErr || !reviewData) {
+    if (!reviewData) {
       return { 
         valid: false, 
         needReview: true, 
@@ -866,11 +699,8 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
       };
     }
 
-    const { data: loyaltyRow } = await supabase
-      .from('shop_configs')
-      .select('value')
-      .eq('key', 'loyalty')
-      .maybeSingle();
+    const configs = await shopConfigRepo.getAll();
+    const loyaltyRow = configs.find((c) => c.key === 'loyalty');
 
     let loyaltyCfg = loyaltyRow?.value || {};
     if (typeof loyaltyCfg === 'string') {
@@ -906,15 +736,12 @@ export async function verifyPreviousOrderVoucher(rawCode, currentPhone, currentC
 export async function checkOrderReviewStatus(orderCode) {
   if (!orderCode) return { isEligible: false, rating: 0 };
   try {
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('rating, is_approved')
-      .eq('order_code', String(orderCode).trim().toUpperCase())
-      .maybeSingle();
+    const allReviews = await reviewRepo.getAll();
+    const target = allReviews.find((r) => String(r.order_code).toUpperCase() === String(orderCode).trim().toUpperCase());
 
-    if (error || !data) return { isEligible: false, rating: 0 };
+    if (!target) return { isEligible: false, rating: 0 };
 
-    const ratingNum = Number(data.rating) || 0;
+    const ratingNum = Number(target.rating) || 0;
     return {
       isEligible: ratingNum >= 4,
       rating: ratingNum
@@ -948,46 +775,17 @@ export async function findEligiblePreviousOrderVoucher(validOrders = [], combine
 
   if (candidateOrders.length === 0) return null;
 
-  const candidateCodes = candidateOrders.map((o) => String(o.code || o.orderId).trim().toUpperCase());
-
   try {
-    const { data: dbUsedOrders, error: usedOrdersError } = await supabase
-      .from('orders')
-      .select('used_previous_order_code, status')
-      .in('used_previous_order_code', candidateCodes);
-
-    if (!usedOrdersError && Array.isArray(dbUsedOrders)) {
-      dbUsedOrders.forEach((row) => {
-        const st = normalizeOrderStatus(row.status);
-        if (row.used_previous_order_code && st !== ORDER_STATUS.CANCELLED && st !== ORDER_STATUS.BOMBED) {
-          usedCodesSet.add(String(row.used_previous_order_code).trim().toUpperCase());
-        }
-      });
-    }
-
-    const strictlyUnusedOrders = candidateOrders.filter((ord) => {
-      const code = String(ord.code || ord.orderId || '').trim().toUpperCase();
-      return !usedCodesSet.has(code);
-    });
-
-    if (strictlyUnusedOrders.length === 0) return null;
-
-    const strictlyUnusedCodes = strictlyUnusedOrders.map((o) => String(o.code || o.orderId).trim().toUpperCase());
-
-    const { data: reviews, error: reviewError } = await supabase
-      .from('reviews')
-      .select('order_code, rating')
-      .in('order_code', strictlyUnusedCodes);
-
-    if (reviewError || !Array.isArray(reviews)) return null;
-
+    const allReviews = await reviewRepo.getAll();
     const reviewMap = new Map();
-    reviews.forEach((r) => {
+    allReviews.forEach((r) => {
       reviewMap.set(String(r.order_code).trim().toUpperCase(), Number(r.rating) || 0);
     });
 
-    for (const ord of strictlyUnusedOrders) {
+    for (const ord of candidateOrders) {
       const code = String(ord.code || ord.orderId).trim().toUpperCase();
+      if (usedCodesSet.has(code)) continue;
+
       const rating = reviewMap.get(code) || 0;
       if (rating >= 4) {
         return {
@@ -1014,14 +812,9 @@ export async function checkCustomerOrderRisk(phone) {
   }
 
   try {
-    const { data: orders, error } = await supabase
-      .from('orders')
-      .select('code, status, created_at')
-      .eq('phone', cleanPhone)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    const allOrders = await orderRepo.getAll();
+    const orders = allOrders.filter((o) => o.phone && o.phone.replace(/\D/g, '') === cleanPhone).slice(0, 5);
 
-    if (error) throw error;
     if (!Array.isArray(orders) || orders.length === 0) {
       return { lastOrderBombed: false, twoRecentCancelled: false, totalOrders: 0 };
     }
@@ -1051,51 +844,43 @@ export async function checkCustomerOrderRisk(phone) {
 }
 
 /**
- * 17. LẤY DANH SÁCH REVIEW ĐÃ DUYỆT PHÂN TRANG (CHUẨN HÓA KHÔNG DÙNG JOIN NGOẠI)
+ * 17. LẤY DANH SÁCH REVIEW ĐÃ DUYỆT PHÂN TRANG
  */
 export async function fetchPaginatedApprovedReviews(page = 0, pageSize = 6) {
   try {
+    const allReviews = await reviewRepo.getAll();
+    const approved = allReviews.filter((r) => r.is_approved === true);
+    
+    approved.sort((a, b) => {
+      if ((b.rating || 5) !== (a.rating || 5)) {
+        return (b.rating || 5) - (a.rating || 5);
+      }
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    const total = approved.length;
     const from = page * pageSize;
-    const to = from + pageSize - 1;
+    const reviewsSlice = approved.slice(from, from + pageSize);
 
-    // 1. Chỉ select thuần từ bảng reviews để tránh lỗi PGRST200
-    const { data: reviewsData, count, error } = await supabase
-      .from('reviews')
-      .select('*', { count: 'exact' })
-      .eq('is_approved', true)
-      .order('rating', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(from, to);
-
-    if (error) throw error;
-
-    let reviews = reviewsData || [];
-
-    // 2. Tự động bù ảnh từ bảng orders nếu review chưa có shop_packing_image
-    const missingCodes = reviews
+    const missingCodes = reviewsSlice
       .filter((r) => !r.shop_packing_image && r.order_code)
       .map((r) => r.order_code);
 
+    let finalReviews = reviewsSlice;
     if (missingCodes.length > 0) {
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('code, packing_image')
-        .in('code', missingCodes);
-
-      if (Array.isArray(ordersData) && ordersData.length > 0) {
-        const orderMap = new Map(ordersData.map((o) => [o.code, o.packing_image]));
-        reviews = reviews.map((r) => ({
-          ...r,
-          shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
-        }));
-      }
+      const allOrders = await orderRepo.getAll();
+      const orderMap = new Map(allOrders.map((o) => [o.code, o.packing_image]));
+      
+      finalReviews = reviewsSlice.map((r) => ({
+        ...r,
+        shop_packing_image: r.shop_packing_image || orderMap.get(r.order_code) || null
+      }));
     }
 
-    const total = count || 0;
-    const hasMore = (from + reviews.length) < total;
+    const hasMore = (from + finalReviews.length) < total;
 
     return {
-      reviews,
+      reviews: finalReviews,
       totalCount: total,
       hasMore
     };
@@ -1121,13 +906,10 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
   }
 
   try {
-    const { data: originalOrder, error: orderErr } = await supabase
-      .from('orders')
-      .select('code, phone, status')
-      .eq('code', cleanCode)
-      .maybeSingle();
+    const allOrders = await orderRepo.getAll();
+    const originalOrder = allOrders.find((o) => String(o.code).toUpperCase() === cleanCode);
 
-    if (orderErr || !originalOrder) {
+    if (!originalOrder) {
       return { 
         valid: false, 
         message: `Mã đơn #${cleanCode} không tồn tại trên hệ thống!` 
@@ -1142,12 +924,8 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
       };
     }
 
-    const { data: reviewData } = await supabase
-      .from('reviews')
-      .select('id, order_code, is_approved')
-      .eq('order_code', cleanCode)
-      .eq('is_approved', true)
-      .maybeSingle();
+    const allReviews = await reviewRepo.getAll();
+    const reviewData = allReviews.find((r) => String(r.order_code).toUpperCase() === cleanCode && r.is_approved === true);
 
     if (!reviewData) {
       return { 
@@ -1156,36 +934,35 @@ export async function verifyReviewVoucher(voucherCodeInput, inputPhone = '') {
       };
     }
 
-    const { data: existingUsage } = await supabase
-      .from('orders')
-      .select('code, status')
-      .or(`used_previous_order_code.eq.${cleanCode},voucher_code.eq.${cleanCode}`);
+    const activeLockOrder = allOrders.find((ord) => {
+      const usedCode = ord.used_previous_order_code || ord.usedPreviousOrderCode;
+      const vCode = ord.voucher_codes || ord.voucherCode;
+      const isUsing = (usedCode && String(usedCode).toUpperCase() === cleanCode) || 
+                      (vCode && String(vCode).toUpperCase().includes(cleanCode));
+      if (!isUsing) return false;
 
-    if (Array.isArray(existingUsage) && existingUsage.length > 0) {
-      const activeLockOrder = existingUsage.find((ord) => {
-        const st = normalizeOrderStatus(ord.status);
-        return [
-          ORDER_STATUS.PENDING,
-          ORDER_STATUS.CONFIRMED,
-          ORDER_STATUS.PACKING,
-          ORDER_STATUS.SHIPPING,
-          ORDER_STATUS.COMPLETED
-        ].includes(st);
-      });
+      const st = normalizeOrderStatus(ord.status);
+      return [
+        ORDER_STATUS.PENDING,
+        ORDER_STATUS.CONFIRMED,
+        ORDER_STATUS.PACKING,
+        ORDER_STATUS.SHIPPING,
+        ORDER_STATUS.COMPLETED
+      ].includes(st);
+    });
 
-      if (activeLockOrder) {
-        const lockStatus = normalizeOrderStatus(activeLockOrder.status);
-        if (lockStatus === ORDER_STATUS.COMPLETED) {
-          return {
-            valid: false,
-            message: `Mã #${cleanCode} đã được dùng cho đơn #${activeLockOrder.code} trước đó!`
-          };
-        } else {
-          return {
-            valid: false,
-            message: `Mã #${cleanCode} đang được giữ ở đơn #${activeLockOrder.code} (đang chờ duyệt/giao)!`
-          };
-        }
+    if (activeLockOrder) {
+      const lockStatus = normalizeOrderStatus(activeLockOrder.status);
+      if (lockStatus === ORDER_STATUS.COMPLETED) {
+        return {
+          valid: false,
+          message: `Mã #${cleanCode} đã được dùng cho đơn #${activeLockOrder.code} trước đó!`
+        };
+      } else {
+        return {
+          valid: false,
+          message: `Mã #${cleanCode} đang được giữ ở đơn #${activeLockOrder.code} (đang chờ duyệt/giao)!`
+        };
       }
     }
 

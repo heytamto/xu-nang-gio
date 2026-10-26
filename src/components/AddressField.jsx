@@ -1,47 +1,37 @@
 // src/components/AddressField.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   MapPin, Navigation, Loader2, ChevronDown, 
   AlertTriangle, Search, Check, X, Edit3, CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import rawData from '../data/administrative_units.json';
-
 import { 
   normalizeVietnameseText, 
   cleanAdministrativeName 
-} from '../utils/checkoutValidation';
+} from '../utils/validationUtils';
 
 const administrativeData = rawData || {};
 
-// Component Searchable Select Dropdown
+// Component Searchable Select Dropdown tối ưu
 function SearchableSelect({ label, value, options = [], placeholder, onSelect, disabled = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
   
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedKeyword(keyword);
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [keyword]);
-
   const filteredOptions = useMemo(() => {
-    if (!debouncedKeyword.trim()) return options;
-    const normKey = normalizeVietnameseText(debouncedKeyword);
+    if (!keyword.trim()) return options;
+    const normKey = normalizeVietnameseText(keyword);
     return options.filter((opt) => normalizeVietnameseText(opt).includes(normKey));
-  }, [options, debouncedKeyword]);
+  }, [options, keyword]);
 
   useEffect(() => {
     function handleClickOutside(e) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
         setIsOpen(false);
         setKeyword('');
-        setDebouncedKeyword('');
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -58,7 +48,6 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
 
   const handleClear = () => {
     setKeyword('');
-    setDebouncedKeyword('');
     if (inputRef.current) inputRef.current.focus();
   };
 
@@ -120,7 +109,6 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
                         onSelect(opt);
                         setIsOpen(false);
                         setKeyword('');
-                        setDebouncedKeyword('');
                       }}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl flex items-center justify-between transition-colors cursor-pointer ${
                         isSelected
@@ -136,7 +124,7 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
               })
             ) : (
               <li className="p-3.5 text-center text-xs text-stone-400 italic">
-                Không tìm thấy "{debouncedKeyword || keyword}"
+                Không tìm thấy "{keyword}"
               </li>
             )}
           </ul>
@@ -147,7 +135,7 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
 }
 
 export default function AddressField({ value = '', onChange, error = '' }) {
-  const [inputMode, setInputMode] = useState(() => (value && value.trim() ? 'manual' : 'manual'));
+  const [inputMode, setInputMode] = useState('manual');
 
   const provinces = useMemo(() => Object.keys(administrativeData), []);
   const defaultProv = useMemo(() => {
@@ -245,6 +233,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
   const isDetailTooShort = detailAddress.trim().length > 0 && detailAddress.trim().length < 4;
   const showDetailError = detailTouched && (isDetailEmpty || isDetailTooShort);
 
+  // Emit địa chỉ hoàn chỉnh lên form cha
   useEffect(() => {
     let full = '';
     if (inputMode === 'gps' && autoDetectedText) {
@@ -268,7 +257,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
     }
   }, [inputMode, autoDetectedText, detailAddress, selectedWard, selectedProvince, onChange]);
 
-  const handleGetLocation = () => {
+  const handleGetLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocationError('Trình duyệt không hỗ trợ định vị GPS.');
       return;
@@ -361,7 +350,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
         maximumAge: 0 
       }
     );
-  };
+  }, [provinces]);
 
   return (
     <div className="space-y-3.5 font-sans text-stone-800">
@@ -442,7 +431,6 @@ export default function AddressField({ value = '', onChange, error = '' }) {
               />
             </div>
 
-            {/* Thông báo lỗi yêu cầu điền cụ thể */}
             {showDetailError && (
               <p className="text-xs sm:text-sm text-rose-600 font-semibold mt-1.5 flex items-center gap-1.5 animate-fadeIn">
                 <AlertCircle className="w-4 h-4 shrink-0" />

@@ -1,21 +1,47 @@
-// src/components/admin/StoriesTab.jsx
-import React, { useState, useEffect } from 'react';
-import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles, Loader2 } from 'lucide-react';
-import ImageUploadField from '../ImageUploadField';
-import { formatDate } from '../../utils/dateUtils';
-import { supabase } from '../../supabaseClient';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles, Loader2, Sun } from 'lucide-react';
+import ImageUploadField from '../../ImageUploadField';
+import CustomDropdown from '../../CustomDropdown';
+import { formatDate } from '../../../utils/dateUtils';
+import { storyRepo } from '../../../repositories';
+
+const SEASON_OPTIONS = [
+  { value: 'Vụ Thu Đông', label: 'Vụ Thu Đông (Tháng 9 - 12)' },
+  { value: 'Vụ Xuân Hè', label: 'Vụ Xuân Hè (Tháng 1 - 4)' },
+  { value: 'Vụ Hè Thu', label: 'Vụ Hè Thu (Tháng 5 - 8)' },
+  { value: 'Mùa Gió Khan', label: 'Mùa Gió Khan Ninh Thuận' }
+];
 
 export default function StoriesTab({
   stories: parentStories = [],
   onAddStory,
   onEditStory,
   onDeleteStory,
-  onResetStories
+  onResetStories,
+  onShowAlert,
+  setConfirmModalConfig
 }) {
   const [localStories, setLocalStories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // 1. Tải dữ liệu qua storyRepo nếu danh sách từ props rỗng
+  const fetchStories = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await storyRepo.getAll();
+      if (Array.isArray(data)) {
+        const sorted = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setLocalStories(sorted);
+      }
+    } catch (err) {
+      console.error('Lỗi tải stories qua storyRepo:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (Array.isArray(parentStories) && parentStories.length > 0) {
@@ -23,25 +49,7 @@ export default function StoriesTab({
     } else {
       fetchStories();
     }
-  }, [parentStories]);
-
-  const fetchStories = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('stories')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && Array.isArray(data)) {
-        setLocalStories(data);
-      }
-    } catch (err) {
-      console.error('Lỗi tải stories:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [parentStories, fetchStories]);
 
   const [newStory, setNewStory] = useState({
     title: '',
@@ -53,6 +61,7 @@ export default function StoriesTab({
     author: 'Tâm Xứ Nắng'
   });
 
+  // 2. Thêm mẩu chuyện mới qua storyRepo
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newStory.title.trim() || (!newStory.quote.trim() && !newStory.story.trim())) return;
@@ -65,8 +74,6 @@ export default function StoriesTab({
       const storyText = newStory.story.trim() || newStory.quote.trim();
       const imageUrl = newStory.image.trim() || null;
 
-      // KHỚP CHÍNH XÁC CÁC CỘT TRONG public.stories (TUYỆT ĐỐI KHÔNG TRUYỀN 'desc')
-      // Bỏ trường id để trigger trigger_set_story_id tự sinh mã
       const payload = {
         title: newStory.title.trim(),
         season: newStory.season.trim() || 'Vụ Thu Đông',
@@ -81,20 +88,15 @@ export default function StoriesTab({
         created_at: nowIso
       };
 
-      const { data, error } = await supabase
-        .from('stories')
-        .insert([payload])
-        .select()
-        .single();
+      const createdStory = await storyRepo.create(payload);
 
-      if (error) throw error;
-      if (!data) throw new Error('Không nhận được dữ liệu phản hồi từ Supabase');
-
-      setLocalStories((prev) => [data, ...prev]);
+      setLocalStories((prev) => [createdStory, ...prev]);
 
       if (onAddStory) {
-        onAddStory(data);
+        onAddStory(createdStory);
       }
+
+      onShowAlert?.(`Đã đăng mẩu chuyện "${createdStory.title}" lên mục Chuyện Vườn!`);
 
       setNewStory({
         title: '',
@@ -106,28 +108,59 @@ export default function StoriesTab({
         author: 'Tâm Xứ Nắng'
       });
     } catch (err) {
-      console.error('Lỗi khi lưu chuyện vườn vào Supabase:', err);
+      console.error('Lỗi khi lưu chuyện vườn qua storyRepo:', err);
       setErrorMessage(err.message || 'Không thể lưu câu chuyện vào cơ sở dữ liệu.');
+      onShowAlert?.('Lỗi thêm chuyện vườn: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // 3. Xóa câu chuyện: Gọi trực tiếp onDeleteStory từ component cha để chỉ xác nhận 1 lần
   const handleDelete = async (id, title) => {
     if (onDeleteStory) {
-      onDeleteStory(id, title);
+      try {
+        setDeletingId(id);
+        await onDeleteStory(id, title);
+      } finally {
+        setDeletingId(null);
+      }
+      return;
+    }
+
+    if (setConfirmModalConfig) {
+      setConfirmModalConfig({
+        isAlert: false,
+        title: 'Xóa Chuyện Vườn',
+        message: `Bạn có chắc chắn muốn xóa mẩu chuyện "${title}" (#${id}) khỏi cơ sở dữ liệu?`,
+        confirmLabel: 'Xác nhận xóa',
+        onConfirm: async () => {
+          try {
+            setDeletingId(id);
+            await storyRepo.remove(id);
+            setLocalStories((prev) => prev.filter((item) => item.id !== id));
+            onShowAlert?.(`Đã xóa mẩu chuyện "${title}"!`);
+          } catch (err) {
+            console.error('Lỗi xóa story:', err);
+            onShowAlert?.('Không thể xóa: ' + (err.message || 'Lỗi hệ thống'));
+          } finally {
+            setDeletingId(null);
+          }
+        }
+      });
       return;
     }
 
     if (!window.confirm(`Xóa câu chuyện "${title}"?`)) return;
-
     try {
-      const { error } = await supabase.from('stories').delete().eq('id', id);
-      if (error) throw error;
+      setDeletingId(id);
+      await storyRepo.remove(id);
       setLocalStories((prev) => prev.filter((item) => item.id !== id));
+      onShowAlert?.(`Đã xóa mẩu chuyện "${title}"!`);
     } catch (err) {
-      console.error('Lỗi xóa story:', err);
-      alert('Không thể xóa: ' + (err.message || 'Lỗi RLS'));
+      alert('Không thể xóa: ' + err.message);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -135,6 +168,7 @@ export default function StoriesTab({
 
   return (
     <div className="space-y-6 sm:space-y-7 animate-fadeIn font-sans text-stone-800">
+      {/* KHUNG SOẠN THẢO CHUYỆN VƯỜN */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
         <div className="flex items-center gap-2.5 text-stone-900 font-black text-sm sm:text-base border-b border-stone-100 pb-3.5">
           <Feather className="w-5 h-5 text-amber-700" />
@@ -156,44 +190,45 @@ export default function StoriesTab({
               placeholder="VD: Mùa gió chướng và vị ngọt giàn nho Thái An..."
               value={newStory.title}
               onChange={(e) => setNewStory({ ...newStory, title: e.target.value })}
-              className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div>
-              <label className="font-bold text-stone-700 block mb-1.5">Mùa vụ (season)</label>
-              <input
-                type="text"
-                placeholder="VD: Vụ Thu Đông, Vụ Xuân Hè..."
+              <CustomDropdown
+                label="Mùa vụ (Season)"
+                headerLabel="DANH SÁCH MÙA VỤ:"
+                icon={Sun}
+                options={SEASON_OPTIONS}
                 value={newStory.season}
-                onChange={(e) => setNewStory({ ...newStory, season: e.target.value })}
-                className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                onChange={(val) => setNewStory({ ...newStory, season: val })}
+                searchable={false}
               />
             </div>
 
             <div>
               <label className="font-bold text-stone-700 block mb-1.5 flex items-center gap-1.5">
                 <MapPin className="w-4 h-4 text-stone-500" />
-                <span>Địa điểm (location)</span>
+                <span>Địa điểm (Location)</span>
               </label>
               <input
                 type="text"
                 placeholder="VD: Giàn nho Thái An, Ninh Thuận"
                 value={newStory.location}
                 onChange={(e) => setNewStory({ ...newStory, location: e.target.value })}
-                className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
 
             <div>
-              <label className="font-bold text-stone-700 block mb-1.5">Người kể (author)</label>
+              <label className="font-bold text-stone-700 block mb-1.5">Người kể (Author)</label>
               <input
                 type="text"
                 placeholder="VD: Tâm Xứ Nắng"
                 value={newStory.author}
                 onChange={(e) => setNewStory({ ...newStory, author: e.target.value })}
-                className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
           </div>
@@ -206,25 +241,25 @@ export default function StoriesTab({
           />
 
           <div>
-            <label className="font-bold text-stone-700 block mb-1.5">Lời đề từ / Trích dẫn ngắn (quote)</label>
+            <label className="font-bold text-stone-700 block mb-1.5">Lời đề từ / Trích dẫn ngắn (Quote)</label>
             <input
               type="text"
               placeholder="VD: Nắng rát mặt nhưng trái nho lại mọng mật nhất vào những ngày gió khan..."
               value={newStory.quote}
               onChange={(e) => setNewStory({ ...newStory, quote: e.target.value })}
-              className="w-full p-3 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 italic focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 italic focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
             />
           </div>
 
           <div>
-            <label className="font-bold text-stone-700 block mb-1.5">Nội dung câu chuyện chi tiết (story) *</label>
+            <label className="font-bold text-stone-700 block mb-1.5">Nội dung câu chuyện chi tiết (Story) *</label>
             <textarea
               rows="5"
               required
               placeholder="Kể chi tiết về đời sống làm vườn, gió cát, sự tỉ mẩn chăm sóc từng chùm quả..."
               value={newStory.story}
               onChange={(e) => setNewStory({ ...newStory, story: e.target.value })}
-              className="w-full p-3.5 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 resize-y focus:outline-none focus:border-amber-600 leading-relaxed shadow-2xs transition-colors"
+              className="w-full p-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 resize-y focus:outline-none focus:border-amber-600 leading-relaxed shadow-2xs transition-colors"
             />
           </div>
 
@@ -232,7 +267,7 @@ export default function StoriesTab({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="px-7 py-3 bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -250,6 +285,7 @@ export default function StoriesTab({
         </form>
       </div>
 
+      {/* DANH SÁCH MẨU CHUYỆN ĐÃ ĐĂNG */}
       <div className="bg-white rounded-3xl border border-stone-200/90 p-5 sm:p-7 space-y-5 shadow-xs">
         <div className="flex items-center justify-between flex-wrap gap-3 border-b border-stone-100 pb-3.5">
           <div>
@@ -257,7 +293,7 @@ export default function StoriesTab({
               Danh Sách Chuyện Đã Đăng ({storiesList.length})
             </h2>
             <p className="text-xs sm:text-sm text-stone-500 font-medium mt-0.5">
-              Quản lý mẩu chuyện vườn và hình ảnh lưu trữ trên Supabase
+              Quản lý mẩu chuyện vườn và hình ảnh lưu trữ đồng bộ
             </p>
           </div>
           {onResetStories && (
@@ -287,6 +323,7 @@ export default function StoriesTab({
               const displayDate = formatDate(storyItem.created_at, 'Gần đây');
               const displayExcerpt = storyItem.quote || storyItem.story || storyItem.content || 'Chuyện làm vườn mùa nắng gió...';
               const displayImage = storyItem.image || storyItem.image_url || 'https://images.unsplash.com/photo-1596591606975-97ee5cef3a1e?auto=format&fit=crop&w=600&q=80';
+              const isItemDeleting = deletingId === storyItem.id;
 
               return (
                 <div key={storyItem.id || idx} className="py-4 flex items-start justify-between gap-4 text-xs sm:text-sm">
@@ -353,11 +390,16 @@ export default function StoriesTab({
 
                     <button
                       type="button"
+                      disabled={isItemDeleting}
                       onClick={() => handleDelete(storyItem.id, storyItem.title)}
-                      className="p-2 text-stone-400 hover:text-red-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+                      className="p-2 text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer disabled:opacity-50"
                       title="Xóa câu chuyện"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {isItemDeleting ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>

@@ -5,7 +5,7 @@ import {
   ShieldBan, UserCheck, X, Sparkles, MapPin, Plus, CheckCircle2
 } from 'lucide-react';
 import AddressField from '../AddressField';
-import { sanitizeVietnamesePhone, isValidVietnamesePhone } from '../../utils/checkoutValidation';
+import { sanitizeVietnamesePhone, isValidVietnamesePhone } from '../../utils/validationUtils';
 
 export default function CustomerInfoForm({
   customer,

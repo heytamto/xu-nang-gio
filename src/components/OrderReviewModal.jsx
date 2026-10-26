@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import ImageUploadField from './ImageUploadField';
 import { submitOrderReview } from '../services/orderService';
+import { orderRepo } from '../repositories';
 import { supabase } from '../supabaseClient';
 
 const QUICK_REVIEW_SUGGESTIONS = {
@@ -51,7 +52,7 @@ export default function OrderReviewModal({
   const [errorMessage, setErrorMessage] = useState('');
   const [reviewResult, setReviewResult] = useState(null);
 
-  // Tải thông tin đơn hàng và ảnh shop đóng gói
+  // Tải thông tin đơn hàng và ảnh đóng gói thông qua orderRepo
   useEffect(() => {
     if (isOpen) {
       const cleanCode = String(initialOrderCode || '').trim().toUpperCase();
@@ -69,11 +70,7 @@ export default function OrderReviewModal({
       if (cleanCode) {
         const fetchShopPackingPhoto = async () => {
           try {
-            const { data } = await supabase
-              .from('orders')
-              .select('packing_image_url, packed_image_url, packing_image, packing_photos')
-              .eq('code', cleanCode)
-              .maybeSingle();
+            const data = await orderRepo.getByCode(cleanCode);
 
             if (data) {
               const img = 
@@ -83,9 +80,13 @@ export default function OrderReviewModal({
                 (Array.isArray(data.packing_photos) && data.packing_photos[0]) ||
                 null;
               if (img) setShopPackingImage(img);
+              if (!initialEmail && data.email) setEmail(data.email);
+              if (!initialCustomerName && (data.customer_name || data.name)) {
+                setName(data.customer_name || data.name);
+              }
             }
           } catch (e) {
-            console.warn('Không thể tải ảnh đóng gói của shop:', e);
+            console.warn('Không thể tải ảnh đóng gói qua orderRepo:', e);
           }
         };
         fetchShopPackingPhoto();
@@ -151,12 +152,7 @@ export default function OrderReviewModal({
         let recipientEmail = email?.trim();
 
         if (!recipientEmail || !recipientEmail.includes('@')) {
-          const { data: orderData } = await supabase
-            .from('orders')
-            .select('email')
-            .eq('code', orderCode)
-            .maybeSingle();
-
+          const orderData = await orderRepo.getByCode(orderCode);
           if (orderData?.email && orderData.email.includes('@')) {
             recipientEmail = orderData.email.trim();
           }
@@ -241,7 +237,7 @@ export default function OrderReviewModal({
                     Bạn có thể dùng chính mã đơn <strong className="font-mono text-amber-900 font-black text-sm px-1.5 py-0.5 bg-amber-100 rounded-lg">{reviewResult.orderCode}</strong> làm voucher giảm giá cho lần đặt hàng kế tiếp.
                   </p>
                   {reviewResult.sentEmail && (
-                    <p className="text-xs text-emerald-700 flex items-center gap-1.5 pt-2 border-t border-amber-200/60 font-semibold">
+                    <p className="text-xs text-emerald-700 flex items-center gap-1.5 pt-2 border-t border-amber-200/60 font-bold">
                       <MailCheck className="w-4 h-4 shrink-0" />
                       <span>Hệ thống đã gửi email tri ân kèm mã xác nhận đến bạn!</span>
                     </p>
@@ -335,7 +331,7 @@ export default function OrderReviewModal({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="VD: Anh Tâm (Thủ Đức)..."
-                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-medium"
+                    className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-bold text-stone-900"
                     required
                   />
                 </div>
@@ -349,7 +345,7 @@ export default function OrderReviewModal({
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Để nhận voucher qua thư..."
-                      className="w-full pl-9 pr-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-medium"
+                      className="w-full pl-9 pr-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 focus:outline-none focus:border-amber-600 font-bold text-stone-900"
                     />
                   </div>
                 </div>
@@ -359,7 +355,7 @@ export default function OrderReviewModal({
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-stone-700 flex items-center justify-between">
                   <span>Gợi ý nhanh (nhấn để chọn):</span>
-                  <span className="text-[11px] text-amber-800 font-semibold">Không cần gõ tay</span>
+                  <span className="text-[11px] text-amber-800 font-bold">Không cần gõ tay</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {suggestions.map((tag) => {
@@ -389,7 +385,7 @@ export default function OrderReviewModal({
                   onChange={(e) => setContent(e.target.value)}
                   rows={3}
                   placeholder="Chia sẻ thêm cảm nhận của bạn về độ giòn ngọt, đóng gói..."
-                  className="w-full p-3 text-xs sm:text-sm rounded-2xl border border-stone-200 focus:outline-none focus:border-amber-600 resize-none font-normal leading-relaxed bg-stone-50/50 focus:bg-white"
+                  className="w-full p-3 text-xs sm:text-sm rounded-2xl border border-stone-200 focus:outline-none focus:border-amber-600 resize-none font-bold text-stone-900 leading-relaxed bg-stone-50/50 focus:bg-white"
                   required
                 />
               </div>
@@ -404,7 +400,7 @@ export default function OrderReviewModal({
                         <PackageCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                         <span>Ảnh Shop đóng gói kiện hàng:</span>
                       </span>
-                      <span className="text-[11px] text-stone-500 font-mono">Tại giàn xuất bến</span>
+                      <span className="text-[11px] text-stone-500 font-mono font-bold">Tại giàn xuất bến</span>
                     </div>
 
                     <div 
@@ -434,7 +430,7 @@ export default function OrderReviewModal({
                       <Camera className="w-4 h-4 text-amber-700 shrink-0" />
                       <span>Ảnh của bạn khi nhận hàng (tối đa 2 ảnh):</span>
                     </span>
-                    <span className="text-[11px] text-amber-900 font-semibold">Tự nguyện</span>
+                    <span className="text-[11px] text-amber-900 font-bold">Tự nguyện</span>
                   </div>
 
                   <ImageUploadField
@@ -449,7 +445,7 @@ export default function OrderReviewModal({
               </div>
 
               {errorMessage && (
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-rose-600 bg-rose-50 p-3 rounded-2xl border border-rose-200">
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-rose-600 bg-rose-50 p-3 rounded-2xl border border-rose-200 font-bold">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>

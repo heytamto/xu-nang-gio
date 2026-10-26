@@ -14,7 +14,7 @@ export default function Navbar({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
-  const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận';
+  const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận Hái Sớm';
 
   const navItems = [
     { id: 'home', label: 'Trang Chủ' },
@@ -39,37 +39,36 @@ export default function Navbar({
   };
 
   return (
-    // ĐÃ BỎ 'fixed', 'top-0', 'top-[41px]'. Thanh Nav giờ nằm tự nhiên ngay dưới Banner
     <div className="w-full bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 font-sans shadow-md">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
         
-        {/* Logo Vườn */}
+        {/* Logo & Tên Vườn */}
         <button
           type="button"
           onClick={() => handleNavClick('home')}
-          className="flex items-center gap-3 text-left group cursor-pointer"
+          className="flex items-center gap-3 text-left group cursor-pointer shrink-0"
         >
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
             <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="truncate max-w-[190px] sm:max-w-xs">
+          <div className="min-w-0 max-w-[220px] sm:max-w-md lg:max-w-lg">
             <span className="font-black text-sm sm:text-lg tracking-wide text-white block uppercase truncate">
               {brandName}
             </span>
-            <span className="text-xs text-amber-400 font-bold block leading-none truncate mt-0.5">
+            <span className="text-xs text-amber-400 font-medium block truncate mt-0.5 opacity-90" title={tagline}>
               {tagline}
             </span>
           </div>
         </button>
 
         {/* Menu Desktop */}
-        <nav className="hidden md:flex items-center gap-2">
+        <nav className="hidden md:flex items-center gap-1.5 lg:gap-2">
           {navItems.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => handleNavClick(item.id)}
-              className={`px-4 py-2 rounded-xl text-sm sm:text-base font-bold transition-all cursor-pointer ${
+              className={`px-3.5 lg:px-4 py-2 rounded-xl text-sm sm:text-base font-bold transition-all cursor-pointer ${
                 currentPage === item.id
                   ? 'bg-amber-600 text-white shadow-sm'
                   : 'text-stone-300 hover:text-white hover:bg-stone-800/80'
@@ -81,7 +80,7 @@ export default function Navbar({
         </nav>
 
         {/* Cụm Nút Tra Cứu, Giỏ Hàng & Menu Mobile */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Nút Tra Cứu Đơn (Desktop & Tablet) */}
           <button
             type="button"
@@ -107,7 +106,7 @@ export default function Navbar({
           <button
             type="button"
             onClick={handleCartClick}
-            className={`relative py-2 px-3.5 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer shadow-2xs ${
+            className={`relative py-2 px-3 sm:px-3.5 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer shadow-2xs ${
               isCartBouncing 
                 ? 'animate-cart-pop bg-amber-500 border-amber-300 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.6)]' 
                 : 'bg-stone-900 hover:bg-stone-800 text-stone-200 border-stone-800 hover:border-amber-500/40'
@@ -123,7 +122,7 @@ export default function Navbar({
               
               {cartCount > 0 && (
                 <span 
-                  className={`absolute -top-2.5 -right-3 min-w-[20px] h-[20px] px-1 font-black text-[11px] rounded-full flex items-center justify-center shadow-xs transition-all ${
+                  className={`absolute -top-2.5 -right-2.5 min-w-[18px] h-[18px] px-1 font-black text-[10px] rounded-full flex items-center justify-center shadow-xs transition-all ${
                     isCartBouncing 
                       ? 'bg-stone-950 text-amber-400 scale-110' 
                       : 'bg-rose-600 text-white'

@@ -1,8 +1,9 @@
-// src/components/admin/EditPostModal.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, ChevronDown, Loader2 } from 'lucide-react';
-import ImageUploadField from '../ImageUploadField';
-import { supabase } from '../../supabaseClient';
+// src/components/admin/post/EditPostModal.jsx
+import React, { useState, useEffect } from 'react';
+import { X, Check, Loader2, BookOpen } from 'lucide-react';
+import ImageUploadField from '../../ImageUploadField';
+import CustomDropdown from '../../CustomDropdown';
+import { postRepo } from '../../../repositories';
 
 // BỘ CATEGORY TIẾNG ANH ĐỒNG BỘ CHUẨN
 const CATEGORY_OPTIONS = [
@@ -11,99 +12,6 @@ const CATEGORY_OPTIONS = [
   { value: 'cuisine', label: 'Món ngon' },
   { value: 'tips', label: 'Mẹo vặt' }
 ];
-
-// COMPONENT DROPDOWN CUSTOM BO GÓC TRÒN
-function CustomCategorySelect({ label, options = [], value, onChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const selectedOpt = options.find((opt) => opt.value === value) || options[0];
-
-  return (
-    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
-      {label && (
-        <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
-          {label}
-        </label>
-      )}
-
-      {/* Button kích hoạt */}
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
-          isOpen
-            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-white hover:bg-stone-50/80 border-stone-200 hover:border-amber-500 shadow-2xs text-stone-800 font-medium'
-        }`}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-stone-900 truncate">{selectedOpt?.label}</span>
-          <span className="text-xs font-mono text-stone-400 font-normal shrink-0">
-            ({selectedOpt?.value})
-          </span>
-        </div>
-
-        <ChevronDown
-          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
-            isOpen ? 'rotate-180 text-amber-700' : ''
-          }`}
-        />
-      </button>
-
-      {/* Menu dropdown xổ xuống */}
-      {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px] backdrop-blur-md">
-          <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
-            DANH SÁCH CHUYÊN MỤC:
-          </div>
-
-          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {options.map((opt) => {
-              const isSelected = opt.value === value;
-
-              return (
-                <div
-                  key={opt.value}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                  }}
-                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
-                    isSelected
-                      ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs'
-                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate">{opt.label}</span>
-                    <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
-                      ({opt.value})
-                    </span>
-                  </div>
-
-                  {isSelected && (
-                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
   const normalizeCategory = (cat) => {
@@ -154,7 +62,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
     setErrorMessage('');
 
     try {
-      // Chuẩn hóa payload KHỚP 100% với DDL public.posts (KHÔNG gửi 'desc' hay 'summary')
+      // Chuẩn hóa payload khớp với schema bảng posts
       const updatePayload = {
         title: formData.title.trim(),
         category: formData.category || 'handbook',
@@ -162,22 +70,16 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
         content: formData.content.trim() || formData.excerpt.trim(),
         image: formData.image.trim() || null,
         author: formData.author.trim() || 'Vườn Xứ Nắng',
-        read_time: formData.readTime.trim() || '3 phút đọc'
+        read_time: formData.readTime.trim() || '3 phút đọc',
+        updated_at: new Date().toISOString()
       };
 
-      // 1. Cập nhật trực tiếp vào Supabase Database
-      const { data, error } = await supabase
-        .from('posts')
-        .update(updatePayload)
-        .eq('id', post.id)
-        .select()
-        .single();
+      // 1. Cập nhật qua postRepo
+      const updatedPost = await postRepo.update(post.id, updatePayload);
 
-      if (error) throw error;
+      const savedResult = updatedPost || { ...post, ...updatePayload };
 
-      const savedResult = data || { ...post, ...updatePayload };
-
-      // 2. Báo alert thành công nếu có
+      // 2. Báo toast thành công
       onShowAlert?.(`Đã cập nhật bài viết #${post.id} thành công!`);
 
       // 3. Đồng bộ lên state component cha
@@ -187,7 +89,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
 
       onClose();
     } catch (err) {
-      console.error('Lỗi khi cập nhật bài viết vào Supabase:', err);
+      console.error('Lỗi khi cập nhật bài viết qua postRepo:', err);
       setErrorMessage(err.message || 'Không thể cập nhật bài viết vào cơ sở dữ liệu.');
     } finally {
       setIsSubmitting(false);
@@ -196,7 +98,6 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      {/* KHUNG MODAL RỘNG max-w-5xl */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
@@ -236,18 +137,20 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
               required
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-bold focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
-            {/* DROPDOWN CHUYÊN MỤC */}
             <div>
-              <CustomCategorySelect
+              <CustomDropdown
                 label="Chuyên mục"
+                headerLabel="DANH SÁCH CHUYÊN MỤC:"
+                icon={BookOpen}
                 options={CATEGORY_OPTIONS}
                 value={formData.category}
                 onChange={(val) => setFormData({ ...formData, category: val })}
+                searchable={false}
               />
             </div>
 
@@ -260,7 +163,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
                 placeholder="VD: 3 phút đọc"
                 value={formData.readTime}
                 onChange={(e) => setFormData({ ...formData, readTime: e.target.value })}
-                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-bold focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
 
@@ -272,12 +175,11 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
                 type="text"
                 value={formData.author}
                 onChange={(e) => setFormData({ ...formData, author: e.target.value })}
-                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-bold focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
               />
             </div>
           </div>
 
-          {/* Cập nhật ảnh bìa qua Supabase Storage bucket posts */}
           <ImageUploadField
             label="Cập nhật ảnh bìa bài viết"
             value={formData.image}
@@ -290,7 +192,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
               Tóm tắt ngắn (Excerpt) *
             </label>
             <textarea
-              rows="3"
+              rows={3}
               required
               value={formData.excerpt}
               onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
@@ -303,7 +205,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
               Nội dung chi tiết
             </label>
             <textarea
-              rows="7"
+              rows={7}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               className="w-full p-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-800 resize-y focus:outline-none focus:border-amber-600 leading-relaxed shadow-2xs transition-colors"
@@ -321,7 +223,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
+              className="px-7 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>

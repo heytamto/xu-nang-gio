@@ -1,172 +1,15 @@
 // src/components/admin/EditProductModal.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, Plus, Trash2, Star, Layers, ChevronDown, Loader2 } from 'lucide-react';
-import ImageUploadField from '../ImageUploadField';
-import { supabase } from '../../supabaseClient';
+import React, { useState, useEffect } from 'react';
+import { X, Check, Plus, Trash2, Star, Layers, Tag, Loader2 } from 'lucide-react';
+import ImageUploadField from '../../ImageUploadField';
+import CustomDropdown from '../../CustomDropdown';
+import { categoryRepo, productRepo, productWeightRepo } from '../../../repositories';
+import { supabase } from '../../../supabaseClient';
 
 const CALC_TYPE_OPTIONS = [
   { value: 'multiplier', label: 'Nhân hệ số (x)' },
   { value: 'fixed', label: 'Giá cố định (VNĐ)' }
 ];
-
-function CustomCalcTypeSelect({ value, onChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    const handleOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, []);
-
-  const selectedOpt = CALC_TYPE_OPTIONS.find((o) => o.value === value) || CALC_TYPE_OPTIONS[0];
-
-  return (
-    <div className="relative w-36 shrink-0 font-sans text-stone-800" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-11 px-3 rounded-2xl border text-left flex items-center justify-between gap-1 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
-          isOpen
-            ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-stone-50 hover:bg-white border-stone-200 hover:border-amber-400 text-stone-800 font-semibold shadow-2xs'
-        }`}
-      >
-        <span className="font-semibold truncate">{selectedOpt.label}</span>
-        <ChevronDown
-          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-200 ${
-            isOpen ? 'rotate-180 text-amber-700' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-30 p-1.5 rounded-2xl bg-white border border-amber-200/90 shadow-xl space-y-1 animate-fadeIn text-xs sm:text-sm">
-          {CALC_TYPE_OPTIONS.map((opt) => {
-            const isSelected = opt.value === value;
-            return (
-              <div
-                key={opt.value}
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                className={`px-3 py-2.5 rounded-xl cursor-pointer flex items-center justify-between transition-all ${
-                  isSelected
-                    ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300'
-                    : 'hover:bg-amber-50/70 text-stone-700 font-medium'
-                }`}
-              >
-                <span className="truncate">{opt.label}</span>
-                {isSelected && (
-                  <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function CustomCategorySelect({ label, options = [], value, onChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
-
-  const selectedOpt = options.find((opt) => opt.id === value) || options[0];
-
-  return (
-    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
-      {label && (
-        <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
-          {label}
-        </label>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={`w-full h-11 px-4 rounded-2xl border text-left flex items-center justify-between gap-2 transition-all duration-200 cursor-pointer text-xs sm:text-sm ${
-          isOpen
-            ? 'bg-amber-50/60 border-amber-500 ring-2 ring-amber-400/20 shadow-xs text-stone-900 font-bold'
-            : 'bg-white hover:bg-stone-50/80 border-stone-300 hover:border-amber-400 shadow-2xs text-stone-800 font-medium'
-        }`}
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-stone-900 whitespace-nowrap">
-            {selectedOpt?.name || selectedOpt?.label || selectedOpt?.id || 'Chọn danh mục'}
-          </span>
-          {selectedOpt?.id && (
-            <span className="text-xs font-mono text-stone-400 font-normal shrink-0">
-              ({selectedOpt?.id})
-            </span>
-          )}
-        </div>
-
-        <ChevronDown
-          className={`w-4 h-4 text-stone-500 shrink-0 transition-transform duration-300 ${
-            isOpen ? 'rotate-180 text-amber-700' : ''
-          }`}
-        />
-      </button>
-
-      {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2 rounded-2xl bg-white border border-amber-200/90 shadow-2xl space-y-1 animate-fadeIn text-xs sm:text-sm min-w-[260px] backdrop-blur-md">
-          <div className="px-3 py-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-stone-400">
-            DANH MỤC TRONG CƠ SỞ DỮ LIỆU:
-          </div>
-
-          <div className="max-h-60 overflow-y-auto space-y-1 pr-0.5 [scrollbar-width:thin] [scrollbar-color:#e7e5e4_transparent]">
-            {options.map((opt) => {
-              const isSelected = opt.id === value;
-
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => {
-                    onChange(opt.id);
-                    setIsOpen(false);
-                  }}
-                  className={`p-3 rounded-xl cursor-pointer flex items-center justify-between gap-2 transition-all ${
-                    isSelected
-                      ? 'bg-amber-100/80 text-amber-950 font-bold border border-amber-300 shadow-2xs'
-                      : 'hover:bg-amber-50/70 text-stone-700 font-medium'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate">{opt.name || opt.label}</span>
-                    <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
-                      ({opt.id})
-                    </span>
-                  </div>
-
-                  {isSelected && (
-                    <Check className="w-4 h-4 text-amber-800 shrink-0 stroke-[2.5]" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function EditProductModal({ 
   product, 
@@ -179,7 +22,7 @@ export default function EditProductModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Tải danh mục động: Ưu tiên propCategories, nếu rỗng thì query Supabase categories
+  // 1. Tải danh mục động: Ưu tiên propCategories, nếu trống gọi qua categoryRepo
   useEffect(() => {
     if (Array.isArray(propCategories) && propCategories.length > 0) {
       setCategories(
@@ -192,14 +35,11 @@ export default function EditProductModal({
 
     async function loadDbCategories() {
       try {
-        const { data, error } = await supabase
-          .from('categories')
-          .select('id, name, "order"')
-          .order('order', { ascending: true });
-
-        if (!error && Array.isArray(data) && data.length > 0) {
+        const data = await categoryRepo.getAll();
+        if (Array.isArray(data) && data.length > 0) {
+          const sorted = data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
           setCategories(
-            data
+            sorted
               .filter((c) => c.id !== 'all')
               .map((c) => ({ id: c.id, label: c.name, name: c.name }))
           );
@@ -263,7 +103,6 @@ export default function EditProductModal({
     };
   });
 
-  // Tự động gán category ban đầu nếu sản phẩm chưa có category hợp lệ
   useEffect(() => {
     if (categories.length > 0 && !formData.category) {
       setFormData((prev) => ({ ...prev, category: categories[0].id }));
@@ -334,6 +173,7 @@ export default function EditProductModal({
     setFormData({ ...formData, weights: remaining });
   };
 
+  // 2. Cập nhật dữ liệu qua productRepo và productWeightRepo
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name?.trim() || !formData.basePrice) return;
@@ -346,7 +186,7 @@ export default function EditProductModal({
       const defaultUnit = (formData.unit || 'kg').trim();
       const resolvedCategory = formData.category || categories[0]?.id || 'fresh';
 
-      // 1. Cập nhật trực tiếp bảng products (CHUẨN DDL: cột 'category', KHÔNG GỬI 'category_id')
+      // A. Cập nhật bản ghi chính qua productRepo
       const updateProductPayload = {
         name: formData.name.trim(),
         category: resolvedCategory,
@@ -360,16 +200,9 @@ export default function EditProductModal({
         updated_at: new Date().toISOString()
       };
 
-      const { data: updatedProduct, error: prodErr } = await supabase
-        .from('products')
-        .update(updateProductPayload)
-        .eq('id', product.id)
-        .select()
-        .single();
+      const updatedProduct = await productRepo.update(product.id, updateProductPayload);
 
-      if (prodErr) throw prodErr;
-
-      // 2. Chuẩn hóa và làm mới quy cách trong bảng product_weights (CHUẨN DDL: cột 'label', KHÔNG GỬI 'weight_label')
+      // B. Chuẩn hóa và làm mới quy cách
       const formattedWeights = formData.weights
         .filter((w) => w.label.trim())
         .map((w, idx) => ({
@@ -394,26 +227,27 @@ export default function EditProductModal({
         }
       ];
 
-      // Dọn các quy cách cũ và chèn lại bộ quy cách mới
+      // Dọn toàn bộ quy cách cũ của product_id này
       const { error: delErr } = await supabase
         .from('product_weights')
         .delete()
         .eq('product_id', product.id);
 
       if (delErr) {
-        console.warn('Lưu ý khi dọn quy cách cũ:', delErr);
+        console.warn('Lỗi dọn quy cách cũ:', delErr);
       }
 
-      const { data: insertedWeights, error: weightsErr } = await supabase
-        .from('product_weights')
-        .insert(resolvedWeightsPayload)
-        .select();
-
-      if (weightsErr) {
-        console.warn('Lỗi khi chèn quy cách mới:', weightsErr);
+      // Chèn lại bộ quy cách mới
+      let insertedWeights = [];
+      try {
+        insertedWeights = await Promise.all(
+          resolvedWeightsPayload.map((weightItem) => productWeightRepo.create(weightItem))
+        );
+      } catch (weightsErr) {
+        console.warn('Lỗi khi chèn quy cách mới qua repo:', weightsErr);
       }
 
-      // 3. Đóng gói sản phẩm hoàn chỉnh để đồng bộ state cha
+      // C. Đóng gói sản phẩm hoàn chỉnh để đồng bộ state cha
       const finalWeightsList = (insertedWeights && insertedWeights.length > 0 ? insertedWeights : resolvedWeightsPayload).map((w) => ({
         id: w.weight_key || String(w.id),
         weight_key: w.weight_key,
@@ -456,8 +290,8 @@ export default function EditProductModal({
 
       onClose();
     } catch (err) {
-      console.error('Lỗi cập nhật sản phẩm vào Supabase:', err);
-      setErrorMessage(err.message || 'Không thể cập nhật sản phẩm vào cơ sở dữ liệu. Vui lòng kiểm tra quyền RLS.');
+      console.error('Lỗi cập nhật sản phẩm:', err);
+      setErrorMessage(err.message || 'Không thể cập nhật sản phẩm vào cơ sở dữ liệu.');
     } finally {
       setIsSubmitting(false);
     }
@@ -504,11 +338,35 @@ export default function EditProductModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 sm:gap-4">
             <div className="sm:col-span-6">
-              <CustomCategorySelect
+              <CustomDropdown
                 label="Danh mục *"
+                headerLabel="DANH MỤC TRONG CƠ SỞ DỮ LIỆU:"
+                icon={Tag}
                 options={categories}
                 value={formData.category}
                 onChange={(newCatId) => setFormData({ ...formData, category: newCatId })}
+                searchable={true}
+                searchPlaceholder="Gõ tìm danh mục..."
+                renderSelected={(opt) => (
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-stone-900 truncate">
+                      {opt?.name || opt?.label}
+                    </span>
+                    {opt?.id && (
+                      <span className="text-xs font-mono text-stone-400 shrink-0">
+                        ({opt.id})
+                      </span>
+                    )}
+                  </div>
+                )}
+                renderOption={(opt, isSelected) => (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold">{opt.name || opt.label}</span>
+                    <span className={`text-xs font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-stone-400'}`}>
+                      ({opt.id})
+                    </span>
+                  </div>
+                )}
               />
             </div>
 
@@ -623,10 +481,12 @@ export default function EditProductModal({
                       />
                     </div>
 
-                    <div className="w-36 shrink-0">
-                      <CustomCalcTypeSelect
+                    <div className="w-40 shrink-0">
+                      <CustomDropdown
+                        options={CALC_TYPE_OPTIONS}
                         value={w.calcType}
                         onChange={(val) => handleUpdateWeightRow(index, 'calcType', val)}
+                        searchable={false}
                       />
                     </div>
 
