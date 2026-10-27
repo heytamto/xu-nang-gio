@@ -236,6 +236,7 @@ export default function AdminPage({
             onEditProduct={(p) => setEditingProduct(p)}
             onToggleStock={handleToggleProductStock}
             onDeleteProduct={handleDeleteProduct}
+            setConfirmModalConfig={setModalConfig}
             onResetProducts={() => {
               setModalConfig({
                 title: 'Khôi Phục',
@@ -286,13 +287,15 @@ export default function AdminPage({
           <ReviewManagementTab 
             shopConfig={shopConfig} 
             onSaveConfig={onSaveConfig} 
-            onShowToast={showSavedToast} 
+            onShowToast={showSavedToast}
+            setConfirmModalConfig={setModalConfig}
           />
         )}
 
         {activeTab === 'config' && (
           <ConfigVoucherTab
             config={shopConfig}
+            setConfirmModalConfig={setModalConfig}
             onSaveConfig={(newCfg) => {
               if (onSaveConfig) onSaveConfig(newCfg);
               showSavedToast('Đã lưu cấu hình shop!');

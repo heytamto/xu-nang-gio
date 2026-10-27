@@ -69,21 +69,32 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
   };
 
   const handleDelete = (catId, catName) => {
-    setConfirmModalConfig({
-      isAlert: false,
-      title: "Xóa Danh Mục",
-      message: `Bạn có chắc chắn muốn xóa danh mục "${catName}" (#${catId})?`,
-      confirmLabel: "Xác nhận xóa",
-      onConfirm: async () => {
-        try {
-          await categoryRepo.remove(catId);
-          setCategories((prev) => prev.filter((c) => c.id !== catId));
-          onShowAlert?.(`Đã xóa danh mục "${catName}"!`);
-        } catch (err) {
-          onShowAlert?.("Lỗi xóa danh mục: " + err.message);
-        }
-      },
-    });
+    const executeDelete = async () => {
+      try {
+        await categoryRepo.remove(catId);
+        setCategories((prev) => prev.filter((c) => c.id !== catId));
+        onShowAlert?.(`Đã xóa danh mục "${catName}"!`);
+      } catch (err) {
+        onShowAlert?.("Lỗi xóa danh mục: " + err.message);
+      }
+    };
+
+    // Kiểm tra an toàn trước khi gọi setConfirmModalConfig
+    if (typeof setConfirmModalConfig === "function") {
+      setConfirmModalConfig({
+        isAlert: false,
+        title: "Xóa Danh Mục",
+        message: `Bạn có chắc chắn muốn xóa danh mục "${catName}" (#${catId})?`,
+        confirmLabel: "Xác nhận xóa",
+        onConfirm: executeDelete,
+      });
+      return;
+    }
+
+    // Fallback sang confirm mặc định của trình duyệt
+    if (window.confirm(`Bạn có chắc chắn muốn xóa danh mục "${catName}" (#${catId})?`)) {
+      executeDelete();
+    }
   };
 
   return (
@@ -164,36 +175,73 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
         </button>
       </form>
 
+      {/* Modal Sửa Danh Mục - Chuẩn hóa màu sắc đồng bộ với toàn app */}
       {editingCategory && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/75 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-bold text-stone-900">Sửa Danh Mục: #{editingCategory.id}</h3>
-              <button onClick={() => setEditingCategory(null)}><X className="w-5 h-5 text-stone-400" /></button>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn font-sans text-stone-800"
+          onClick={() => setEditingCategory(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-stone-200/90 space-y-5 animate-scaleUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header popup */}
+            <div className="flex justify-between items-center border-b border-stone-100 pb-3.5">
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">
+                  Chỉnh Sửa Danh Mục
+                </h3>
+                <span className="font-mono text-xs font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200">
+                  #{editingCategory.id}
+                </span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingCategory(null)}
+                className="w-8 h-8 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 hover:text-stone-700 hover:bg-stone-200 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <form onSubmit={handleSaveEdit} className="space-y-4">
-              <div>
-                <label className="font-bold block mb-1 text-xs">Tên danh mục</label>
+
+            {/* Form nhập liệu */}
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs sm:text-sm">
+              <div className="space-y-1.5">
+                <label className="font-bold text-stone-700 block">Tên danh mục *</label>
                 <input
                   type="text"
                   required
                   value={editingCategory.name}
                   onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                  className="w-full h-11 px-3 border rounded-xl font-bold text-sm"
+                  className="w-full h-11 px-3.5 rounded-2xl border border-stone-200 bg-stone-50/50 focus:bg-white focus:outline-none focus:border-amber-600 font-bold text-sm text-stone-900 transition-colors shadow-2xs"
                 />
               </div>
-              <div>
-                <label className="font-bold block mb-1 text-xs">Thứ tự</label>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-stone-700 block">Thứ tự ưu tiên hiển thị</label>
                 <input
                   type="number"
                   value={editingCategory.order ?? 0}
                   onChange={(e) => setEditingCategory({ ...editingCategory, order: e.target.value })}
-                  className="w-full h-11 px-3 border rounded-xl text-sm"
+                  className="w-full h-11 px-3.5 rounded-2xl border border-stone-200 bg-stone-50/50 focus:bg-white focus:outline-none focus:border-amber-600 font-bold text-sm text-stone-900 transition-colors shadow-2xs"
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setEditingCategory(null)} className="h-10 px-4 rounded-xl text-xs font-bold text-stone-600">Hủy</button>
-                <button type="submit" className="h-10 px-5 rounded-xl bg-amber-800 text-white text-xs font-bold">Lưu Thay Đổi</button>
+
+              {/* Cụm nút bấm tỷ lệ cân đối */}
+              <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingCategory(null)} 
+                  className="flex-1 h-11 rounded-2xl border border-stone-200 font-bold text-xs sm:text-sm text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 h-11 rounded-2xl bg-stone-900 hover:bg-amber-800 text-white font-bold text-xs sm:text-sm shadow-xs active:scale-95 transition-all cursor-pointer"
+                >
+                  Lưu Thay Đổi
+                </button>
               </div>
             </form>
           </div>

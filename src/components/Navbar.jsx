@@ -16,11 +16,10 @@ export default function Navbar({
   const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
   const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận Hái Sớm';
 
-  const navItems = [
+const navItems = [
     { id: 'home', label: 'Trang Chủ' },
     { id: 'shop', label: 'Cửa Hàng' },
-    { id: 'story', label: 'Chuyện Vườn' },
-    { id: 'blog', label: 'Cẩm Nang' },
+    { id: 'story', label: 'Tâm Sự' }, 
   ];
 
   const handleCartClick = () => {

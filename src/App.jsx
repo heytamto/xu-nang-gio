@@ -12,7 +12,6 @@ import CartCenterSplash from './components/common/CartCenterSplash';
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
 import StoryPage from './pages/StoryPage';
-import BlogPage from './pages/BlogPage';
 import CheckoutPage from './pages/CheckoutPage';
 import PolicyPage from './pages/PolicyPage';
 
@@ -28,7 +27,9 @@ import { useShopOrders } from './hooks/useShopOrders';
 export default function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     try {
-      return sessionStorage.getItem('shop_current_page') || 'home';
+      const savedPage = sessionStorage.getItem('shop_current_page') || 'home';
+      // Nếu là trang blog cũ thì tự động chuyển về story
+      return savedPage === 'blog' ? 'story' : savedPage;
     } catch {
       return 'home';
     }
@@ -107,7 +108,6 @@ export default function App() {
         if (Array.isArray(masterData.products)) {
           setProducts(masterData.products);
           localStorage.setItem('shop_products', JSON.stringify(masterData.products));
-          // Đồng bộ và lọc món đã xóa khỏi giỏ
           syncCartWithMasterData(masterData.products);
         }
         if (Array.isArray(masterData.posts)) {
@@ -174,9 +174,13 @@ export default function App() {
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
       }
 
-      if (page && ['home', 'shop', 'story', 'blog', 'checkout', 'admin', 'packing', 'policy'].includes(page)) {
-        setCurrentPage(page);
-        sessionStorage.setItem('shop_current_page', page);
+      if (page) {
+        // Tự động map URL cũ page=blog sang story
+        const targetPage = page === 'blog' ? 'story' : page;
+        if (['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy'].includes(targetPage)) {
+          setCurrentPage(targetPage);
+          sessionStorage.setItem('shop_current_page', targetPage);
+        }
       }
     } catch (e) {
       console.error('Lỗi URL Params:', e);
@@ -184,15 +188,16 @@ export default function App() {
   }, []);
 
   const navigateTo = (page) => {
-    if (page !== 'shop') {
+    const targetPage = page === 'blog' ? 'story' : page;
+    if (targetPage !== 'shop') {
       setSelectedShopCategory('all');
       try { sessionStorage.setItem('shop_selected_category', 'all'); } catch (e) {}
     }
-    setCurrentPage(page);
+    setCurrentPage(targetPage);
     try {
-      sessionStorage.setItem('shop_current_page', page);
-      const newUrl = page === 'home' ? window.location.pathname : `?page=${page}`;
-      window.history.pushState({ page }, '', newUrl);
+      sessionStorage.setItem('shop_current_page', targetPage);
+      const newUrl = targetPage === 'home' ? window.location.pathname : `?page=${targetPage}`;
+      window.history.pushState({ page: targetPage }, '', newUrl);
     } catch (e) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -287,8 +292,14 @@ export default function App() {
           />
         )}
 
-        {currentPage === 'story' && <StoryPage stories={stories} onNavigate={navigateTo} />}
-        {currentPage === 'blog' && <BlogPage posts={posts} onNavigate={navigateTo} />}
+        {/* GỘP TOÀN BỘ CHUYỆN VƯỜN & CẨM NANG VÀO ĐÂY */}
+        {currentPage === 'story' && (
+          <StoryPage 
+            stories={stories} 
+            posts={posts} 
+            onNavigate={navigateTo} 
+          />
+        )}
 
         {currentPage === 'checkout' && (
           <CheckoutPage
