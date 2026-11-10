@@ -7,6 +7,11 @@ body {
   color: #292524;
 }
 
+/* ==========================================================================
+   1. HIỆU ỨNG GIỎ HÀNG NAVBAR & TRẢI NGHIỆM MUA SẮM
+   ========================================================================== */
+
+/* Nảy icon giỏ hàng trên thanh Header */
 @keyframes cartPop {
   0% { transform: scale(1); }
   40% { transform: scale(1.35); }
@@ -18,17 +23,46 @@ body {
   animation: cartPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+/* Nảy nút bấm Thêm vào giỏ khi click */
+@keyframes scalePop {
+  0% { transform: scale(0.9); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.animate-scale-pop {
+  animation: scalePop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleUp {
+  0% { transform: scale(0.92); }
+  50% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* ==========================================================================
+   2. HIỆU ỨNG BỎ HÀNG VÀO GIỎ Ở GIỮA MÀN HÌNH (CART CENTER SPLASH)
+   ========================================================================== */
+
+/* Khung ngoài: Hiện lên, đón vật thể rồi mờ dần đi */
 @keyframes centerSplash {
   0% {
     opacity: 0;
-    transform: scale(0.4) translateY(20px);
+    transform: scale(0.6) translateY(24px);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-4px);
   }
   45% {
-    opacity: 1;
-    transform: scale(1.1) translateY(0);
+    transform: scale(0.97) translateY(2px);
   }
   60% {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
   85% {
     opacity: 1;
@@ -36,13 +70,59 @@ body {
   }
   100% {
     opacity: 0;
-    transform: scale(0.9) translateY(-10px);
+    transform: scale(0.9) translateY(-14px);
   }
 }
 
 .animate-center-splash {
-  animation: centerSplash 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: centerSplash 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Vật thể rơi lọt vào lòng giỏ với quán tính tự nhiên */
+@keyframes itemDropIntoBasket {
+  0% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(8px) scale(1.04);
+  }
+  75% {
+    transform: translateY(-3px) scale(0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-item-drop {
+  animation: itemDropIntoBasket 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Badge +1 bung nảy sau khi đồ tiếp đất */
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-15deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.3) rotate(5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+.animate-badge-pop {
+  animation: badgePop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.12s both;
+}
+
+/* ==========================================================================
+   3. HIỆU ỨNG HÓA ĐƠN & GIAO DIỆN IN ĐÓNG GÓI (PACKING / BILL)
+   ========================================================================== */
 
 @keyframes receiptSlideDown {
   0% {
@@ -59,6 +139,7 @@ body {
   animation: receiptSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Mô phỏng máy in giấy bill cuộn ra */
 @keyframes receiptFeed {
   0% {
     transform: translateY(-80px) scale(0.9);
@@ -81,6 +162,11 @@ body {
   animation: receiptFeed 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
+/* ==========================================================================
+   4. HIỆU ỨNG TƯƠNG TÁC THẺ & CHUYỂN CẢNH (HIGHLIGHT CARD & FADE)
+   ========================================================================== */
+
+/* Viền phát sáng xung quanh thẻ sản phẩm khi được click từ thanh thông báo */
 @keyframes highlight-pulse {
   0%, 100% {
     transform: scale(1.02);
@@ -97,4 +183,20 @@ body {
   border-radius: 1.5rem;
   position: relative;
   z-index: 20;
+}
+
+/* Hiệu ứng mờ dần nhẹ cho modal & page transition */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

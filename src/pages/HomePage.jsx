@@ -48,6 +48,7 @@ export default function HomePage({
   onNavigateShop,
   onNavigateStory,
   onNavigate,
+  onViewProductDetail,
 }) {
   const scrollRef = useRef(null);
 
@@ -265,7 +266,7 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* 3. LỊCH MÙA VỤ 12 THÁNG (Component tách riêng) */}
+      {/* 3. LỊCH MÙA VỤ 12 THÁNG */}
       <HarvestCalendarSection onNavigateShop={goToShop} />
 
       {/* 4. MÓN NGON TUYỂN CHỌN */}
@@ -299,7 +300,12 @@ export default function HomePage({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {featuredProducts.map((p) => (
-              <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} />
+              <ProductCard
+                key={p.id}
+                product={p}
+                onAddToCart={onAddToCart}
+                onViewDetail={onViewProductDetail}
+              />
             ))}
           </div>
         )}
@@ -405,10 +411,10 @@ export default function HomePage({
         </div>
       </section>
 
-      {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA (Component tách riêng) */}
+      {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA */}
       <ExperienceGuideSection />
 
-      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG (Component tách riêng) */}
+      {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG */}
       {isReviewsEnabled && <CustomerReviewsSection />}
 
       {/* 9. BỐN CAM KẾT VƯỜN QUÊ */}

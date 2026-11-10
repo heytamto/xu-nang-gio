@@ -1,6 +1,6 @@
 // src/components/admin/EditProductModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Check, Plus, Trash2, Star, Layers, Tag, Loader2 } from 'lucide-react';
+import { X, Check, Plus, Trash2, Star, Layers, Tag, Loader2, Images } from 'lucide-react';
 import ImageUploadField from '../../ImageUploadField';
 import CustomDropdown from '../../CustomDropdown';
 import { categoryRepo, productRepo, productWeightRepo } from '../../../repositories';
@@ -21,6 +21,7 @@ export default function EditProductModal({
   const [categories, setCategories] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [extraImageInput, setExtraImageInput] = useState('');
 
   // 1. Tải danh mục động: Ưu tiên propCategories, nếu trống gọi qua categoryRepo
   useEffect(() => {
@@ -86,6 +87,24 @@ export default function EditProductModal({
       ];
     }
 
+    // Chuẩn hóa danh sách nhiều ảnh (Multi-images)
+    const rawImages = Array.isArray(product?.images) && product.images.length > 0
+      ? product.images.filter(Boolean)
+      : (typeof product?.images === 'string' && product.images.trim()
+          ? product.images.split(/[,|\n]/).map(s => s.trim()).filter(Boolean)
+          : []);
+
+    const primaryCover = product?.image_url || product?.image || rawImages[0] || '';
+    const secondaryImages = rawImages.filter(img => img !== primaryCover);
+
+    // Chuẩn hóa flavors thành chuỗi để hiển thị trên input
+    let initialFlavorsStr = '';
+    if (Array.isArray(product?.flavors)) {
+      initialFlavorsStr = product.flavors.map(f => (typeof f === 'string' ? f : f?.label)).filter(Boolean).join(', ');
+    } else if (typeof product?.flavors === 'string') {
+      initialFlavorsStr = product.flavors.split('|').map(s => s.trim()).filter(Boolean).join(', ');
+    }
+
     const currentCat = product?.category || product?.category_id || '';
 
     return {
@@ -96,7 +115,9 @@ export default function EditProductModal({
       basePrice: Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0),
       badge: product?.badge || '',
       source: product?.source || 'Vườn nhà Tâm (Phước Hậu)',
-      image: product?.image_url || product?.image || '',
+      image: primaryCover,
+      images: secondaryImages,
+      flavorsInput: initialFlavorsStr,
       desc: product?.description || product?.desc || '',
       inStock: product?.inStock ?? product?.in_stock ?? true,
       weights: initialWeights
@@ -110,6 +131,22 @@ export default function EditProductModal({
   }, [categories, formData.category]);
 
   if (!product) return null;
+
+  const handleAddExtraImage = (url) => {
+    const trimmed = (url || extraImageInput).trim();
+    if (!trimmed) return;
+    if (!formData.images.includes(trimmed)) {
+      setFormData((prev) => ({ ...prev, images: [...prev.images, trimmed] }));
+    }
+    setExtraImageInput('');
+  };
+
+  const handleRemoveExtraImage = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, idx) => idx !== index)
+    }));
+  };
 
   const handleUpdateWeightRow = (index, field, value) => {
     const updated = [...formData.weights];
@@ -186,6 +223,19 @@ export default function EditProductModal({
       const defaultUnit = (formData.unit || 'kg').trim();
       const resolvedCategory = formData.category || categories[0]?.id || 'fresh';
 
+      // Xử lý bộ ảnh hoàn chỉnh
+      const primaryCover = formData.image?.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80';
+      const allImagesList = Array.from(new Set([primaryCover, ...(formData.images || [])].filter(Boolean)));
+
+      // Xử lý danh sách hương vị
+      const parsedFlavors = formData.flavorsInput
+        ? formData.flavorsInput.split(/[,|\n]/).map(s => s.trim()).filter(Boolean).map((label, idx) => ({
+            id: `flv-${idx + 1}`,
+            label,
+            priceBonus: 0
+          }))
+        : [];
+
       // A. Cập nhật bản ghi chính qua productRepo
       const updateProductPayload = {
         name: formData.name.trim(),
@@ -195,7 +245,9 @@ export default function EditProductModal({
         badge: formData.badge?.trim() || '',
         source: formData.source?.trim() || '',
         description: formData.desc?.trim() || '',
-        image_url: formData.image?.trim() || '',
+        image_url: primaryCover,
+        images: allImagesList,
+        flavors: parsedFlavors,
         in_stock: Boolean(formData.inStock),
         updated_at: new Date().toISOString()
       };
@@ -274,8 +326,10 @@ export default function EditProductModal({
         source: updateProductPayload.source,
         desc: updateProductPayload.description,
         description: updateProductPayload.description,
-        image: updateProductPayload.image_url,
-        image_url: updateProductPayload.image_url,
+        image: primaryCover,
+        image_url: primaryCover,
+        images: allImagesList,
+        flavors: parsedFlavors,
         inStock: updateProductPayload.in_stock,
         in_stock: updateProductPayload.in_stock,
         weights: finalWeightsList,
@@ -419,12 +473,82 @@ export default function EditProductModal({
             </div>
           </div>
 
+          {/* Tùy chọn Hương vị */}
+          <div>
+            <label className="font-bold text-stone-700 block mb-1.5">
+              Tùy chọn hương vị (Nếu có, cách nhau bởi dấu phẩy)
+            </label>
+            <input
+              type="text"
+              placeholder="VD: Nguyên bản, Vị tỏi ớt, Ít ngọt..."
+              value={formData.flavorsInput}
+              onChange={(e) => setFormData({ ...formData, flavorsInput: e.target.value })}
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+            />
+          </div>
+
+          {/* Ảnh bìa chính */}
           <ImageUploadField
-            label="Cập nhật ảnh đặc sản (Supabase Storage)"
+            label="Cập nhật ảnh bìa chính (Cover Image)"
             value={formData.image}
             bucket="products"
             onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
           />
+
+          {/* Bộ sưu tập nhiều ảnh (Multi-images Gallery) */}
+          <div className="p-4 sm:p-5 bg-stone-50/90 rounded-3xl border border-stone-200 space-y-3.5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
+                <Images className="w-4 h-4 text-amber-700" />
+                <span>Bộ ảnh đa góc chụp (Hover & Chi tiết sản phẩm)</span>
+              </div>
+              <span className="text-xs text-stone-500 font-medium font-mono">
+                {formData.images.length} ảnh phụ
+              </span>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="Dán URL ảnh phụ (https://...)"
+                value={extraImageInput}
+                onChange={(e) => setExtraImageInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddExtraImage();
+                  }
+                }}
+                className="flex-1 h-10 px-3.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-medium bg-white focus:outline-none focus:border-amber-600 shadow-2xs"
+              />
+              <button
+                type="button"
+                onClick={() => handleAddExtraImage()}
+                className="h-10 px-4 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm ảnh</span>
+              </button>
+            </div>
+
+            {formData.images.length > 0 && (
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5 pt-1">
+                {formData.images.map((imgUrl, i) => (
+                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-stone-200 bg-white group shadow-2xs">
+                    <img src={imgUrl} alt={`Ảnh phụ ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExtraImage(i)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                      title="Gỡ ảnh này"
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[3]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* QUY CÁCH ĐÓNG GÓI & CƠ CHẾ ĐỊNH GIÁ */}
           <div className="bg-stone-50/90 p-4 sm:p-5 rounded-3xl border border-stone-200/90 space-y-4 shadow-2xs">
@@ -555,7 +679,8 @@ export default function EditProductModal({
                 Hủy bỏ
               </button>
               <button
-                type="submit"
+                type="button"
+                onClick={handleSubmit}
                 disabled={isSubmitting}
                 className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
               >

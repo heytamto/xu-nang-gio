@@ -16,7 +16,7 @@ export default function Navbar({
   const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
   const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận Hái Sớm';
 
-const navItems = [
+  const navItems = [
     { id: 'home', label: 'Trang Chủ' },
     { id: 'shop', label: 'Cửa Hàng' },
     { id: 'story', label: 'Tâm Sự' }, 
@@ -50,7 +50,7 @@ const navItems = [
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
             <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div className="min-w-0 max-w-[220px] sm:max-w-md lg:max-w-lg">
+          <div className="min-w-0 max-w-[180px] sm:max-w-md lg:max-w-lg">
             <span className="font-black text-sm sm:text-lg tracking-wide text-white block uppercase truncate">
               {brandName}
             </span>
@@ -80,7 +80,7 @@ const navItems = [
 
         {/* Cụm Nút Tra Cứu, Giỏ Hàng & Menu Mobile */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Nút Tra Cứu Đơn (Desktop & Tablet) */}
+          {/* Nút Tra Cứu Đơn */}
           <button
             type="button"
             onClick={handleLookupClick}
@@ -156,7 +156,7 @@ const navItems = [
         </div>
       </div>
 
-      {/* Menu thả xuống trên Mobile */}
+      {/* Menu Mobile */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-stone-900/98 border-t border-stone-800 px-4 sm:px-6 py-4 space-y-2 animate-fadeIn shadow-2xl">
           <div className="flex items-center justify-between pb-2 border-b border-stone-800/80 text-xs font-bold text-stone-400 uppercase tracking-wider">
@@ -165,7 +165,6 @@ const navItems = [
               type="button"
               onClick={() => setIsMobileMenuOpen(false)}
               className="p-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
-              title="Đóng menu"
             >
               <span>Đóng</span>
               <X className="w-4 h-4" />

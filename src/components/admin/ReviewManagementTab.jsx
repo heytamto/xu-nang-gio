@@ -1,8 +1,9 @@
 // src/components/admin/ReviewManagementTab.jsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, Star, EyeOff, CheckCircle2, Trash2, Loader2, MessageSquare,
-  Globe, Power, PackageCheck, Camera, X, Square, CheckSquare, Layers
+  Globe, Power, PackageCheck, Camera, X, Square, CheckSquare
 } from 'lucide-react';
 import { reviewRepo, shopConfigRepo } from '../../repositories';
 
@@ -239,8 +240,8 @@ export default function ReviewManagementTab({
 
       if (onShowToast) {
         onShowToast(
-          shouldApprove
-            ? `Đã duyệt hiển thị ${targetIds.length} đánh giá!`
+          shouldApprove 
+            ? `Đã duyệt hiển thị ${targetIds.length} đánh giá!` 
             : `Đã ẩn ${targetIds.length} đánh giá khỏi website!`
         );
       }
@@ -290,7 +291,7 @@ export default function ReviewManagementTab({
   };
 
   return (
-    <div className="space-y-6 sm:space-y-7 font-sans text-stone-800 animate-fadeIn relative pb-20">
+    <div className="space-y-6 sm:space-y-7 font-sans text-stone-800 pb-28">
       {/* 1. CÔNG TẮC BẬT/TẮT HIỂN THỊ MỤC ĐÁNH GIÁ NGOÀI TRANG CHỦ */}
       <div className="bg-white p-5 sm:p-7 rounded-3xl border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-5">
         <div className="flex items-start gap-4">
@@ -304,7 +305,7 @@ export default function ReviewManagementTab({
               </h3>
               <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-2xs ${
                 showReviewsOnHome 
-                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300' 
                   : 'bg-stone-100 text-stone-700 border-stone-300'
               }`}>
                 {showReviewsOnHome ? '🟢 Đang hiển thị' : '🔴 Đang ẩn'}
@@ -607,15 +608,18 @@ export default function ReviewManagementTab({
         </div>
       )}
 
-      {/* 4. THANH BULK ACTION BAR NỔI DƯỚI ĐÁY KHI CÓ ĐÁNH GIÁ ĐƯỢC CHỌN */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900/95 text-white px-4 sm:px-5 py-3 rounded-3xl shadow-2xl border border-stone-700/80 backdrop-blur-md flex items-center gap-2.5 sm:gap-4 animate-fadeIn max-w-[95vw] sm:max-w-2xl text-xs sm:text-sm font-sans select-none">
+      {/* 4. THANH BULK ACTION BAR NỔI DƯỚI ĐÁY BẰNG PORTAL */}
+      {selectedIds.size > 0 && typeof document !== 'undefined' && createPortal(
+        <aside 
+          aria-label="Thao tác hàng loạt"
+          className="fixed bottom-7 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-4 sm:px-6 py-3.5 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-stone-700 backdrop-blur-md flex items-center gap-3 sm:gap-4.5 max-w-[94vw] sm:max-w-2xl text-xs sm:text-sm font-sans select-none animate-fadeIn"
+        >
           {/* SỐ LƯỢNG ĐÃ CHỌN */}
           <div className="flex items-center gap-2 font-bold shrink-0">
             <span className="w-6 h-6 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center text-xs font-black font-mono">
               {selectedIds.size}
             </span>
-            <span className="hidden sm:inline">đánh giá</span>
+            <span className="hidden sm:inline">đã chọn</span>
           </div>
 
           <div className="h-5 w-[1px] bg-stone-700 hidden sm:block shrink-0" />
@@ -667,13 +671,14 @@ export default function ReviewManagementTab({
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        </aside>,
+        document.body
       )}
 
-      {/* 5. LIGHTBOX PHÓNG TO ẢNH ĐỐI CHIẾU */}
-      {previewZoomImage && (
+      {/* 5. LIGHTBOX PHÓNG TO ẢNH ĐỐI CHIẾU BẰNG PORTAL */}
+      {previewZoomImage && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 z-60 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-fadeIn"
           onClick={() => setPreviewZoomImage(null)}
         >
           <div 
@@ -696,7 +701,8 @@ export default function ReviewManagementTab({
           <span className="text-white text-xs mt-3 opacity-70">
             Nhấn ra ngoài hoặc bấm nút ✕ để đóng
           </span>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

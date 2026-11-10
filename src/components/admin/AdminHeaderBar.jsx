@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   ArrowLeft, FileSpreadsheet, PackageCheck, RefreshCw, LogOut,
-  LayoutDashboard, ShoppingBag, Feather, BookOpen, MessageSquare, Settings
+  LayoutDashboard, ShoppingBag, Feather, MessageSquare, Settings
 } from 'lucide-react';
 
 export default function AdminHeaderBar({
@@ -20,6 +20,9 @@ export default function AdminHeaderBar({
   onNavigatePacking,
   onLogout
 }) {
+  const isStoryActive = activeTab === 'story' || activeTab === 'stories' || activeTab === 'posts';
+  const totalStoryCount = storiesCount + postsCount;
+
   return (
     <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3 font-sans">
       <header className="bg-white p-4 sm:p-6 rounded-3xl border border-stone-200/90 shadow-md space-y-4">
@@ -91,7 +94,8 @@ export default function AdminHeaderBar({
           </div>
         </div>
 
-        <div className="w-full bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-6 gap-1.5 border border-stone-200/50">
+        {/* Dải tab chính: 5 tab chia đều */}
+        <div className="w-full bg-stone-100/90 p-1.5 rounded-2xl grid grid-cols-2 sm:grid-cols-5 gap-1.5 border border-stone-200/50">
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
@@ -114,26 +118,16 @@ export default function AdminHeaderBar({
             <span>Sản Phẩm ({productsCount})</span>
           </button>
 
+          {/* Tab Tâm Sự gộp Chuyện Vườn + Cẩm Nang */}
           <button
             type="button"
-            onClick={() => setActiveTab('stories')}
+            onClick={() => setActiveTab('story')}
             className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
-              activeTab === 'stories' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
+              isStoryActive ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
             }`}
           >
             <Feather className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>Chuyện Vườn ({storiesCount})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('posts')}
-            className={`w-full h-11 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
-              activeTab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>Cẩm Nang ({postsCount})</span>
+            <span>Tâm Sự ({totalStoryCount})</span>
           </button>
 
           <button

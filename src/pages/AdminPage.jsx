@@ -6,8 +6,7 @@ import AdminLoginView from '../components/admin/AdminLoginView';
 import AdminHeaderBar from '../components/admin/AdminHeaderBar';
 import DashboardTab from '../components/admin/DashboardTab';
 import ProductsTab from '../components/admin/product/ProductsTab';
-import StoriesTab from '../components/admin/story/StoriesTab';
-import PostsTab from '../components/admin/post/PostsTab';
+import StoryManagementTab from '../components/admin/content/StoryManagementTab';
 import ReviewManagementTab from '../components/admin/ReviewManagementTab';
 import ConfigVoucherTab from '../components/admin/config/ConfigVoucherTab';
 
@@ -167,7 +166,7 @@ export default function AdminPage({
     });
   };
 
-  // Xóa bài viết
+  // Xóa bài viết cẩm nang
   const handleDeletePost = (postId, postTitle) => {
     setModalConfig({
       title: 'Xóa Bài Viết',
@@ -249,37 +248,37 @@ export default function AdminPage({
           />
         )}
 
-        {activeTab === 'stories' && (
-          <StoriesTab
+        {/* TAB GỘP TÂM SỰ (CHUYỆN VƯỜN & CẨM NANG) */}
+        {(activeTab === 'story' || activeTab === 'stories' || activeTab === 'posts') && (
+          <StoryManagementTab
             stories={stories}
             onAddStory={(newStory) => handleSaveStories([newStory, ...stories])}
             onEditStory={(s) => setEditingStory(s)}
             onDeleteStory={handleDeleteStory}
+            onSaveStories={handleSaveStories}
             onResetStories={onResetStories ? () => {
               setModalConfig({
-                title: 'Khôi Phục',
+                title: 'Khôi Phục Chuyện Vườn',
                 message: 'Khôi phục danh sách câu chuyện mặc định?',
                 confirmLabel: 'Khôi phục',
                 onConfirm: onResetStories
               });
             } : null}
-          />
-        )}
-
-        {activeTab === 'posts' && (
-          <PostsTab
             posts={posts}
             onAddPost={(newPost) => handleSavePosts([newPost, ...posts])}
             onEditPost={(p) => setEditingPost(p)}
             onDeletePost={handleDeletePost}
-            onResetPosts={() => {
+            onSavePosts={handleSavePosts}
+            onResetPosts={onResetPosts ? () => {
               setModalConfig({
-                title: 'Khôi Phục',
-                message: 'Khôi phục danh sách bài viết mặc định?',
+                title: 'Khôi Phục Cẩm Nang',
+                message: 'Khôi phục danh sách bài viết cẩm nang mặc định?',
                 confirmLabel: 'Khôi phục',
                 onConfirm: onResetPosts
               });
-            }}
+            } : null}
+            onShowAlert={showSavedToast}
+            setConfirmModalConfig={setModalConfig}
           />
         )}
 

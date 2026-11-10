@@ -21,7 +21,7 @@ export function useCartManager() {
   const bounceTimerRef = useRef(null);
   const cartUpdateTimerRef = useRef(null);
 
-  // 1. Lưu giỏ hàng vào localStorage mỗi khi state cart thay đổi ở tab hiện tại
+  // 1. Lưu giỏ hàng vào localStorage
   useEffect(() => {
     try {
       localStorage.setItem('shop_cart', JSON.stringify(cart));
@@ -30,7 +30,7 @@ export function useCartManager() {
     }
   }, [cart]);
 
-  // 2. Đồng bộ đa tab: Tab này thanh toán hoặc xoá giỏ, các tab khác tự cập nhật ngay lập tức
+  // 2. Đồng bộ đa tab
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === 'shop_cart') {
@@ -57,7 +57,7 @@ export function useCartManager() {
     };
   }, []);
 
-  // 4. Đồng bộ giỏ hàng theo danh mục sản phẩm mới nhất từ Database
+  // 4. Đồng bộ giỏ hàng theo danh mục sản phẩm từ Database
   const syncCartWithMasterData = useCallback((latestProducts) => {
     if (!Array.isArray(latestProducts)) return;
 
@@ -68,7 +68,6 @@ export function useCartManager() {
       let hasCartChanged = false;
       const removedNames = [];
 
-      // Lọc bỏ sản phẩm đã bị xoá khỏi Database
       const cleanCart = prevCart.filter((item) => {
         const prodId = String(item.productId || item.id).split('-')[0];
         const exists = productMap.has(prodId) || productMap.has(String(item.productId)) || productMap.has(String(item.id));
@@ -84,12 +83,10 @@ export function useCartManager() {
         return true;
       });
 
-      // Bật thông báo dịu mắt khi có món bị gỡ
       if (removedNames.length > 0) {
         setRemovedItemsNotice(removedNames);
       }
 
-      // Cập nhật giá mới nhất cho các món còn tồn tại
       const updatedCart = cleanCart.map((item) => {
         const prodId = String(item.productId || item.id).split('-')[0];
         const freshProd = productMap.get(prodId) || productMap.get(String(item.productId)) || productMap.get(String(item.id));
@@ -147,38 +144,46 @@ export function useCartManager() {
     });
   }, []);
 
-  // 5. Thêm món vào giỏ kèm hiệu ứng splash
+  // 5. Thêm món vào giỏ với cơ chế reset animation liên tục
   const handleAddToCart = useCallback((product, weightObj, quantity = 1) => {
+    // 1. Dọn sạch toàn bộ timer cũ trước đó
     if (splashTimerRef.current) clearTimeout(splashTimerRef.current);
     if (navTimerRef.current) clearTimeout(navTimerRef.current);
     if (bounceTimerRef.current) clearTimeout(bounceTimerRef.current);
     if (cartUpdateTimerRef.current) clearTimeout(cartUpdateTimerRef.current);
 
-    const multiplier = weightObj?.multiplier || 1;
-    const bonus = weightObj?.priceBonus || 0;
-    const base = Number(product.basePrice || product.base_price || product.price || 0);
+    const multiplier = Number(weightObj?.multiplier) || 1;
+    const bonus = Number(weightObj?.priceBonus) || 0;
+    const base = Number(product.basePrice ?? product.base_price ?? product.price ?? 0);
 
-    let unitPrice = Math.round((base + bonus) * multiplier);
-    if (weightObj?.priceOverride != null && weightObj.priceOverride > 0) {
-      unitPrice = weightObj.priceOverride < 10000 && base >= 20000
-        ? base + weightObj.priceOverride + bonus
-        : weightObj.priceOverride + bonus;
+    // ƯU TIÊN: Nếu ProductCard đã tính toán sẵn đơn giá chính xác thì lấy luôn
+    let unitPrice = Number(product.price);
+    if (!unitPrice || unitPrice <= 0) {
+      const override = weightObj?.priceOverride ?? weightObj?.price_override;
+      if (override != null && Number(override) > 0) {
+        const numOverride = Number(override);
+        unitPrice = numOverride < 10000 && base >= 20000 ? base + numOverride + bonus : numOverride + bonus;
+      } else {
+        unitPrice = Math.round((base + bonus) * multiplier);
+      }
     }
 
+    const weightId = weightObj?.id || weightObj?.weight_key || 'std';
     const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
-    const cartItemId = `${product.id}-${weightObj?.id || 'std'}${flavorTag}`;
+    const cartItemId = `${product.id}-${weightId}${flavorTag}`;
 
     setCart((prevCart) => {
       const existing = prevCart.find((item) => item.id === cartItemId || item.cartItemId === cartItemId);
       const currentQtyInCart = existing ? existing.quantity : 0;
       const newTotalQuantity = currentQtyInCart + quantity;
 
+      // Cập nhật splash với ID mới để trigger re-render animation
       setCenterSplash({
-        id: Date.now() + Math.random(),
-        image: product.image,
+        id: `${Date.now()}-${Math.random()}`,
+        image: product.image || product.image_url,
         addedQuantity: quantity,
         totalQuantity: newTotalQuantity,
-        productName: product.name
+        productName: product.name || product.title
       });
 
       if (existing) {
@@ -195,12 +200,12 @@ export function useCartManager() {
           id: cartItemId,
           cartItemId,
           productId: product.id,
-          weightId: weightObj?.id || 'std',
-          name: product.name,
+          weightId: weightId,
+          name: product.name || product.title,
           price: unitPrice,
           flavor: weightObj?.flavor || null,
-          weightLabel: weightObj?.label || product.unit || 'Tiêu chuẩn',
-          image: product.image,
+          weightLabel: weightObj?.label || weightObj?.weight_label || product.unit || 'Tiêu chuẩn',
+          image: product.image || product.image_url,
           campaign_gift: product.campaign_gift_id || product.campaign_gift || null,
           campaign_gift_title: product.campaign_tag || product.campaign_gift_title || null,
           quantity
@@ -208,19 +213,20 @@ export function useCartManager() {
       ];
     });
 
+    // 2. Kích hoạt lại animation nảy Navbar & Splash ngay lập tức
     setForceNavVisible(true);
     setIsCartBouncing(false);
 
-    cartUpdateTimerRef.current = setTimeout(() => {
+    requestAnimationFrame(() => {
       setIsCartBouncing(true);
       bounceTimerRef.current = setTimeout(() => {
         setIsCartBouncing(false);
-      }, 500);
-    }, 200);
+      }, 600);
+    });
 
     splashTimerRef.current = setTimeout(() => {
       setCenterSplash(null);
-    }, 850);
+    }, 900);
 
     navTimerRef.current = setTimeout(() => {
       setForceNavVisible(false);
@@ -280,7 +286,7 @@ export function useCartManager() {
     });
   }, []);
 
-  // 8. Dọn sạch giỏ hàng (Sau khi đặt hàng thành công)
+  // 8. Dọn sạch giỏ hàng
   const clearCart = useCallback(() => {
     setCart([]);
     try {

@@ -1,4 +1,4 @@
-// src/components/admin/product/ProductsTab.jsx (hoặc src/components/admin/ProductsTab.jsx)
+// src/components/admin/product/ProductsTab.jsx
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
@@ -11,7 +11,10 @@ import {
   Tag,
   Loader2,
   ShoppingBag,
-  FolderTree
+  FolderTree,
+  Sparkles,
+  Images,
+  X
 } from 'lucide-react';
 import ImageUploadField from '../../ImageUploadField';
 import CustomDropdown from '../../CustomDropdown';
@@ -93,8 +96,12 @@ export default function ProductsTab({
     source: 'Vườn nhà Tâm (Phước Hậu)',
     desc: '',
     image: '',
+    images: [],
+    flavorsInput: '',
     inStock: true,
   });
+
+  const [extraImageInput, setExtraImageInput] = useState('');
 
   useEffect(() => {
     if (categories.length > 0 && !newProduct.category) {
@@ -124,7 +131,22 @@ export default function ProductsTab({
     );
   };
 
-  // Kích hoạt hàm xóa từ component cha duy nhất (AdminPage) để tránh bị hỏi 2 lần
+  const handleAddExtraImage = (url) => {
+    const trimmed = (url || extraImageInput).trim();
+    if (!trimmed) return;
+    if (!newProduct.images.includes(trimmed)) {
+      setNewProduct((prev) => ({ ...prev, images: [...prev.images, trimmed] }));
+    }
+    setExtraImageInput('');
+  };
+
+  const handleRemoveExtraImage = (index) => {
+    setNewProduct((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, idx) => idx !== index)
+    }));
+  };
+
   const handleTriggerDelete = async (productId, productName) => {
     if (!onDeleteProduct) return;
     try {
@@ -151,6 +173,19 @@ export default function ProductsTab({
       const categoryToSave = newProduct.category || (categories[0]?.id || 'fresh');
       const generatedProductId = `prd_${Date.now()}`;
 
+      // Xử lý bộ ảnh
+      const primaryCover = newProduct.image.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80';
+      const allImagesList = Array.from(new Set([primaryCover, ...newProduct.images].filter(Boolean)));
+
+      // Xử lý danh sách hương vị
+      const parsedFlavors = newProduct.flavorsInput
+        ? newProduct.flavorsInput.split(/[,|\n]/).map(s => s.trim()).filter(Boolean).map((label, idx) => ({
+            id: `flv-${idx + 1}`,
+            label,
+            priceBonus: 0
+          }))
+        : [];
+
       const productInsertPayload = {
         id: generatedProductId,
         name: newProduct.name.trim(),
@@ -160,7 +195,9 @@ export default function ProductsTab({
         badge: newProduct.badge.trim(),
         source: newProduct.source.trim(),
         description: newProduct.desc.trim(),
-        image_url: newProduct.image.trim() || 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80',
+        image_url: primaryCover,
+        images: allImagesList,
+        flavors: parsedFlavors,
         in_stock: newProduct.inStock
       };
 
@@ -216,7 +253,10 @@ export default function ProductsTab({
         category_id: insertedProduct.category,
         category: insertedProduct.category,
         basePrice: insertedProduct.base_price,
-        image: insertedProduct.image_url,
+        image: primaryCover,
+        image_url: primaryCover,
+        images: allImagesList,
+        flavors: parsedFlavors,
         inStock: insertedProduct.in_stock,
         desc: insertedProduct.description,
         weights: resolvedWeightsForState,
@@ -226,6 +266,7 @@ export default function ProductsTab({
       if (onAddProduct) onAddProduct(completedProduct);
       onShowAlert?.(`Đã thêm đặc sản "${completedProduct.name}" lên kệ (#${completedProduct.id})!`);
 
+      // Reset form
       setNewProduct({
         name: '',
         basePrice: '',
@@ -235,8 +276,11 @@ export default function ProductsTab({
         source: 'Vườn nhà Tâm (Phước Hậu)',
         desc: '',
         image: '',
+        images: [],
+        flavorsInput: '',
         inStock: true,
       });
+      setExtraImageInput('');
 
       setWeightsList([
         { label: 'Thùng 2kg (Ăn thử)', calcType: 'multiplier', value: 2 },
@@ -436,13 +480,84 @@ export default function ProductsTab({
                 </div>
               </div>
 
+              {/* Tùy chọn Hương vị */}
+              <div>
+                <label className="font-bold text-stone-700 block mb-1.5">
+                  Tùy chọn hương vị (Nếu có, cách nhau bởi dấu phẩy)
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: Nguyên bản, Vị tỏi ớt, Ít ngọt..."
+                  value={newProduct.flavorsInput}
+                  onChange={(e) => setNewProduct({ ...newProduct, flavorsInput: e.target.value })}
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-stone-50 focus:bg-white text-stone-900 font-medium focus:outline-none focus:border-amber-600 shadow-2xs transition-colors"
+                />
+              </div>
+
+              {/* Ảnh bìa chính */}
               <ImageUploadField
-                label="Ảnh đặc sản (Supabase Storage)"
+                label="Ảnh bìa chính (Cover Image)"
                 value={newProduct.image}
                 bucket="products"
                 onChange={(url) => setNewProduct({ ...newProduct, image: url })}
               />
 
+              {/* Bộ sưu tập nhiều ảnh (Multi-images Gallery) */}
+              <div className="p-4 sm:p-5 bg-stone-50/90 rounded-3xl border border-stone-200 space-y-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
+                    <Images className="w-4 h-4 text-amber-700" />
+                    <span>Bộ ảnh đa góc chụp (Hover & Chi tiết sản phẩm)</span>
+                  </div>
+                  <span className="text-xs text-stone-500 font-medium font-mono">
+                    {newProduct.images.length} ảnh phụ
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Dán URL ảnh phụ (https://...)"
+                    value={extraImageInput}
+                    onChange={(e) => setExtraImageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddExtraImage();
+                      }
+                    }}
+                    className="flex-1 h-10 px-3.5 border border-stone-200 rounded-xl text-xs sm:text-sm font-medium bg-white focus:outline-none focus:border-amber-600 shadow-2xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAddExtraImage()}
+                    className="h-10 px-4 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm ảnh</span>
+                  </button>
+                </div>
+
+                {newProduct.images.length > 0 && (
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2.5 pt-1">
+                    {newProduct.images.map((imgUrl, i) => (
+                      <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-stone-200 bg-white group shadow-2xs">
+                        <img src={imgUrl} alt={`Ảnh phụ ${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtraImage(i)}
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                          title="Gỡ ảnh này"
+                        >
+                          <X className="w-3.5 h-3.5 stroke-[3]" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quy cách đóng gói */}
               <div className="p-4 sm:p-5 bg-stone-50/90 rounded-3xl border border-stone-200 space-y-4 shadow-2xs">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
@@ -576,18 +691,27 @@ export default function ProductsTab({
                   const productImg = p.image_url || p.image || "https://images.unsplash.com/photo-1616684000067-36952fde56ec?auto=format&fit=crop&w=600&q=80";
                   const priceVal = Number(p.basePrice ?? p.base_price ?? p.price ?? 0);
                   const isItemDeleting = deletingId === p.id;
+                  const hasMultiImgs = Array.isArray(p.images) && p.images.length > 1;
 
                   return (
                     <div key={p.id} className="py-4 flex items-center justify-between gap-4 text-xs sm:text-sm">
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <img 
-                          src={productImg} 
-                          alt={p.name || p.title} 
-                          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover shrink-0 border border-stone-200 shadow-2xs bg-stone-100" 
-                          onError={(e) => {
-                            e.currentTarget.src = "https://images.unsplash.com/photo-1616684000067-36952fde56ec?auto=format&fit=crop&w=600&q=80";
-                          }}
-                        />
+                        <div className="relative shrink-0">
+                          <img 
+                            src={productImg} 
+                            alt={p.name || p.title} 
+                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border border-stone-200 shadow-2xs bg-stone-100" 
+                            onError={(e) => {
+                              e.currentTarget.src = "https://images.unsplash.com/photo-1616684000067-36952fde56ec?auto=format&fit=crop&w=600&q=80";
+                            }}
+                          />
+                          {hasMultiImgs && (
+                            <span className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.2 rounded-md">
+                              {p.images.length}
+                            </span>
+                          )}
+                        </div>
+
                         <div className="min-w-0 space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-lg text-xs border border-amber-300/70">

@@ -11,7 +11,8 @@ import {
   ExternalLink, 
   MessageCircle, 
   MapPin,
-  Search
+  Search,
+  Sparkles
 } from 'lucide-react';
 import { DEFAULT_SHOP_CONFIG } from '../config/shopConfig';
 
@@ -55,6 +56,7 @@ export default function Footer({
   onNavigatePacking, 
   onOpenLookup, 
   onNavigatePolicy, 
+  onOpenTenantRegister,
   config = DEFAULT_SHOP_CONFIG 
 }) {
   const mapEmbedSrc = config?.mapEmbedUrl || DEFAULT_MAP_EMBED_URL;
@@ -110,6 +112,17 @@ export default function Footer({
                   >
                     <ShieldCheck className="w-4 h-4 text-amber-400" />
                     <span>Chính sách bán hàng</span>
+                  </button>
+                )}
+
+                {onOpenTenantRegister && (
+                  <button
+                    type="button"
+                    onClick={onOpenTenantRegister}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300/90 hover:text-amber-300 text-xs sm:text-sm font-semibold transition-colors cursor-pointer border border-stone-700/80 shadow-2xs active:scale-95"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <span>Mở gian hàng</span>
                   </button>
                 )}
 

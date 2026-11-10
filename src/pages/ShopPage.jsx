@@ -26,6 +26,13 @@ function normalizeProductData(p) {
 
   const catId = p.category || p.category_id || 'cat02';
 
+  // Chuẩn hóa danh sách nhiều ảnh
+  const imagesList = Array.isArray(p.images) && p.images.length > 0
+    ? p.images.filter(Boolean)
+    : (typeof p.images === 'string' && p.images.trim()
+        ? p.images.split(/[,|\n]/).map((s) => s.trim()).filter(Boolean)
+        : [p.image_url || p.image || ''].filter(Boolean));
+
   return {
     id: p.id,
     name: p.name || p.title || '',
@@ -39,8 +46,10 @@ function normalizeProductData(p) {
     source: p.source || '',
     desc: p.description || p.desc || '',
     description: p.description || p.desc || '',
-    image: p.image_url || p.image || '',
-    image_url: p.image_url || p.image || '',
+    image: imagesList[0] || p.image_url || p.image || '',
+    image_url: imagesList[0] || p.image_url || p.image || '',
+    images: imagesList,
+    flavors: p.flavors || [],
     inStock: p.in_stock !== false && p.inStock !== false,
     in_stock: p.in_stock !== false && p.inStock !== false,
     campaign_gift_id: p.campaign_gift_id,
@@ -57,7 +66,8 @@ export default function ShopPage({
   initialCategory = null, 
   highlightedProductId = null,
   onAddToCart, 
-  onNavigate 
+  onNavigate,
+  onViewProductDetail
 }) {
   const [localProducts, setLocalProducts] = useState(() => {
     return Array.isArray(initialProducts) ? initialProducts.map(normalizeProductData) : [];
@@ -115,7 +125,7 @@ export default function ShopPage({
         .from('products')
         .select(`
           id, name, category, base_price, unit, badge, source, description,
-          image_url, in_stock, campaign_gift_id, campaign_tag, created_at,
+          image_url, images, flavors, in_stock, campaign_gift_id, campaign_tag, created_at,
           product_weights (id, weight_key, label, multiplier, price_override, is_default, sort_order)
         `)
         .order('id', { ascending: true });
@@ -280,6 +290,7 @@ export default function ShopPage({
         products={filteredProducts}
         highlightedProductId={highlightedProductId}
         onAddToCart={onAddToCart}
+        onViewProductDetail={onViewProductDetail}
         onResetFilters={handleResetFilters}
       />
 

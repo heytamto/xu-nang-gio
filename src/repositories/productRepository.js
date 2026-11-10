@@ -42,6 +42,20 @@ export const productRepo = {
         is_default: Boolean(w.is_default)
       }));
 
+      // Chuẩn hóa danh sách nhiều ảnh (Multi-images)
+      const imagesList = Array.isArray(prod.images) && prod.images.length > 0
+        ? prod.images.filter(Boolean)
+        : (typeof prod.images === 'string' && prod.images.trim()
+            ? prod.images.split(/[,|\n]/).map((s) => s.trim()).filter(Boolean)
+            : [prod.image_url || prod.image || ''].filter(Boolean));
+
+      // Chuẩn hóa flavors
+      const flavorsList = Array.isArray(prod.flavors)
+        ? prod.flavors
+        : (typeof prod.flavors === 'string' && prod.flavors.trim()
+            ? prod.flavors.split('|').map((item, idx) => ({ id: `flv-${idx + 1}`, label: item.trim(), priceBonus: 0 }))
+            : []);
+
       return {
         ...prod,
         id: prod.id,
@@ -55,8 +69,10 @@ export const productRepo = {
         source: prod.source || '',
         desc: prod.description || '',
         description: prod.description || '',
-        image: prod.image_url || '',
-        image_url: prod.image_url || '',
+        image: imagesList[0] || prod.image_url || '',
+        image_url: imagesList[0] || prod.image_url || '',
+        images: imagesList,
+        flavors: flavorsList,
         inStock: prod.in_stock ?? true,
         in_stock: prod.in_stock ?? true,
         weights: normalizedWeights,
@@ -103,8 +119,12 @@ export const productRepo = {
     return true;
   },
 
-  // Thêm mới sản phẩm kèm quy cách
+  // Thêm mới sản phẩm kèm quy cách và mảng ảnh
   async createWithWeights(productData) {
+    const imagesList = Array.isArray(productData.images)
+      ? productData.images
+      : (productData.image_url ? [productData.image_url] : []);
+
     const { data, error } = await supabase.rpc('create_product_with_weights', {
       p_name: productData.name,
       p_base_price: productData.base_price,
@@ -113,7 +133,9 @@ export const productRepo = {
       p_badge: productData.badge || null,
       p_source: productData.source || null,
       p_description: productData.desc || productData.description || null,
-      p_image_url: productData.image_url || productData.image || null,
+      p_image_url: imagesList[0] || productData.image_url || null,
+      p_images: imagesList,
+      p_flavors: productData.flavors || [],
       p_in_stock: productData.in_stock ?? true,
       p_weights: productData.product_weights || productData.weights || []
     });

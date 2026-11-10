@@ -114,7 +114,7 @@ export async function fetchAllMasterDataFromSupabase() {
       }
     }
 
-    // Chuẩn hóa danh sách sản phẩm & quy cách
+    // Chuẩn hóa danh sách sản phẩm, quy cách & bộ ảnh
     const formattedProducts = (rawProducts || []).map((p) => {
       const weightsList = Array.isArray(p.product_weights) && p.product_weights.length > 0
         ? [...p.product_weights]
@@ -131,6 +131,22 @@ export async function fetchAllMasterDataFromSupabase() {
             }))
         : [{ id: 'std', weight_key: 'std', label: `1 ${p.unit || 'kg'}`, weight_label: `1 ${p.unit || 'kg'}`, multiplier: 1, isDefault: true }];
 
+      // Chuẩn hóa mảng ảnh (Multi-images)
+      const imagesList = Array.isArray(p.images) && p.images.length > 0
+        ? p.images.filter(Boolean)
+        : (typeof p.images === 'string' && p.images.trim()
+            ? p.images.split(/[,|\n]/).map((s) => s.trim()).filter(Boolean)
+            : [p.image_url || p.image || ''].filter(Boolean));
+
+      // Chuẩn hóa flavors
+      const flavorsList = Array.isArray(p.flavors)
+        ? p.flavors
+        : (typeof p.flavors === 'string' && p.flavors.trim()
+            ? p.flavors.split('|').map((item, idx) => ({ id: `flv-${idx + 1}`, label: item.trim(), priceBonus: 0 }))
+            : []);
+
+      const primaryCover = imagesList[0] || p.image_url || p.image || '';
+
       return {
         id: p.id,
         name: p.name,
@@ -144,8 +160,10 @@ export async function fetchAllMasterDataFromSupabase() {
         source: p.source,
         desc: p.description,
         description: p.description,
-        image: p.image_url,
-        image_url: p.image_url,
+        image: primaryCover,
+        image_url: primaryCover,
+        images: imagesList,
+        flavors: flavorsList,
         inStock: p.in_stock !== false,
         in_stock: p.in_stock !== false,
         campaign_gift_id: p.campaign_gift_id,

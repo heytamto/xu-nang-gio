@@ -8,6 +8,8 @@ import OrderLookupModal from './components/OrderLookupModal';
 import OrderSuccessModal from './components/checkout/OrderSuccessModal';
 import ShopAnnouncementBar from './components/ShopAnnouncementBar';
 import CartCenterSplash from './components/common/CartCenterSplash';
+import ProductDetailModal from './components/shop/ProductDetailModal';
+import TenantRegisterModal from './components/tenant/TenantRegisterModal';
 
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
@@ -28,7 +30,6 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(() => {
     try {
       const savedPage = sessionStorage.getItem('shop_current_page') || 'home';
-      // Nếu là trang blog cũ thì tự động chuyển về story
       return savedPage === 'blog' ? 'story' : savedPage;
     } catch {
       return 'home';
@@ -67,6 +68,8 @@ export default function App() {
   // Modals state
   const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
   const [initialLookupCode, setInitialLookupCode] = useState('');
+  const [selectedDetailProduct, setSelectedDetailProduct] = useState(null);
+  const [isTenantRegisterOpen, setIsTenantRegisterOpen] = useState(false);
 
   // 1. Quản lý Giỏ hàng qua Hook
   const {
@@ -175,7 +178,6 @@ export default function App() {
       }
 
       if (page) {
-        // Tự động map URL cũ page=blog sang story
         const targetPage = page === 'blog' ? 'story' : page;
         if (['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy'].includes(targetPage)) {
           setCurrentPage(targetPage);
@@ -241,7 +243,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans">
+    <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans relative">
       {currentPage !== 'admin' && currentPage !== 'packing' && (
         <header className="sticky top-0 z-40 w-full flex flex-col shadow-md">
           <ShopAnnouncementBar
@@ -278,6 +280,7 @@ export default function App() {
             onNavigateShop={handleNavigateToShopCategory}
             onNavigateStory={() => navigateTo('story')}
             onNavigate={navigateTo}
+            onViewProductDetail={(prod) => setSelectedDetailProduct(prod)}
           />
         )}
 
@@ -289,10 +292,10 @@ export default function App() {
             highlightedProductId={highlightedProductId}
             onAddToCart={handleAddToCart}
             onNavigate={navigateTo}
+            onViewProductDetail={(prod) => setSelectedDetailProduct(prod)}
           />
         )}
 
-        {/* GỘP TOÀN BỘ CHUYỆN VƯỜN & CẨM NANG VÀO ĐÂY */}
         {currentPage === 'story' && (
           <StoryPage 
             stories={stories} 
@@ -378,6 +381,25 @@ export default function App() {
         )}
       </main>
 
+      {/* Modal Xem chi tiết & Phóng to nhiều ảnh sản phẩm */}
+      <ProductDetailModal
+        isOpen={Boolean(selectedDetailProduct)}
+        product={selectedDetailProduct}
+        onClose={() => setSelectedDetailProduct(null)}
+        onAddToCart={handleAddToCart}
+      />
+
+      {/* Modal Đăng ký gian hàng mới cho Chủ vườn */}
+      <TenantRegisterModal
+        isOpen={isTenantRegisterOpen}
+        onClose={() => setIsTenantRegisterOpen(false)}
+        adminBankConfig={{
+          bankId: shopConfig?.bankId || 'MB',
+          accountNo: shopConfig?.bankAccount || '0901234567',
+          accountName: shopConfig?.bankOwner || 'TO THANH TAM',
+        }}
+      />
+
       <OrderSuccessModal
         isOpen={isSuccessModalOpen}
         orderInfo={successOrderInfo}
@@ -408,6 +430,7 @@ export default function App() {
             setInitialLookupCode('');
             setIsLookupModalOpen(true);
           }}
+          onOpenTenantRegister={() => setIsTenantRegisterOpen(true)}
         />
       )}
 

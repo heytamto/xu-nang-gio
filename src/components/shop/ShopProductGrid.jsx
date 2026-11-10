@@ -7,6 +7,7 @@ export default function ShopProductGrid({
   products = [],
   highlightedProductId = null,
   onAddToCart,
+  onViewProductDetail,
   onResetFilters
 }) {
   if (products.length === 0) {
@@ -63,6 +64,7 @@ export default function ShopProductGrid({
               <ProductCard
                 product={product}
                 onAddToCart={onAddToCart}
+                onViewDetail={onViewProductDetail}
               />
             </div>
           );
