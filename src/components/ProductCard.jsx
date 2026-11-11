@@ -1,6 +1,6 @@
 // src/components/ProductCard.jsx
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Check, ShoppingBag, MapPin, Gift, Images, SlidersHorizontal } from 'lucide-react';
+import { Check, ShoppingBag, MapPin, Gift, Images, SlidersHorizontal, Play, Video } from 'lucide-react';
 
 export default function ProductCard({ product, onAddToCart, onViewDetail }) {
   // 1. Chuẩn hóa weights
@@ -64,6 +64,9 @@ export default function ProductCard({ product, onAddToCart, onViewDetail }) {
     const single = product?.image || product?.image_url;
     return single ? [single] : [fallback];
   }, [product?.images, product?.image, product?.image_url]);
+
+  // 4. Kiểm tra có video Shorts hay không
+  const hasVideo = Boolean(product?.video_url || product?.videoUrl);
 
   // Kiểm tra xem sản phẩm có nhiều lựa chọn hay không
   const hasMultipleOptions = weightsList.length > 1 || flavorsList.length > 1;
@@ -134,6 +137,7 @@ export default function ProductCard({ product, onAddToCart, onViewDetail }) {
       image: primaryImage,
       image_url: primaryImage,
       images: imagesList,
+      video_url: product?.video_url || product?.videoUrl,
       weightLabel: defaultWeight.label,
       weight_label: defaultWeight.label,
       flavor: null,
@@ -170,7 +174,7 @@ export default function ProductCard({ product, onAddToCart, onViewDetail }) {
         onViewDetail ? 'cursor-pointer' : ''
       }`}
     >
-      {/* 1. KHỐI TRÊN: ẢNH + BADGES + NGUỒN GỐC */}
+      {/* 1. KHỐI TRÊN: ẢNH + BADGES + VIDEO TAG + NGUỒN GỐC */}
       <div className="relative aspect-4/3 overflow-hidden bg-stone-100 shrink-0">
         <img
           src={primaryImage}
@@ -195,20 +199,28 @@ export default function ProductCard({ product, onAddToCart, onViewDetail }) {
           />
         )}
         
-        {/* Badges */}
+        {/* Badges hàng đầu */}
         <div className="absolute top-2.5 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-1.5 pointer-events-none z-10">
-          {product?.badge ? (
-            <span className="bg-stone-900/90 backdrop-blur-md text-amber-300 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm shrink-0 whitespace-nowrap">
-              {product.badge}
-            </span>
-          ) : <span />}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {product?.badge && (
+              <span className="bg-stone-900/90 backdrop-blur-md text-amber-300 text-xs font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm shrink-0 whitespace-nowrap">
+                {product.badge}
+              </span>
+            )}
+            {hasVideo && (
+              <span className="bg-red-600/95 backdrop-blur-md text-white text-[11px] font-black px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap animate-pulse">
+                <Play className="w-3 h-3 fill-white" />
+                <span>Video thực tế</span>
+              </span>
+            )}
+          </div>
 
-          {campaignTag ? (
+          {campaignTag && (
             <span className="bg-emerald-700/95 backdrop-blur-md text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap">
               <Gift className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
               <span>{campaignTag}</span>
             </span>
-          ) : <span />}
+          )}
         </div>
 
         {/* Số lượng ảnh */}

@@ -14,6 +14,7 @@ import {
   FolderTree,
   Sparkles,
   Images,
+  Video,
   X
 } from 'lucide-react';
 import ImageUploadField from '../../ImageUploadField';
@@ -40,6 +41,14 @@ const STOCK_STATUS_OPTIONS = [
     dotClass: 'bg-stone-400'
   }
 ];
+
+// Trích xuất videoId YouTube Shorts hoặc URL thông thường
+function getYouTubeEmbedId(url) {
+  if (!url) return null;
+  const regExp = /(?:shorts\/|youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[1].length === 11 ? match[1] : null;
+}
 
 export default function ProductsTab({
   products = [],
@@ -97,6 +106,7 @@ export default function ProductsTab({
     desc: '',
     image: '',
     images: [],
+    videoUrl: '',
     flavorsInput: '',
     inStock: true,
   });
@@ -197,6 +207,7 @@ export default function ProductsTab({
         description: newProduct.desc.trim(),
         image_url: primaryCover,
         images: allImagesList,
+        video_url: newProduct.videoUrl.trim() || null,
         flavors: parsedFlavors,
         in_stock: newProduct.inStock
       };
@@ -256,6 +267,8 @@ export default function ProductsTab({
         image: primaryCover,
         image_url: primaryCover,
         images: allImagesList,
+        video_url: insertedProduct.video_url,
+        videoUrl: insertedProduct.video_url,
         flavors: parsedFlavors,
         inStock: insertedProduct.in_stock,
         desc: insertedProduct.description,
@@ -277,6 +290,7 @@ export default function ProductsTab({
         desc: '',
         image: '',
         images: [],
+        videoUrl: '',
         flavorsInput: '',
         inStock: true,
       });
@@ -294,6 +308,8 @@ export default function ProductsTab({
       setIsSubmitting(false);
     }
   };
+
+  const previewEmbedId = getYouTubeEmbedId(newProduct.videoUrl);
 
   return (
     <div className="space-y-6 sm:space-y-7 font-sans animate-fadeIn text-stone-800">
@@ -494,6 +510,53 @@ export default function ProductsTab({
                 />
               </div>
 
+              {/* Video thực tế YouTube Shorts */}
+              <div className="p-4 sm:p-5 bg-amber-50/50 rounded-3xl border border-amber-200/80 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
+                    <Video className="w-4 h-4 text-amber-700" />
+                    <span>Video thực tế nông sản (YouTube Shorts / Clip dọc 9:16)</span>
+                  </label>
+                  <span className="text-[11px] font-medium text-amber-900/70 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                    Tùy chọn
+                  </span>
+                </div>
+                
+                <input
+                  type="url"
+                  placeholder="VD: https://www.youtube.com/shorts/dQw4w9WgXcQ hoặc https://youtu.be/..."
+                  value={newProduct.videoUrl}
+                  onChange={(e) => setNewProduct({ ...newProduct, videoUrl: e.target.value })}
+                  className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs transition-colors text-xs sm:text-sm"
+                />
+
+                {previewEmbedId && (
+                  <div className="pt-2 flex items-center gap-3">
+                    <div className="w-16 h-24 rounded-xl overflow-hidden bg-black shrink-0 border border-stone-300 shadow-xs">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${previewEmbedId}?controls=0&mute=1`}
+                        title="Preview Shorts"
+                        className="w-full h-full border-0 pointer-events-none"
+                      />
+                    </div>
+                    <div className="text-xs space-y-0.5">
+                      <span className="font-bold text-emerald-700 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Đã nhận diện link Shorts hợp lệ</span>
+                      </span>
+                      <p className="text-stone-500 font-mono">ID: {previewEmbedId}</p>
+                      <button
+                        type="button"
+                        onClick={() => setNewProduct({ ...newProduct, videoUrl: '' })}
+                        className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer underline text-[11px]"
+                      >
+                        Xóa video
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Ảnh bìa chính */}
               <ImageUploadField
                 label="Ảnh bìa chính (Cover Image)"
@@ -557,7 +620,7 @@ export default function ProductsTab({
                 )}
               </div>
 
-              {/* Quy cách đóng gói */}
+              {/* Quy cách đóng gói & Cơ chế định giá */}
               <div className="p-4 sm:p-5 bg-stone-50/90 rounded-3xl border border-stone-200 space-y-4 shadow-2xs">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
@@ -576,16 +639,22 @@ export default function ProductsTab({
 
                 <div className="space-y-3">
                   {weightsList.map((row, idx) => {
-                    const calculatedPrice = row.calcType === 'fixed'
-                      ? Number(row.value || 0)
-                      : (Number(newProduct.basePrice) || 0) * (Number(row.value) || 0);
+                    const basePriceNum = Number(newProduct.basePrice) || 0;
+                    const isMultiplier = row.calcType === 'multiplier';
+                    const rowValNum = Number(row.value) || 0;
+
+                    // Tính tổng tiền hiển thị
+                    const calculatedPrice = isMultiplier
+                      ? basePriceNum * rowValNum
+                      : rowValNum;
 
                     return (
                       <div 
                         key={idx} 
                         className="flex flex-wrap sm:flex-nowrap items-center gap-3 bg-white p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs hover:border-amber-300 transition-all"
                       >
-                        <div className="flex-1 min-w-[200px]">
+                        {/* 1. Tên quy cách */}
+                        <div className="flex-1 min-w-[180px]">
                           <input
                             type="text"
                             placeholder="Tên quy cách (VD: Thùng 5kg...)"
@@ -595,7 +664,8 @@ export default function ProductsTab({
                           />
                         </div>
 
-                        <div className="w-40 shrink-0">
+                        {/* 2. Loại định giá - Chiều rộng w-48 đảm bảo hiển thị đủ chữ "Giá cố định (VNĐ)" */}
+                        <div className="w-48 shrink-0">
                           <CustomDropdown
                             options={CALC_TYPE_OPTIONS}
                             value={row.calcType}
@@ -604,22 +674,25 @@ export default function ProductsTab({
                           />
                         </div>
 
+                        {/* 3. Giá trị nhập vào (Hệ số hoặc Giá tiền) */}
                         <div className="w-24 sm:w-28 shrink-0">
                           <input
                             type="number"
-                            step={row.calcType === 'multiplier' ? '0.1' : '1000'}
+                            step={isMultiplier ? '0.1' : '1000'}
                             min="0"
-                            placeholder={row.calcType === 'multiplier' ? 'VD: 2' : 'VD: 299000'}
+                            placeholder={isMultiplier ? 'Hệ số (x)' : 'Số tiền'}
                             value={row.value}
                             onChange={(e) => handleUpdateWeightRow(idx, 'value', e.target.value)}
                             className="w-full h-11 px-3 border border-stone-200 rounded-xl font-mono font-bold text-amber-950 text-xs sm:text-sm focus:outline-none focus:border-amber-600 transition-colors text-right bg-stone-50/40 focus:bg-white shadow-2xs"
                           />
                         </div>
 
-                        <div className="hidden sm:flex h-11 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 w-28 shadow-2xs">
+                        {/* 4. Ô hiển thị số tiền tổng đầy đủ */}
+                        <div className="hidden sm:flex h-11 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 min-w-[110px] shadow-2xs">
                           {calculatedPrice.toLocaleString('vi-VN')}đ
                         </div>
 
+                        {/* 5. Nút xóa */}
                         <button
                           type="button"
                           onClick={() => handleRemoveWeightRow(idx)}
@@ -692,6 +765,7 @@ export default function ProductsTab({
                   const priceVal = Number(p.basePrice ?? p.base_price ?? p.price ?? 0);
                   const isItemDeleting = deletingId === p.id;
                   const hasMultiImgs = Array.isArray(p.images) && p.images.length > 1;
+                  const hasVideo = Boolean(p.video_url || p.videoUrl);
 
                   return (
                     <div key={p.id} className="py-4 flex items-center justify-between gap-4 text-xs sm:text-sm">
@@ -705,11 +779,18 @@ export default function ProductsTab({
                               e.currentTarget.src = "https://images.unsplash.com/photo-1616684000067-36952fde56ec?auto=format&fit=crop&w=600&q=80";
                             }}
                           />
-                          {hasMultiImgs && (
-                            <span className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.2 rounded-md">
-                              {p.images.length}
-                            </span>
-                          )}
+                          <div className="absolute bottom-1 right-1 flex items-center gap-1">
+                            {hasVideo && (
+                              <span className="bg-amber-600/90 text-white p-0.5 rounded-md shadow-xs" title="Có video Shorts">
+                                <Video className="w-3 h-3" />
+                              </span>
+                            )}
+                            {hasMultiImgs && (
+                              <span className="bg-black/70 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.2 rounded-md">
+                                {p.images.length}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="min-w-0 space-y-1">

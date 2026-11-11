@@ -1,5 +1,6 @@
 // src/components/admin/dashboard/BulkActionBar.jsx
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // 1. Import createPortal
 import { Layers, ChevronDown, Ban, ShieldAlert, Trash2, X, Loader2 } from 'lucide-react';
 import { ORDER_STATUS_MAP } from '../../../constants/orderStatus';
 
@@ -16,9 +17,11 @@ export default function BulkActionBar({
   onClearSelection
 }) {
   const [isBulkStatusDropdownOpen, setIsBulkStatusDropdownOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const bulkDropdownRef = useRef(null);
 
   useEffect(() => {
+    setMounted(true);
     const handleClickOutside = (e) => {
       if (bulkDropdownRef.current && !bulkDropdownRef.current.contains(e.target)) {
         setIsBulkStatusDropdownOpen(false);
@@ -28,10 +31,11 @@ export default function BulkActionBar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (selectedCount === 0) return null;
+  if (selectedCount === 0 || !mounted) return null;
 
-  return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-stone-900/95 text-white px-4 sm:px-5 py-3 rounded-3xl shadow-2xl border border-stone-700/80 backdrop-blur-md flex items-center gap-2.5 sm:gap-4 animate-fadeIn max-w-[95vw] sm:max-w-2xl text-xs sm:text-sm font-sans select-none">
+  // 2. Render bằng createPortal ra thẳng document.body
+  return createPortal(
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] bg-stone-900/95 text-white px-4 sm:px-5 py-3 rounded-3xl shadow-2xl border border-stone-700/80 backdrop-blur-md flex items-center gap-2.5 sm:gap-4 animate-fadeIn max-w-[95vw] sm:max-w-2xl text-xs sm:text-sm font-sans select-none">
       {/* SỐ LƯỢNG ĐÃ CHỌN */}
       <div className="flex items-center gap-2 font-bold shrink-0">
         <span className="w-6 h-6 rounded-full bg-amber-500 text-stone-950 flex items-center justify-center text-xs font-black font-mono">
@@ -68,7 +72,7 @@ export default function BulkActionBar({
         </button>
 
         {isBulkStatusDropdownOpen && commonNextStatuses.length > 0 && (
-          <div className="absolute bottom-full mb-2 left-0 w-64 bg-white text-stone-900 rounded-3xl border border-stone-200 shadow-2xl p-2 z-50 animate-fadeIn space-y-1">
+          <div className="absolute bottom-full mb-2 left-0 w-64 bg-white text-stone-900 rounded-3xl border border-stone-200 shadow-2xl p-2 z-[1000] animate-fadeIn space-y-1">
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block px-3 py-1.5">
               Bước kế tiếp ({selectedCount} đơn):
             </span>
@@ -139,6 +143,7 @@ export default function BulkActionBar({
       >
         <X className="w-4 h-4" />
       </button>
-    </div>
+    </div>,
+    document.body
   );
 }

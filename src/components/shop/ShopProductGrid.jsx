@@ -1,6 +1,6 @@
 // src/components/shop/ShopProductGrid.jsx
-import React from 'react';
-import { ShoppingBag, ArrowRight } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ShoppingBag, ArrowRight, Video, Sparkles } from 'lucide-react';
 import ProductCard from '../ProductCard';
 
 export default function ShopProductGrid({
@@ -10,6 +10,29 @@ export default function ShopProductGrid({
   onViewProductDetail,
   onResetFilters
 }) {
+  const [onlyWithVideo, setOnlyWithVideo] = useState(false);
+
+  // Tự động cuộn đến thẻ sản phẩm được highlight khi có param hoặc click điều hướng
+  useEffect(() => {
+    if (highlightedProductId) {
+      const el = document.getElementById(`product-card-${highlightedProductId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [highlightedProductId]);
+
+  // Đếm số lượng sản phẩm có video thực tế
+  const videoCount = useMemo(() => {
+    return products.filter((p) => Boolean(p.video_url || p.videoUrl)).length;
+  }, [products]);
+
+  // Danh sách hiển thị sau khi lọc nhanh video
+  const displayedProducts = useMemo(() => {
+    if (!onlyWithVideo) return products;
+    return products.filter((p) => Boolean(p.video_url || p.videoUrl));
+  }, [products, onlyWithVideo]);
+
   if (products.length === 0) {
     return (
       <section className="bg-white rounded-3xl p-8 sm:p-14 text-center border border-dashed border-stone-300 space-y-4">
@@ -39,16 +62,37 @@ export default function ShopProductGrid({
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex items-center justify-between text-sm text-stone-600 px-1">
-        <span>
-          Hiển thị <strong className="text-stone-900 font-mono font-bold text-base">{products.length}</strong> sản phẩm
-        </span>
-        <span className="text-amber-800 font-semibold">Hái tươi & đóng thùng trong ngày</span>
+    <section className="space-y-4 font-sans text-stone-800">
+      {/* THANH THỐNG KÊ & NÚT LỌC VIDEO THỰC TẾ */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm text-stone-600 px-1">
+        <div className="flex items-center gap-2">
+          <span>
+            Hiển thị <strong className="text-stone-900 font-mono font-bold text-sm sm:text-base">{displayedProducts.length}</strong> sản phẩm
+          </span>
+          <span className="text-stone-300 hidden sm:inline">•</span>
+          <span className="text-amber-800 font-semibold hidden sm:inline">Hái tươi & đóng thùng trong ngày</span>
+        </div>
+
+        {/* Nút lọc nhanh sản phẩm có video Shorts */}
+        {videoCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setOnlyWithVideo((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer text-xs active:scale-95 border ${
+              onlyWithVideo
+                ? 'bg-red-600 text-white border-red-600 shadow-xs ring-2 ring-red-500/20'
+                : 'bg-white text-stone-700 border-stone-200 hover:border-red-300 hover:text-red-700 shadow-2xs'
+            }`}
+          >
+            <Video className={`w-3.5 h-3.5 ${onlyWithVideo ? 'text-white' : 'text-red-600'}`} />
+            <span>Có video thực tế ({videoCount})</span>
+          </button>
+        )}
       </div>
 
+      {/* LƯỚI SẢN PHẨM */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-        {products.map((product) => {
+        {displayedProducts.map((product) => {
           const isTargetHighlighted = highlightedProductId === product.id;
 
           return (

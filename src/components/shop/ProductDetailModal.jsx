@@ -2,8 +2,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, ChevronLeft, ChevronRight, Maximize2, Minimize2, 
-  ShoppingBag, Check, MapPin, Gift, ShieldCheck, Sparkles, Plus, Minus 
+  ShoppingBag, Check, MapPin, Gift, ShieldCheck, Sparkles, Plus, Minus,
+  Video, Images as ImageIcon, ExternalLink
 } from 'lucide-react';
+
+// Hàm bóc tách ID YouTube Shorts / Video
+function getYouTubeEmbedId(url) {
+  if (!url) return null;
+  const regExp = /(?:shorts\/|youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[1].length === 11 ? match[1] : null;
+}
 
 export default function ProductDetailModal({
   product = null,
@@ -64,7 +73,12 @@ export default function ProductDetailModal({
     return [];
   }, [product?.flavors]);
 
+  // 4. Nhận diện video Shorts
+  const rawVideoUrl = product?.video_url || product?.videoUrl;
+  const youtubeVideoId = useMemo(() => getYouTubeEmbedId(rawVideoUrl), [rawVideoUrl]);
+
   // States nội bộ
+  const [mediaTab, setMediaTab] = useState('gallery'); // 'gallery' | 'video'
   const [activeImgIndex, setActiveImgIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedWeight, setSelectedWeight] = useState(null);
@@ -75,6 +89,7 @@ export default function ProductDetailModal({
   // Đồng bộ state khi mở modal sản phẩm mới
   useEffect(() => {
     if (isOpen && product) {
+      setMediaTab('gallery');
       setActiveImgIndex(0);
       setIsLightboxOpen(false);
       setQuantity(1);
@@ -90,15 +105,17 @@ export default function ProductDetailModal({
       if (e.key === 'Escape') {
         if (isLightboxOpen) setIsLightboxOpen(false);
         else onClose();
-      } else if (e.key === 'ArrowRight') {
-        nextImage();
-      } else if (e.key === 'ArrowLeft') {
-        prevImage();
+      } else if (mediaTab === 'gallery') {
+        if (e.key === 'ArrowRight') {
+          nextImage();
+        } else if (e.key === 'ArrowLeft') {
+          prevImage();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isLightboxOpen, imagesList.length]);
+  }, [isOpen, isLightboxOpen, mediaTab, imagesList.length]);
 
   if (!isOpen || !product) return null;
 
@@ -147,6 +164,7 @@ export default function ProductDetailModal({
       image: imagesList[0],
       image_url: imagesList[0],
       images: imagesList,
+      video_url: rawVideoUrl,
       weightLabel: activeWeight.label,
       weight_label: activeWeight.label,
       flavor: flavorStr,
@@ -184,55 +202,108 @@ export default function ProductDetailModal({
             <X className="w-5 h-5" />
           </button>
 
-          {/* CỘT TRÁI: GALLERY ẢNH */}
+          {/* CỘT TRÁI: GALLERY ẢNH & VIDEO SHORTS */}
           <div className="w-full md:w-1/2 bg-stone-50 p-4 sm:p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-stone-200/80">
-            {/* Ảnh to chính */}
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xs group">
-              <img
-                src={imagesList[activeImgIndex]}
-                alt={product?.name || 'Nông sản'}
-                className="w-full h-full object-cover transition-transform duration-500 cursor-zoom-in"
-                onClick={() => setIsLightboxOpen(true)}
-              />
+            
+            {/* Tab chuyển đổi Ảnh / Video (Nếu sản phẩm có video_url) */}
+            {youtubeVideoId && (
+              <div className="mb-3 flex items-center justify-center gap-1.5 p-1 bg-stone-200/70 rounded-2xl border border-stone-300/60 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMediaTab('gallery')}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    mediaTab === 'gallery'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Hình ảnh ({imagesList.length})</span>
+                </button>
 
-              {/* Nút phóng to Lightbox */}
-              <button
-                type="button"
-                onClick={() => setIsLightboxOpen(true)}
-                className="absolute top-3 right-3 p-2 rounded-xl bg-black/50 hover:bg-black/70 backdrop-blur-xs text-white transition-all cursor-pointer opacity-80 hover:opacity-100 shadow-sm"
-                title="Phóng to ảnh"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTab('video')}
+                  className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    mediaTab === 'video'
+                      ? 'bg-red-600 text-white shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Video thực tế</span>
+                </button>
+              </div>
+            )}
 
-              {/* Nút mũi tên lướt ảnh */}
-              {imagesList.length > 1 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); prevImage(); }}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-stone-800 flex items-center justify-center shadow-md transition-all cursor-pointer opacity-90 hover:scale-105"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); nextImage(); }}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-stone-800 flex items-center justify-center shadow-md transition-all cursor-pointer opacity-90 hover:scale-105"
-                  >
-                    <ChevronRight className="w-5 h-5" />
-                  </button>
+            {/* Khung hiển thị chính */}
+            {mediaTab === 'video' && youtubeVideoId ? (
+              <div className="relative aspect-square rounded-2xl overflow-hidden bg-black border border-stone-300 shadow-2xs flex flex-col items-center justify-center">
+                <iframe
+                  src={`https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&mute=0&loop=1&playlist=${youtubeVideoId}&playsinline=1&rel=0`}
+                  title={product?.name || "Video thực tế sản phẩm"}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+                <a
+                  href={`https://www.youtube.com/shorts/${youtubeVideoId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-[11px] font-bold flex items-center gap-1 backdrop-blur-xs transition-colors shadow-xs"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Mở app YouTube</span>
+                </a>
+              </div>
+            ) : (
+              <div className="relative aspect-square rounded-2xl overflow-hidden bg-white border border-stone-200 shadow-2xs group">
+                <img
+                  src={imagesList[activeImgIndex]}
+                  alt={product?.name || 'Nông sản'}
+                  className="w-full h-full object-cover transition-transform duration-500 cursor-zoom-in"
+                  onClick={() => setIsLightboxOpen(true)}
+                />
 
-                  {/* Chỉ số ảnh góc dưới */}
-                  <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-black">
-                    {activeImgIndex + 1}/{imagesList.length}
-                  </span>
-                </>
-              )}
-            </div>
+                {/* Nút phóng to Lightbox */}
+                <button
+                  type="button"
+                  onClick={() => setIsLightboxOpen(true)}
+                  className="absolute top-3 right-3 p-2 rounded-xl bg-black/50 hover:bg-black/70 backdrop-blur-xs text-white transition-all cursor-pointer opacity-80 hover:opacity-100 shadow-sm"
+                  title="Phóng to ảnh"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
 
-            {/* Dàn thumbnail trượt */}
-            {imagesList.length > 1 && (
+                {/* Nút mũi tên lướt ảnh */}
+                {imagesList.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); prevImage(); }}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-stone-800 flex items-center justify-center shadow-md transition-all cursor-pointer opacity-90 hover:scale-105"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); nextImage(); }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/85 hover:bg-white text-stone-800 flex items-center justify-center shadow-md transition-all cursor-pointer opacity-90 hover:scale-105"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+
+                    {/* Chỉ số ảnh góc dưới */}
+                    <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-black">
+                      {activeImgIndex + 1}/{imagesList.length}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Dàn thumbnail trượt (Khi ở tab ảnh) */}
+            {mediaTab === 'gallery' && imagesList.length > 1 && (
               <div className="flex gap-2.5 pt-4 overflow-x-auto scrollbar-none">
                 {imagesList.map((img, idx) => (
                   <button

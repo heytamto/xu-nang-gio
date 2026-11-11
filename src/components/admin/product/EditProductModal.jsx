@@ -1,6 +1,18 @@
 // src/components/admin/EditProductModal.jsx
 import React, { useState, useEffect } from 'react';
-import { X, Check, Plus, Trash2, Star, Layers, Tag, Loader2, Images } from 'lucide-react';
+import { 
+  X, 
+  Check, 
+  Plus, 
+  Trash2, 
+  Star, 
+  Layers, 
+  Tag, 
+  Loader2, 
+  Images, 
+  Video, 
+  Sparkles 
+} from 'lucide-react';
 import ImageUploadField from '../../ImageUploadField';
 import CustomDropdown from '../../CustomDropdown';
 import { categoryRepo, productRepo, productWeightRepo } from '../../../repositories';
@@ -10,6 +22,14 @@ const CALC_TYPE_OPTIONS = [
   { value: 'multiplier', label: 'Nhân hệ số (x)' },
   { value: 'fixed', label: 'Giá cố định (VNĐ)' }
 ];
+
+// Trích xuất videoId YouTube Shorts hoặc URL thông thường
+function getYouTubeEmbedId(url) {
+  if (!url) return null;
+  const regExp = /(?:shorts\/|youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return match && match[1].length === 11 ? match[1] : null;
+}
 
 export default function EditProductModal({ 
   product, 
@@ -117,6 +137,7 @@ export default function EditProductModal({
       source: product?.source || 'Vườn nhà Tâm (Phước Hậu)',
       image: primaryCover,
       images: secondaryImages,
+      videoUrl: product?.video_url || product?.videoUrl || '',
       flavorsInput: initialFlavorsStr,
       desc: product?.description || product?.desc || '',
       inStock: product?.inStock ?? product?.in_stock ?? true,
@@ -247,6 +268,7 @@ export default function EditProductModal({
         description: formData.desc?.trim() || '',
         image_url: primaryCover,
         images: allImagesList,
+        video_url: formData.videoUrl?.trim() || null,
         flavors: parsedFlavors,
         in_stock: Boolean(formData.inStock),
         updated_at: new Date().toISOString()
@@ -329,6 +351,8 @@ export default function EditProductModal({
         image: primaryCover,
         image_url: primaryCover,
         images: allImagesList,
+        video_url: updateProductPayload.video_url,
+        videoUrl: updateProductPayload.video_url,
         flavors: parsedFlavors,
         inStock: updateProductPayload.in_stock,
         in_stock: updateProductPayload.in_stock,
@@ -350,6 +374,8 @@ export default function EditProductModal({
       setIsSubmitting(false);
     }
   };
+
+  const previewEmbedId = getYouTubeEmbedId(formData.videoUrl);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
@@ -487,6 +513,53 @@ export default function EditProductModal({
             />
           </div>
 
+          {/* Video thực tế YouTube Shorts */}
+          <div className="p-4 sm:p-5 bg-amber-50/50 rounded-3xl border border-amber-200/80 space-y-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 font-bold text-stone-900 text-xs sm:text-sm">
+                <Video className="w-4 h-4 text-amber-700" />
+                <span>Video thực tế nông sản (YouTube Shorts / Clip dọc 9:16)</span>
+              </label>
+              <span className="text-[11px] font-medium text-amber-900/70 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                Tùy chọn
+              </span>
+            </div>
+            
+            <input
+              type="url"
+              placeholder="VD: https://www.youtube.com/shorts/dQw4w9WgXcQ hoặc https://youtu.be/..."
+              value={formData.videoUrl}
+              onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
+              className="w-full h-11 px-4 rounded-2xl border border-stone-200 bg-white font-medium text-stone-900 focus:outline-none focus:border-amber-600 shadow-2xs transition-colors text-xs sm:text-sm"
+            />
+
+            {previewEmbedId && (
+              <div className="pt-2 flex items-center gap-3">
+                <div className="w-16 h-24 rounded-xl overflow-hidden bg-black shrink-0 border border-stone-300 shadow-xs">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${previewEmbedId}?controls=0&mute=1`}
+                    title="Preview Shorts"
+                    className="w-full h-full border-0 pointer-events-none"
+                  />
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <span className="font-bold text-emerald-700 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đã nhận diện link Shorts hợp lệ</span>
+                  </span>
+                  <p className="text-stone-500 font-mono">ID: {previewEmbedId}</p>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, videoUrl: '' })}
+                    className="text-rose-600 hover:text-rose-700 font-semibold cursor-pointer underline text-[11px]"
+                  >
+                    Xóa video
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Ảnh bìa chính */}
           <ImageUploadField
             label="Cập nhật ảnh bìa chính (Cover Image)"
@@ -573,9 +646,13 @@ export default function EditProductModal({
 
             <div className="space-y-3">
               {formData.weights.map((w, index) => {
-                const calculatedPrice = w.calcType === 'fixed'
-                  ? Number(w.val || 0)
-                  : (Number(formData.basePrice) || 0) * (Number(w.val) || 0);
+                const basePriceNum = Number(formData.basePrice) || 0;
+                const isMultiplier = w.calcType === 'multiplier';
+                const rowValNum = Number(w.val) || 0;
+
+                const calculatedPrice = isMultiplier
+                  ? basePriceNum * rowValNum
+                  : rowValNum;
 
                 return (
                   <div 
@@ -595,7 +672,8 @@ export default function EditProductModal({
                       <Star className={`w-4 h-4 ${w.is_default ? 'fill-amber-600 text-amber-600' : ''}`} />
                     </button>
 
-                    <div className="flex-1 min-w-[240px]">
+                    {/* Tên quy cách */}
+                    <div className="flex-1 min-w-[180px]">
                       <input
                         type="text"
                         placeholder="Tên quy cách (VD: Thùng 10kg Đại Gia Đình...)"
@@ -605,7 +683,8 @@ export default function EditProductModal({
                       />
                     </div>
 
-                    <div className="w-40 shrink-0">
+                    {/* Loại định giá (w-48 tránh bị cụt text) */}
+                    <div className="w-48 shrink-0">
                       <CustomDropdown
                         options={CALC_TYPE_OPTIONS}
                         value={w.calcType}
@@ -614,22 +693,25 @@ export default function EditProductModal({
                       />
                     </div>
 
-                    <div className="w-24 shrink-0">
+                    {/* Giá trị số */}
+                    <div className="w-24 sm:w-28 shrink-0">
                       <input
                         type="number"
-                        step={w.calcType === 'multiplier' ? '0.1' : '1000'}
+                        step={isMultiplier ? '0.1' : '1000'}
                         min="0"
-                        placeholder={w.calcType === 'multiplier' ? '1.9' : '299000'}
+                        placeholder={isMultiplier ? 'Hệ số (x)' : 'Số tiền'}
                         value={w.val ?? ''}
                         onChange={(e) => handleUpdateWeightRow(index, 'val', e.target.value)}
                         className="w-full h-11 px-3 rounded-xl border border-stone-200 font-mono font-bold text-amber-950 text-xs sm:text-sm focus:outline-none focus:border-amber-600 text-right bg-stone-50/40 focus:bg-white shadow-2xs transition-colors"
                       />
                     </div>
 
-                    <div className="hidden sm:flex h-11 px-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 w-28 shadow-2xs">
+                    {/* Ô tổng tiền */}
+                    <div className="hidden sm:flex h-11 px-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-950 font-mono font-black text-xs sm:text-sm items-center justify-center shrink-0 min-w-[110px] shadow-2xs">
                       {calculatedPrice.toLocaleString('vi-VN')}đ
                     </div>
 
+                    {/* Xóa dòng */}
                     {formData.weights.length > 1 ? (
                       <button
                         type="button"

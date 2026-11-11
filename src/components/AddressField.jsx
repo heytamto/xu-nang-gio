@@ -1,5 +1,6 @@
 // src/components/AddressField.jsx
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   MapPin, Navigation, Loader2, ChevronDown, 
   AlertTriangle, Search, Check, X, Edit3, CheckCircle2,
@@ -13,12 +14,14 @@ import {
 
 const administrativeData = rawData || {};
 
-// Component Searchable Select Dropdown tối ưu
+// Component Searchable Select Dropdown dùng React Portal: Bất tử trước mọi lỗi Stacking Context
 function SearchableSelect({ label, value, options = [], placeholder, onSelect, disabled = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0, width: 0 });
   
-  const wrapperRef = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
   const filteredOptions = useMemo(() => {
@@ -27,19 +30,51 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
     return options.filter((opt) => normalizeVietnameseText(opt).includes(normKey));
   }, [options, keyword]);
 
+  // Tính toán tọa độ nút bấm để định vị menu Portal
+  const updateMenuPosition = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuCoords({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  }, []);
+
   useEffect(() => {
+    if (!isOpen) return;
+
+    updateMenuPosition();
+
     function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
         setKeyword('');
       }
     }
+
+    function handleScrollOrResize() {
+      updateMenuPosition();
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [isOpen, updateMenuPosition]);
 
   const handleOpen = () => {
     if (disabled) return;
+    updateMenuPosition();
     setIsOpen(true);
     setTimeout(() => {
       if (inputRef.current) inputRef.current.focus();
@@ -52,10 +87,11 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
   };
 
   return (
-    <div className="relative font-sans text-stone-800" ref={wrapperRef}>
+    <div className="font-sans text-stone-800">
       <label className="text-xs sm:text-sm font-bold text-stone-700 block mb-1.5">{label}</label>
 
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={handleOpen}
@@ -73,9 +109,20 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
         <ChevronDown className={`w-4 h-4 text-stone-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-amber-600' : ''}`} />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-stone-200 rounded-2xl shadow-xl overflow-hidden animate-fadeIn font-sans">
-          <div className="p-2.5 border-b border-stone-100 bg-stone-50/70 flex items-center gap-2">
+      {/* Render Menu trực tiếp ra body bằng createPortal */}
+      {isOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'absolute',
+            top: `${menuCoords.top}px`,
+            left: `${menuCoords.left}px`,
+            width: `${menuCoords.width}px`,
+            zIndex: 999999
+          }}
+          className="bg-white border border-stone-200/90 rounded-2xl shadow-2xl overflow-hidden font-sans ring-1 ring-black/10 animate-fadeIn"
+        >
+          <div className="p-2.5 border-b border-stone-100 bg-stone-50 flex items-center gap-2">
             <Search className="w-4 h-4 text-stone-400 shrink-0 ml-1" />
             <input
               ref={inputRef}
@@ -128,7 +175,8 @@ function SearchableSelect({ label, value, options = [], placeholder, onSelect, d
               </li>
             )}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -140,7 +188,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
   const provinces = useMemo(() => Object.keys(administrativeData), []);
   const defaultProv = useMemo(() => {
     return provinces.find((p) => p.includes('Hồ Chí Minh')) || 
-           provinces.find((p) => p.includes('Ninh Thuận')) || 
+           provinces.find((p) => p.includes('Đồng Nai')) || 
            provinces.find((p) => p.includes('Khánh Hòa')) || 
            provinces[0] || '';
   }, [provinces]);
@@ -354,7 +402,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
   return (
     <div className="space-y-3.5 font-sans text-stone-800">
-      {/* THANH ĐIỀU HƯỚNG DẠNG TAB: 1. LẤY VỊ TRÍ | 2. TỰ NHẬP */}
+      {/* THANH ĐIỀU HƯỚNG DẠNG TAB: 1. TỰ NHẬP | 2. LẤY VỊ TRÍ */}
       <div className="grid grid-cols-2 gap-2 p-1.5 bg-stone-100/90 rounded-2xl border border-stone-200">
         <button
           type="button"
@@ -385,7 +433,7 @@ export default function AddressField({ value = '', onChange, error = '' }) {
 
       {/* KHỐI 1: TỰ NHẬP THỦ CÔNG */}
       {inputMode === 'manual' && (
-        <div className="space-y-3 animate-fadeIn">
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SearchableSelect
               label="Tỉnh / Thành phố *"

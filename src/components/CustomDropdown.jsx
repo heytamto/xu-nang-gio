@@ -51,7 +51,11 @@ export default function CustomDropdown({
   }, [options, value]);
 
   return (
-    <div className="relative w-full font-sans text-stone-800" ref={containerRef}>
+    // NÂNG z-index LÊN z-40 KHI DROPDOWN ĐANG MỞ ĐỂ KHÔNG BỊ INPUT/DÒNG DƯỚI ĐÈ LÊN
+    <div 
+      className={`relative w-full font-sans text-stone-800 ${isOpen ? "z-40" : "z-10"}`} 
+      ref={containerRef}
+    >
       {label && (
         <label className="font-bold text-stone-700 block mb-1.5 text-xs sm:text-sm">
           {label}
@@ -89,7 +93,7 @@ export default function CustomDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-50 p-2.5 rounded-2xl bg-white border border-amber-200/95 shadow-2xl space-y-2 animate-fadeIn text-xs sm:text-sm">
+        <div className="absolute top-[calc(100%+6px)] left-0 right-0 z-[100] p-2.5 rounded-2xl bg-white border border-amber-200/95 shadow-2xl ring-1 ring-black/5 space-y-2 animate-fadeIn text-xs sm:text-sm">
           {searchable && (
             <div className="px-1 pt-1">
               <input
