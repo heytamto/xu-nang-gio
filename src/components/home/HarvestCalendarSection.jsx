@@ -1,15 +1,15 @@
 // src/components/home/HarvestCalendarSection.jsx
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { 
-  ShoppingBag, 
-  ArrowRight, 
-  MapPin, 
-  Compass, 
-  RotateCw, 
-  Camera, 
+import {
+  ShoppingBag,
+  ArrowRight,
+  MapPin,
+  Compass,
+  RotateCw,
+  Camera,
   Sparkles,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
 } from "lucide-react";
 
 export const MONTHLY_HARVEST_CALENDAR = [
@@ -20,16 +20,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Chính vụ đầu năm",
     desc: "Đầu năm đất cát Nhơn Hải ráo gắt, tỏi cô đơn củ chắc nịch tích tụ dược tính và tinh dầu thơm nồng nhất năm.",
     categoryTarget: "cat05",
-    image: "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1540148426945-6cf22a6b2383?auto=format&fit=crop&w=1000&q=80",
     tips: "Tỏi đầu mùa củ vỏ bóng trắng vân tía nhạt, mua gác bếp ăn cả năm không lo óp lép.",
     destination: {
       spot: "Đồng Muối Đầm Vua & Làng Tỏi Nhơn Hải",
       badge: "Mùa nắng vàng ươm",
-      tagline: "Chiêm ngưỡng núi muối trắng tinh khôi và cánh đồng tỏi ngút ngàn",
-      experience: "Buổi sớm tinh mơ dạo quanh đồng tỏi Nhơn Hải ngửi hương cay nồng đặc trưng, check-in 'núi tuyết' muối Đầm Vua dưới nền trời trong vắt không một gợn mây.",
+      tagline:
+        "Chiêm ngưỡng núi muối trắng tinh khôi và cánh đồng tỏi ngút ngàn",
+      experience:
+        "Buổi sớm tinh mơ dạo quanh đồng tỏi Nhơn Hải ngửi hương cay nồng đặc trưng, check-in 'núi tuyết' muối Đầm Vua dưới nền trời trong vắt không một gợn mây.",
       bestTime: "05:30 - 08:30 sáng",
-      image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 2,
@@ -38,16 +42,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Rộ ngọt mọng nước",
     desc: "Vườn táo giòn ngọt, vỏ phớt vàng mơ, cắn vào giòn rụm mọng nước giải nhiệt ngày nắng.",
     categoryTarget: "cat02",
-    image: "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1568702846914-96b305d2aaeb?auto=format&fit=crop&w=1000&q=80",
     tips: "Táo bọc lưới sinh học không phun xịt, rửa nước muối loãng là có thể ăn cả vỏ giòn tan.",
     destination: {
       spot: "Tháp Chàm Po Klong Garai & Vườn Táo Sông Dinh",
       badge: "Không gian di sản",
       tagline: "Hương sắc Champa cổ kính bên vườn cây trĩu quả",
-      experience: "Khám phá cụm tháp gạch nung sừng sững trên đồi Trầu, ngắm trọn đồng bằng Phan Rang rồi ghé vào vườn táo bên bờ sông Dinh tự tay hái và thưởng thức quả ngọt mát lạnh ngay tại gốc.",
+      experience:
+        "Khám phá cụm tháp gạch nung sừng sững trên đồi Trầu, ngắm trọn đồng bằng Phan Rang rồi ghé vào vườn táo bên bờ sông Dinh tự tay hái và thưởng thức quả ngọt mát lạnh ngay tại gốc.",
       bestTime: "Buổi chiều 15:30 - 17:30",
-      image: "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 3,
@@ -56,16 +63,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Chính vụ mùa khô",
     desc: "Nho đỏ bắt đầu chín rộ các giàn Thái An. Trái đỏ tím cánh gián, vị chua ngọt thanh mát tự nhiên.",
     categoryTarget: "cat02",
-    image: "https://images.unsplash.com/photo-1596363505729-4190a9506133?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1596363505729-4190a9506133?auto=format&fit=crop&w=1000&q=80",
     tips: "Chùm cuống tươi xanh mướt, quả khít đều. Ăn tươi hoặc làm siro nho đá tuyết cực đã.",
     destination: {
       spot: "Đồng Cừu An Hòa & Cung Đường Nho Thái An",
       badge: "Bình yên thảo nguyên",
       tagline: "Hóa thân thành dân du mục giữa bầy cừu trắng muốt",
-      experience: "Ngắm hàng ngàn chú cừu gặm cỏ quanh hồ đập nước An Hòa vào sáng sớm, sau đó xuyên qua con đường hoa giấy rực rỡ để ghé giàn nho Thái An chụp hình dưới vòm lá xum xuê.",
+      experience:
+        "Ngắm hàng ngàn chú cừu gặm cỏ quanh hồ đập nước An Hòa vào sáng sớm, sau đó xuyên qua con đường hoa giấy rực rỡ để ghé giàn nho Thái An chụp hình dưới vòm lá xum xuê.",
       bestTime: "06:30 - 08:30 hoặc 16:00 - 17:30",
-      image: "https://images.unsplash.com/photo-1484557052118-f32bd25b45b5?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1484557052118-f32bd25b45b5?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 4,
@@ -74,16 +84,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Mùa biển êm trúng lộc",
     desc: "Mực ống câu đêm vừa cập bến rạng sáng, xẻ phơi đúng 1 nắng gắt giòn, dày cơm dẻo quánh.",
     categoryTarget: "cat04",
-    image: "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1534422298391-e4f8c172dddb?auto=format&fit=crop&w=1000&q=80",
     tips: "Nướng than hoa hoặc chiên nước mắm, xé ra thịt mực nở phồng thơm nức mùi biển Cà Ná.",
     destination: {
       spot: "Vịnh Vĩnh Hy - Đệ Nhất Vịnh Biển",
       badge: "Mùa lặn san hô đẹp nhất",
-      tagline: "Nước biển trong vắt như gương, êm đềm lọt thỏm giữa lòng núi Chúa",
-      experience: "Đi thuyền đáy kính chiêm ngưỡng rạn san hô nguyên sơ, đắm mình tắm biển bãi Cóc, bãi Bà Điên và thưởng thức hải sản tươi rói ngay trên bè nổi.",
+      tagline:
+        "Nước biển trong vắt như gương, êm đềm lọt thỏm giữa lòng núi Chúa",
+      experience:
+        "Đi thuyền đáy kính chiêm ngưỡng rạn san hô nguyên sơ, đắm mình tắm biển bãi Cóc, bãi Bà Điên và thưởng thức hải sản tươi rói ngay trên bè nổi.",
       bestTime: "Cả ngày (biển cực êm)",
-      image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 5,
@@ -92,16 +106,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Cao điểm thu hái giàn",
     desc: "Nắng rực rỡ nhất giúp nho xanh tích lũy lượng đường cực đại, vỏ bóng phấn, giòn ngọt thanh tao.",
     categoryTarget: "cat02",
-    image: "https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&w=1000&q=80",
     tips: "Nho có phấn trắng tự nhiên bọc quanh vỏ là dấu hiệu của chùm mới cắt sớm, chưa qua xử lý.",
     destination: {
       spot: "Hang Rái & Vườn Quốc Gia Núi Chúa",
       badge: "Kỳ quan thiên nhiên",
-      tagline: "Thác nước trên biển độc nhất vô nhị từ thềm san hô cổ nghìn năm",
-      experience: "Đón bình minh kỳ ảo khi từng đợt sóng biển tràn qua mặt đá vôi cổ tạo thành dòng thác nước đổ ngoạn mục; khám phá hệ sinh thái rừng khô hạn độc đáo của Khu dự trữ sinh quyển thế giới.",
+      tagline:
+        "Thác nước trên biển độc nhất vô nhị từ thềm san hô cổ nghìn năm",
+      experience:
+        "Đón bình minh kỳ ảo khi từng đợt sóng biển tràn qua mặt đá vôi cổ tạo thành dòng thác nước đổ ngoạn mục; khám phá hệ sinh thái rừng khô hạn độc đáo của Khu dự trữ sinh quyển thế giới.",
       bestTime: "05:00 - 07:00 sáng",
-      image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 6,
@@ -110,16 +128,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Đọt non tươi rói",
     desc: "Măng thu hoạch tinh mơ khi sương còn đọng, thân giòn bùi mọng nước, giàu dinh dưỡng.",
     categoryTarget: "cat02",
-    image: "https://images.unsplash.com/photo-1515471204630-e4b2d30560a6?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1515471204630-e4b2d30560a6?auto=format&fit=crop&w=1000&q=80",
     tips: "Xào tỏi, nấu súp hoặc luộc chấm kho quẹt giòn ngọt mát ruột.",
     destination: {
       spot: "Đồi Cát Nam Cương - Tiểu Sa Mạc",
       badge: "Sóng cát biến hình",
       tagline: "Những dải cát vàng óng ả uốn lượn theo từng làn gió biển",
-      experience: "Đi chân trần cảm nhận sự mịn màng của hạt cát còn vương chút nắng ấm, chụp những bức ảnh silhouette ngược sáng tuyệt đẹp và ngắm các thiếu nữ Chăm đội thúng băng qua đồi.",
+      experience:
+        "Đi chân trần cảm nhận sự mịn màng của hạt cát còn vương chút nắng ấm, chụp những bức ảnh silhouette ngược sáng tuyệt đẹp và ngắm các thiếu nữ Chăm đội thúng băng qua đồi.",
       bestTime: "05:30 - 07:00 hoặc 16:30 - 18:00",
-      image: "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 7,
@@ -128,16 +149,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Mùa cá cơm & cá đỏ củ",
     desc: "Cá biển sâu tươi rói cập cảng quết ngay cùng tiêu sọ và hành tím, dẻo dai tự nhiên không pha bột.",
     categoryTarget: "cat03",
-    image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=1000&q=80",
     tips: "Chiên phồng chấm mắm tỏi ớt hoặc thả lẩu, nấu bánh canh cá ngọt nước đậm đà.",
     destination: {
       spot: "Mũi Dinh & Hải Đăng Cổ Hơn Trăm Năm",
       badge: "Chinh phục địa đầu gió",
       tagline: "Vách đá sừng sững cheo leo giữa sa mạc và đại dương xanh ngắt",
-      experience: "Trải nghiệm xe địa hình vượt cồn cát sa mạc hoang sơ, lội qua bãi Tràng biển xanh màu ngọc bích rồi leo lên ngọn hải đăng Pháp cổ ngắm trọn dải bờ biển lộng gió.",
+      experience:
+        "Trải nghiệm xe địa hình vượt cồn cát sa mạc hoang sơ, lội qua bãi Tràng biển xanh màu ngọc bích rồi leo lên ngọn hải đăng Pháp cổ ngắm trọn dải bờ biển lộng gió.",
       bestTime: "15:00 - 18:00",
-      image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 8,
@@ -146,16 +170,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Ủ ráo đượm vị",
     desc: "Nho chín rộ tháng 6-7 được ủ đường phèn trong chum sành phơi nắng ráo, chắt ra mẻ mật sền sệt đỏ cánh gián.",
     categoryTarget: "cat05",
-    image: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1000&q=80",
     tips: "Pha cùng đá lạnh và vài giọt nước cốt tắc giải khát cực sâu cổ họng.",
     destination: {
       spot: "Cung Đường Biển Vĩnh Hy - Bình Tiên",
       badge: "Top cung đường ven biển",
-      tagline: "Một bên là sườn Núi Chúa hùng vĩ, một bên là vịnh biển xanh ngọc",
-      experience: "Lái xe máy thong dong hít hà gió biển, dừng chân tại các chòi vọng cảnh để thu vào tầm mắt toàn cảnh biển trời bao la và những mũi đá nhô ra mặt biển kỳ vĩ.",
+      tagline:
+        "Một bên là sườn Núi Chúa hùng vĩ, một bên là vịnh biển xanh ngọc",
+      experience:
+        "Lái xe máy thong dong hít hà gió biển, dừng chân tại các chòi vọng cảnh để thu vào tầm mắt toàn cảnh biển trời bao la và những mũi đá nhô ra mặt biển kỳ vĩ.",
       bestTime: "08:00 - 10:00 hoặc 15:30 - 17:30",
-      image: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 9,
@@ -164,16 +192,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Đủ 12 tháng ủ ròng",
     desc: "Cá cơm than béo mẫm ủ muối tinh khiết 12-18 tháng ráo nắng, giọt mắm màu cánh gián thơm phức đượm vị biển.",
     categoryTarget: "cat05",
-    image: "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1546548970-71785318a17b?auto=format&fit=crop&w=1000&q=80",
     tips: "Chấm thịt luộc, rau sống hoặc làm quà biếu chuẩn phong vị làng nghề cổ truyền.",
     destination: {
       spot: "Làng Gốm Bàu Trúc & Làng Dệt Mỹ Nghiệp",
       badge: "Làng nghề cổ xưa nhất ĐNA",
       tagline: "Nghệ thuật nhào nặn đất sét không bàn xoay và sắc màu thổ cẩm",
-      experience: "Hòa cùng không khí chuẩn bị lễ hội Katê linh thiêng, tự tay xoay thân mình quanh khối đất sét nung lộ thiên của nghệ nhân Bàu Trúc và chiêm ngưỡng khung cửi dệt tay trăm tuổi.",
+      experience:
+        "Hòa cùng không khí chuẩn bị lễ hội Katê linh thiêng, tự tay xoay thân mình quanh khối đất sét nung lộ thiên của nghệ nhân Bàu Trúc và chiêm ngưỡng khung cửi dệt tay trăm tuổi.",
       bestTime: "08:30 - 11:00 hoặc 14:00 - 16:30",
-      image: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 10,
@@ -182,16 +213,19 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Bắt đầu rộ lứa mới",
     desc: "Thời tiết se lạnh hanh hao làm thịt quả táo dày chắc, cắn ngập răng giòn ngọt thanh lành.",
     categoryTarget: "cat02",
-    image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=1000&q=80",
     tips: "Chọn trái căng đều, cuống còn tươi xanh là táo vừa cắt giàn buổi sớm.",
     destination: {
       spot: "Thác Chapơr (Bác Ái) & Rừng Nguyên Sinh",
       badge: "Bản tình ca miền sơn cước",
       tagline: "Dải lụa trắng xóa đổ thẳng từ vách đá dựng đứng giữa đại ngàn",
-      experience: "Khám phá vùng đất Raglai mộc mạc, trekking nhẹ qua tán rừng nguyên sinh râm mát và hòa mình vào làn nước trong vắt mát rượi dưới chân dòng thác linh thiêng.",
+      experience:
+        "Khám phá vùng đất Raglai mộc mạc, trekking nhẹ qua tán rừng nguyên sinh râm mát và hòa mình vào làn nước trong vắt mát rượi dưới chân dòng thác linh thiêng.",
       bestTime: "09:00 - 14:00",
-      image: "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 11,
@@ -200,16 +234,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Phơi sấy chuẩn bị Tết",
     desc: "Nho chín mọng đưa vào lò sấy nhiệt chậm, giữ nguyên lớp mật dẻo tự nhiên, không ngậm đường công nghiệp.",
     categoryTarget: "cat06",
-    image: "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=1000&q=80",
     tips: "Thích hợp làm món ăn vặt lành mạnh, làm bánh hoặc làm quà Tết quê thơm thảo.",
     destination: {
       spot: "Cánh Đồng Điện Gió Đầm Nại",
       badge: "Khung cảnh tựa trời Âu",
-      tagline: "Những cánh quạt gió khổng lồ quay thong thả giữa đồng lúa bao la",
-      experience: "Đạp xe dạo quanh bờ đầm, thả hồn theo những cánh quạt gió sừng sững vươn lên nền mây trời lúc hoàng hôn đỏ rực buông xuống mặt nước phẳng lặng.",
+      tagline:
+        "Những cánh quạt gió khổng lồ quay thong thả giữa đồng lúa bao la",
+      experience:
+        "Đạp xe dạo quanh bờ đầm, thả hồn theo những cánh quạt gió sừng sững vươn lên nền mây trời lúc hoàng hôn đỏ rực buông xuống mặt nước phẳng lặng.",
       bestTime: "16:00 - 17:45",
-      image: "https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=1000&q=80",
+    },
   },
   {
     month: 12,
@@ -218,16 +256,20 @@ export const MONTHLY_HARVEST_CALENDAR = [
     status: "Mùa lễ hội & biếu tặng",
     desc: "Hạt điều nương rẫy Bình Sơn rang chảo gang đun củi thơm lừng, giòn bùi ngậy béo phục vụ mùa Tết sum vầy.",
     categoryTarget: "cat01",
-    image: "https://images.unsplash.com/photo-1509912760195-4f6cfd939638?auto=format&fit=crop&w=1000&q=80",
+    image:
+      "https://images.unsplash.com/photo-1509912760195-4f6cfd939638?auto=format&fit=crop&w=1000&q=80",
     tips: "Bóc nhẹ lớp vỏ lụa mỏng để thưởng thức trọn vẹn vị béo ngậy nguyên bản không khét dầu.",
     destination: {
       spot: "Vườn Quốc Gia Phước Bình & Thung Lũng Mây",
       badge: "Đà Lạt thu nhỏ của Ninh Thuận",
-      tagline: "Khí hậu mát lạnh sương mù và vẻ hoang dã của núi rừng giáp ranh cao nguyên",
-      experience: "Tận hưởng không khí se lạnh cuối năm, ngắm thảo nguyên cỏ lau trập trùng, thưởng thức chuối hột mồ côi và thịt heo đen nướng than hồng bên bếp củi đồng bào Churu.",
+      tagline:
+        "Khí hậu mát lạnh sương mù và vẻ hoang dã của núi rừng giáp ranh cao nguyên",
+      experience:
+        "Tận hưởng không khí se lạnh cuối năm, ngắm thảo nguyên cỏ lau trập trùng, thưởng thức chuối hột mồ côi và thịt heo đen nướng than hồng bên bếp củi đồng bào Churu.",
       bestTime: "07:00 - 11:00 hoặc cắm trại qua đêm",
-      image: "https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=1000&q=80"
-    }
+      image:
+        "https://images.unsplash.com/photo-1511497584788-87676104235f?auto=format&fit=crop&w=1000&q=80",
+    },
   },
 ];
 
@@ -235,7 +277,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
   const currentRealMonth = useMemo(() => new Date().getMonth() + 1, []);
   const [selectedMonth, setSelectedMonth] = useState(currentRealMonth);
   const [isFlipped, setIsFlipped] = useState(false);
-  
+
   // State hiệu ứng nhấn lún đàn hồi
   const [isPressing, setIsPressing] = useState(false);
   const pressTimerRef = useRef(null);
@@ -302,17 +344,47 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
           </h3>
         </div>
 
-        {/* CỤM ĐIỀU HƯỚNG THEO MẪU: [ THÁNG / 12 ] [ < ] [ > ] */}
-        <div className="flex items-center gap-4 self-end sm:self-auto">
-          {/* Chỉ số tháng */}
-          <div className="font-mono font-bold text-stone-600 text-base sm:text-lg tracking-wider select-none">
-            <span className="text-stone-900 font-black">{selectedMonth}</span>
-            <span className="text-stone-400 mx-1.5">/</span>
-            <span>12</span>
-          </div>
+        {/* CỤM ĐIỀU HƯỚNG: [ THÁNG / 12 (HIỆN TẠI) ] [ < ] [ > ] */}
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          {/* Nút bấm chỉ số tháng: click để quay về tháng hiện tại */}
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedMonth !== currentRealMonth) {
+                handleCardClick(currentRealMonth);
+              }
+            }}
+            title={
+              selectedMonth !== currentRealMonth
+                ? `Bấm để quay về Tháng ${currentRealMonth} (Hiện tại)`
+                : `Đang là Tháng ${currentRealMonth} (Chính vụ)`
+            }
+            className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all select-none border ${
+              selectedMonth === currentRealMonth
+                ? "bg-stone-50 border-stone-200 text-stone-900 cursor-default shadow-2xs"
+                : "bg-white hover:bg-amber-50/80 border-stone-200 hover:border-amber-300 text-stone-700 hover:text-amber-900 cursor-pointer shadow-2xs active:scale-95"
+            }`}
+          >
+            <div className="font-mono font-bold text-base sm:text-lg tracking-wider flex items-center">
+              <span className="text-stone-900 font-black">{selectedMonth}</span>
+              <span className="text-stone-400 mx-1">/</span>
+              <span className="text-stone-500">12</span>
+            </div>
+
+            {selectedMonth === currentRealMonth ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-300/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Hiện tại</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100/70 group-hover:bg-amber-200/80 px-2 py-0.5 rounded-full border border-amber-300/60 transition-colors">
+                <span>Về T{currentRealMonth}</span>
+              </span>
+            )}
+          </button>
 
           {/* Cặp nút mũi tên tròn */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={handlePrevMonth}
@@ -336,10 +408,15 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
       <div className="flex items-center justify-between text-xs text-stone-500 px-1 font-medium">
         <span className="flex items-center gap-1.5 text-amber-800">
           <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>Click vào thẻ đang mở để <strong>nhún lật 3D</strong> xem địa danh Ninh Thuận. Dùng nút mũi tên hoặc phím <strong>← →</strong> để chuyển tháng.</span>
+          <span>
+            Click vào thẻ đang mở để <strong>nhún lật 3D</strong> xem địa danh
+            Ninh Thuận. Dùng nút mũi tên hoặc phím <strong>← →</strong> để
+            chuyển tháng.
+          </span>
         </span>
         <span className="font-mono hidden sm:inline text-stone-400">
-          Mặt hiển thị: {isFlipped ? "🗺️ Điểm đến du lịch" : "🍇 Nông sản mùa màng"}
+          Mặt hiển thị:{" "}
+          {isFlipped ? "🗺️ Điểm đến du lịch" : "🍇 Nông sản mùa màng"}
         </span>
       </div>
 
@@ -376,7 +453,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
 
         {activeMonthData && (
           <div className="perspective-card min-h-[530px] w-full">
-            <div 
+            <div
               onClick={() => handleCardClick(activeMonthData.month)}
               className={`relative w-full min-h-[530px] rounded-3xl transition-transform duration-700 mac-spring transform-style-preserve-3d cursor-pointer ${
                 isFlipped ? "rotate-y-180" : ""
@@ -414,24 +491,41 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                   </h4>
                   <div className="p-4 rounded-2xl bg-black/55 border border-white/15 backdrop-blur-md text-xs sm:text-sm text-stone-100 leading-relaxed space-y-3">
                     <div className="flex flex-col gap-1">
-                      <span className="text-amber-400 font-bold text-xs uppercase tracking-wider">🌾 Đặc trưng mùa màng:</span>
-                      <p className="text-stone-100 font-normal leading-relaxed">{activeMonthData.desc}</p>
+                      <span className="text-amber-400 font-bold text-xs uppercase tracking-wider">
+                        🌾 Đặc trưng mùa màng:
+                      </span>
+                      <p className="text-stone-100 font-normal leading-relaxed">
+                        {activeMonthData.desc}
+                      </p>
                     </div>
                     <div className="flex flex-col gap-1 pt-2.5 border-t border-white/10">
-                      <span className="text-amber-300 font-bold text-xs uppercase tracking-wider">💡 Thưởng thức:</span>
-                      <p className="text-amber-100 font-normal leading-relaxed">{activeMonthData.tips}</p>
+                      <span className="text-amber-300 font-bold text-xs uppercase tracking-wider">
+                        💡 Thưởng thức:
+                      </span>
+                      <p className="text-amber-100 font-normal leading-relaxed">
+                        {activeMonthData.tips}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="relative z-10 space-y-3 pt-1" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="relative z-10 space-y-3 pt-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex items-center justify-between text-xs px-1 text-stone-300">
-                    <span className="text-amber-400 font-mono uppercase font-bold">Đặc sản chọn lọc:</span>
-                    <span className="font-bold text-white">{activeMonthData.highlight}</span>
+                    <span className="text-amber-400 font-mono uppercase font-bold">
+                      Đặc sản chọn lọc:
+                    </span>
+                    <span className="font-bold text-white">
+                      {activeMonthData.highlight}
+                    </span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => onNavigateShop?.(activeMonthData.categoryTarget || "all")}
+                    onClick={() =>
+                      onNavigateShop?.(activeMonthData.categoryTarget || "all")
+                    }
                     className="w-full h-11 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 text-stone-950 font-black text-sm flex items-center justify-center gap-2 active:scale-95 shadow-md cursor-pointer"
                   >
                     <ShoppingBag className="w-4 h-4" />
@@ -476,33 +570,51 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                     {activeMonthData.destination.spot}
                   </h4>
                   <div className="p-4 rounded-2xl bg-black/60 border border-emerald-400/25 backdrop-blur-md text-xs sm:text-sm text-stone-100 leading-relaxed space-y-3">
-                    <p className="text-emerald-200 font-semibold italic text-xs">"{activeMonthData.destination.tagline}"</p>
+                    <p className="text-emerald-200 font-semibold italic text-xs">
+                      "{activeMonthData.destination.tagline}"
+                    </p>
                     <div className="flex flex-col gap-1 pt-1.5 border-t border-white/10">
                       <span className="text-amber-300 font-bold text-xs uppercase tracking-wider flex items-center gap-1">
                         <Camera className="w-3.5 h-3.5" />
                         <span>Trải nghiệm không thể bỏ qua:</span>
                       </span>
-                      <p className="text-stone-100 font-normal leading-relaxed">{activeMonthData.destination.experience}</p>
+                      <p className="text-stone-100 font-normal leading-relaxed">
+                        {activeMonthData.destination.experience}
+                      </p>
                     </div>
                     <div className="flex items-center justify-between text-[11px] pt-1 text-stone-300 font-mono">
                       <span>Khung giờ đẹp nhất:</span>
-                      <strong className="text-white">{activeMonthData.destination.bestTime}</strong>
+                      <strong className="text-white">
+                        {activeMonthData.destination.bestTime}
+                      </strong>
                     </div>
                   </div>
                 </div>
 
-                <div className="relative z-10 space-y-3 pt-1" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="relative z-10 space-y-3 pt-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <div className="flex items-center justify-between text-xs px-1 text-stone-300">
-                    <span className="text-emerald-400 font-mono uppercase font-bold">Địa danh gợi ý:</span>
-                    <span className="font-bold text-white truncate ml-2">{activeMonthData.destination.spot}</span>
+                    <span className="text-emerald-400 font-mono uppercase font-bold">
+                      Địa danh gợi ý:
+                    </span>
+                    <span className="font-bold text-white truncate ml-2">
+                      {activeMonthData.destination.spot}
+                    </span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => onNavigateShop?.(activeMonthData.categoryTarget || "all")}
+                    onClick={() =>
+                      onNavigateShop?.(activeMonthData.categoryTarget || "all")
+                    }
                     className="w-full h-11 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-600 text-stone-950 font-black text-sm flex items-center justify-center gap-2 active:scale-95 shadow-md cursor-pointer"
                   >
                     <ShoppingBag className="w-4 h-4" />
-                    <span>Xem Nông Sản Vùng {activeMonthData.destination.spot.split("&")[0]}</span>
+                    <span>
+                      Xem Nông Sản Vùng{" "}
+                      {activeMonthData.destination.spot.split("&")[0]}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -516,21 +628,22 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
           3. GIAO DIỆN DESKTOP (MÔ HÌNH MẶT NỊT FLOAT CHÍNH GIỮA CÂN ĐỐI 100%)
           ========================================================================= */}
       <div className="hidden md:block relative w-full h-[620px] lg:h-[660px] select-none rounded-3xl p-3.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-visible">
-        
         {/* LỚP 1: 12 THẺ CỘT ĐỨNG PHÂN BỐ CÂN XỨNG */}
         <div className="w-full h-full flex flex-row items-stretch gap-2">
           {MONTHLY_HARVEST_CALENDAR.map((item) => {
             const isCurrent = item.month === currentRealMonth;
             const isSelected = item.month === selectedMonth;
             const highlightShort =
-              item.highlight.split(" ")[0] + " " + (item.highlight.split(" ")[1] || "");
+              item.highlight.split(" ")[0] +
+              " " +
+              (item.highlight.split(" ")[1] || "");
 
             return (
               <div
                 key={item.month}
                 onClick={() => handleCardClick(item.month)}
                 className={`relative flex-1 rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 group/card ${
-                  isSelected 
+                  isSelected
                     ? "opacity-20 scale-95 pointer-events-none"
                     : "opacity-100 hover:-translate-y-2 hover:scale-[1.02] hover:shadow-lg hover:z-10"
                 }`}
@@ -572,7 +685,8 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                           drop-shadow(1px 1px 2px rgba(255, 255, 255, 0.4))
                           drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.65))
                         `,
-                        fontFamily: '"Nunito", "Montserrat", system-ui, sans-serif',
+                        fontFamily:
+                          '"Nunito", "Montserrat", system-ui, sans-serif',
                       }}
                     >
                       {highlightShort}
@@ -596,7 +710,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
             className={`w-full h-full rounded-3xl pointer-events-auto cursor-pointer mac-spring duration-500 transform-style-preserve-3d ${
               isFlipped ? "rotate-y-180" : ""
             } ${
-              isPressing 
+              isPressing
                 ? "scale-[0.97] shadow-xl"
                 : "scale-100 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.65)]"
             }`}
@@ -644,13 +758,17 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
 
                 <div className="p-5 rounded-2xl bg-black/60 border border-white/15 backdrop-blur-md text-xs lg:text-sm text-stone-100 leading-relaxed font-normal space-y-3.5 shadow-lg">
                   <div className="flex items-start gap-2.5">
-                    <span className="shrink-0 text-amber-400 font-bold">🌾 Đặc trưng:</span>
+                    <span className="shrink-0 text-amber-400 font-bold">
+                      🌾 Đặc trưng:
+                    </span>
                     <span className="text-stone-100 leading-relaxed">
                       {activeMonthData.desc}
                     </span>
                   </div>
                   <div className="flex items-start gap-2.5 pt-2.5 border-t border-white/10">
-                    <span className="shrink-0 text-amber-300 font-bold">💡 Thưởng thức:</span>
+                    <span className="shrink-0 text-amber-300 font-bold">
+                      💡 Thưởng thức:
+                    </span>
                     <span className="text-amber-100 leading-relaxed">
                       {activeMonthData.tips}
                     </span>
@@ -658,7 +776,10 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                 </div>
               </div>
 
-              <div className="space-y-3 relative z-30 pt-1" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="space-y-3 relative z-30 pt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex items-center justify-between text-xs lg:text-sm px-1 text-stone-300">
                   <span className="text-amber-400 font-mono tracking-wider uppercase text-xs font-bold">
                     Đặc sản chính vụ:
@@ -736,12 +857,17 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                   </div>
                   <div className="flex items-center justify-between pt-1 border-t border-white/10 text-xs text-stone-300 font-mono">
                     <span>Khung giờ chụp ảnh đẹp:</span>
-                    <strong className="text-white font-bold">{activeMonthData.destination.bestTime}</strong>
+                    <strong className="text-white font-bold">
+                      {activeMonthData.destination.bestTime}
+                    </strong>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3 relative z-30 pt-1" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="space-y-3 relative z-30 pt-1"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex items-center justify-between text-xs lg:text-sm px-1 text-stone-300">
                   <span className="text-emerald-400 font-mono uppercase font-bold">
                     Địa danh gợi ý:
@@ -761,14 +887,16 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
                   className="w-full h-12 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-stone-950 font-black text-xs lg:text-sm flex items-center justify-center gap-2 transition-transform active:scale-[0.98] cursor-pointer shadow-md"
                 >
                   <ShoppingBag className="w-4 h-4 text-stone-950" />
-                  <span>Xem Nông Sản Vùng {activeMonthData.destination.spot.split("&")[0]}</span>
+                  <span>
+                    Xem Nông Sản Vùng{" "}
+                    {activeMonthData.destination.spot.split("&")[0]}
+                  </span>
                   <ArrowRight className="w-4 h-4 text-stone-950" />
                 </button>
               </div>
             </div>
           </div>
         </div>
-
       </div>
 
       {/* 4. CHỈ MỤC 12 CHẤM TRÒN (MONTH INDICATOR DOTS) */}
@@ -784,10 +912,10 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
               onClick={() => handleCardClick(item.month)}
               title={`Chuyển đến Tháng ${item.month} (${item.highlight})`}
               className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                isSelected 
-                  ? "w-8 bg-amber-700" 
-                  : isCurrent 
-                    ? "w-3 bg-emerald-500 hover:w-5" 
+                isSelected
+                  ? "w-8 bg-amber-700"
+                  : isCurrent
+                    ? "w-3 bg-emerald-500 hover:w-5"
                     : "w-2 bg-stone-300 hover:bg-stone-400 hover:w-4"
               }`}
             />
