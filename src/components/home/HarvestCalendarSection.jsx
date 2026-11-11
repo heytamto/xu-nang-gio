@@ -7,7 +7,6 @@ import {
   Compass,
   RotateCw,
   Camera,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -309,7 +308,6 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
     }
   };
 
-  // Nút chuyển tháng lùi / tiến
   const handlePrevMonth = () => {
     const prev = selectedMonth === 1 ? 12 : selectedMonth - 1;
     handleCardClick(prev);
@@ -320,7 +318,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
     handleCardClick(next);
   };
 
-  // Điều hướng bằng bàn phím (Phím mũi tên ← →)
+  // Điều hướng bằng bàn phím
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "ArrowLeft") handlePrevMonth();
@@ -331,8 +329,8 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
   }, [selectedMonth]);
 
   return (
-    <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-5 font-sans">
-      {/* 1. HEADER SECTION (CHỨA CỤM 7 / 10 VÀ 2 NÚT TRÒN ĐIỀU HƯỚNG) */}
+    <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 font-sans">
+      {/* 1. HEADER SECTION (GỌN GÀNG, SANG TRỌNG) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
         <div>
           <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
@@ -344,9 +342,8 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
           </h3>
         </div>
 
-        {/* CỤM ĐIỀU HƯỚNG: [ THÁNG / 12 (HIỆN TẠI) ] [ < ] [ > ] */}
+        {/* CỤM ĐIỀU HƯỚNG */}
         <div className="flex items-center gap-3 self-end sm:self-auto">
-          {/* Nút bấm chỉ số tháng: click để quay về tháng hiện tại */}
           <button
             type="button"
             onClick={() => {
@@ -383,7 +380,6 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
             )}
           </button>
 
-          {/* Cặp nút mũi tên tròn */}
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -403,21 +399,6 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between text-xs text-stone-500 px-1 font-medium">
-        <span className="flex items-center gap-1.5 text-amber-800">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>
-            Click vào thẻ đang mở để <strong>nhún lật 3D</strong> xem địa danh
-            Ninh Thuận. Dùng nút mũi tên hoặc phím <strong>← →</strong> để
-            chuyển tháng.
-          </span>
-        </span>
-        <span className="font-mono hidden sm:inline text-stone-400">
-          Mặt hiển thị:{" "}
-          {isFlipped ? "🗺️ Điểm đến du lịch" : "🍇 Nông sản mùa màng"}
-        </span>
       </div>
 
       {/* =========================================================================
@@ -625,7 +606,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
       </div>
 
       {/* =========================================================================
-          3. GIAO DIỆN DESKTOP (MÔ HÌNH MẶT NỊT FLOAT CHÍNH GIỮA CÂN ĐỐI 100%)
+          3. GIAO DIỆN DESKTOP (BẢN GỐC CHUẨN POSTER DỌC TỶ LỆ VÀNG)
           ========================================================================= */}
       <div className="hidden md:block relative w-full h-[620px] lg:h-[660px] select-none rounded-3xl p-3.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-visible">
         {/* LỚP 1: 12 THẺ CỘT ĐỨNG PHÂN BỐ CÂN XỨNG */}
@@ -702,26 +683,26 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
           })}
         </div>
 
-        {/* LỚP 2: THẺ NỔI "MẶT NỊT" NUỐT TRỌN CHIỀU CAO CHÂN THẺ */}
+        {/* LỚP 2: THẺ NỔI "MẶT NỊT" CÓ HIỆU ỨNG ZOOM ẢNH NỀN KHI HOVER */}
         <div className="absolute -top-3.5 -bottom-3.5 left-1/2 -translate-x-1/2 w-[520px] lg:w-[580px] z-40 pointer-events-none perspective-card">
           <div
             onClick={() => handleCardClick(activeMonthData.month)}
             style={{ transitionProperty: "transform, box-shadow" }}
-            className={`w-full h-full rounded-3xl pointer-events-auto cursor-pointer mac-spring duration-500 transform-style-preserve-3d ${
+            className={`group/active w-full h-full rounded-3xl pointer-events-auto cursor-pointer mac-spring duration-500 transform-style-preserve-3d ${
               isFlipped ? "rotate-y-180" : ""
             } ${
               isPressing
                 ? "scale-[0.97] shadow-xl"
-                : "scale-100 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.65)]"
+                : "scale-100 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.65)] hover:shadow-[0_35px_80px_-15px_rgba(0,0,0,0.75)]"
             }`}
           >
             {/* ----------------- MẶT TRƯỚC: NÔNG SẢN ----------------- */}
             <div className="absolute inset-0 w-full h-full backface-hidden rounded-3xl overflow-hidden bg-stone-900 border-2 border-amber-400/90 ring-4 ring-amber-500/30 flex flex-col justify-between p-7 lg:p-9 shadow-2xl">
-              <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
                 <img
                   src={activeMonthData.image}
                   alt={activeMonthData.title}
-                  className="w-full h-full object-cover filter brightness-[0.70] contrast-105"
+                  className="w-full h-full object-cover filter brightness-[0.70] contrast-105 transition-transform duration-700 ease-out group-hover/active:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/60 to-black/45" />
               </div>
@@ -807,11 +788,11 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
 
             {/* ----------------- MẶT SAU: ĐIỂM ĐẾN DU LỊCH ----------------- */}
             <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 rounded-3xl overflow-hidden bg-stone-900 border-2 border-emerald-400/90 ring-4 ring-emerald-500/30 flex flex-col justify-between p-7 lg:p-9 shadow-2xl">
-              <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
                 <img
                   src={activeMonthData.destination.image}
                   alt={activeMonthData.destination.spot}
-                  className="w-full h-full object-cover filter brightness-[0.65] contrast-105"
+                  className="w-full h-full object-cover filter brightness-[0.65] contrast-105 transition-transform duration-700 ease-out group-hover/active:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-900/60 to-black/45" />
               </div>
@@ -899,8 +880,8 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
         </div>
       </div>
 
-      {/* 4. CHỈ MỤC 12 CHẤM TRÒN (MONTH INDICATOR DOTS) */}
-      <div className="hidden md:flex items-center justify-center gap-2 pt-2">
+      {/* 4. CHỈ MỤC 12 CHẤM TRÒN (TÁCH CÁCH RA KHỎI ĐÁY THẺ ĐỂ KHÔNG BỊ ĐÈ) */}
+      <div className="hidden md:flex items-center justify-center gap-2 pt-4">
         {MONTHLY_HARVEST_CALENDAR.map((item) => {
           const isSelected = item.month === selectedMonth;
           const isCurrent = item.month === currentRealMonth;
