@@ -1,5 +1,6 @@
 // src/pages/OrderLookupPage.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search,
   PackageCheck,
@@ -61,7 +62,7 @@ export default function OrderLookupPage({
   const [reviewOrderTarget, setReviewOrderTarget] = useState(null);
   const [reviewedCodes, setReviewedCodes] = useState(new Set());
 
-  // Xem ảnh phóng to
+  // Xem ảnh phóng to (Portal)
   const [previewImage, setPreviewImage] = useState(null);
 
   const [now, setNow] = useState(Date.now());
@@ -75,6 +76,26 @@ export default function OrderLookupPage({
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Khóa cuộn trang nền khi mở Popup Hủy đơn hoặc Lightbox Phóng to ảnh
+  useEffect(() => {
+    if (!previewImage && !cancellingOrder) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (previewImage) setPreviewImage(null);
+        else if (cancellingOrder && !isSubmittingCancel) setCancellingOrder(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewImage, cancellingOrder, isSubmittingCancel]);
 
   const hotline = shopConfig?.hotline || '0848.957.345';
   const cleanHotline = String(hotline).replace(/\D/g, '');
@@ -748,75 +769,77 @@ export default function OrderLookupPage({
         </div>
       )}
 
-      {/* Popup Xác Nhận Hủy */}
-      {cancellingOrder && (
-        <div className="fixed inset-0 bg-stone-950/75 backdrop-blur-xs p-4 sm:p-6 flex flex-col justify-center items-center z-50 animate-fadeIn text-stone-900">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg border border-stone-200 shadow-2xl space-y-5 animate-scaleUp">
-            <div className="flex items-center gap-3.5 border-b border-stone-100 pb-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
-                <AlertCircle className="w-6 h-6 stroke-[2.2]" />
-              </div>
-              <div>
-                <h4 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">
-                  Xác Nhận Hủy Đơn Hàng?
-                </h4>
-                <p className="font-mono text-xs text-stone-500 font-bold mt-0.5">
-                  Mã đơn: #{cancellingOrder.code}
-                </p>
-              </div>
-            </div>
-
-            <div className="text-xs sm:text-sm space-y-3.5 text-stone-600 leading-relaxed font-normal">
-              <p>
-                Bạn có chắc chắn muốn hủy đơn hàng mã{' '}
-                <strong className="font-mono text-stone-900 font-black">
-                  {cancellingOrder.code}
-                </strong>{' '}
-                không? Sau khi hủy, hệ thống nhà vườn sẽ dừng chuẩn bị kiện nông sản này.
-              </p>
-
-              {Boolean(cancellingOrder.payment_verified || cancellingOrder.deposit_paid > 0) && (
-                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs sm:text-sm flex items-start gap-2.5 shadow-2xs">
-                  <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed font-medium">
-                    Đơn đã ghi nhận thanh toán/cọc. Sau khi bấm hủy, vui lòng liên hệ Hotline{' '}
-                    <strong>{hotline}</strong> để kế toán vườn hoàn tiền trong 24h.
-                  </span>
+      {/* Popup Xác Nhận Hủy (Render qua Portal ra document.body) */}
+      {cancellingOrder &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-stone-950/75 backdrop-blur-xs p-4 sm:p-6 flex flex-col justify-center items-center animate-fadeIn text-stone-900">
+            <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg border border-stone-200 shadow-2xl space-y-5 animate-scaleUp">
+              <div className="flex items-center gap-3.5 border-b border-stone-100 pb-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                  <AlertCircle className="w-6 h-6 stroke-[2.2]" />
                 </div>
-              )}
+                <div>
+                  <h4 className="font-black text-base sm:text-lg text-stone-900 tracking-tight">
+                    Xác Nhận Hủy Đơn Hàng?
+                  </h4>
+                  <p className="font-mono text-xs text-stone-500 font-bold mt-0.5">
+                    Mã đơn: #{cancellingOrder.code}
+                  </p>
+                </div>
+              </div>
 
-              <div className="space-y-1.5 pt-1 text-left">
-                <label className="block text-xs font-bold text-stone-700">Lý do hủy đơn:</label>
-                <CustomDropdown
-                  options={CANCEL_REASONS}
-                  value={cancelReason}
-                  onChange={(val) => setCancelReason(val)}
-                  searchable={false}
-                />
+              <div className="text-xs sm:text-sm space-y-3.5 text-stone-600 leading-relaxed font-normal">
+                <p>
+                  Bạn có chắc chắn muốn hủy đơn hàng mã{' '}
+                  <strong className="font-mono text-stone-900 font-black">
+                    {cancellingOrder.code}
+                  </strong>{' '}
+                  không? Sau khi hủy, hệ thống nhà vườn sẽ dừng chuẩn bị kiện nông sản này.
+                </p>
+
+                {Boolean(cancellingOrder.payment_verified || cancellingOrder.deposit_paid > 0) && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-950 text-xs sm:text-sm flex items-start gap-2.5 shadow-2xs">
+                    <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed font-medium">
+                      Đơn đã ghi nhận thanh toán/cọc. Sau khi bấm hủy, vui lòng liên hệ Hotline{' '}
+                      <strong>{hotline}</strong> để kế toán vườn hoàn tiền trong 24h.
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5 pt-1 text-left">
+                  <label className="block text-xs font-bold text-stone-700">Lý do hủy đơn:</label>
+                  <CustomDropdown
+                    options={CANCEL_REASONS}
+                    value={cancelReason}
+                    onChange={(val) => setCancelReason(val)}
+                    searchable={false}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel}
+                  onClick={() => setCancellingOrder(null)}
+                  className="flex-1 h-11 rounded-2xl border border-stone-200 font-bold text-xs sm:text-sm text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+                >
+                  Giữ lại đơn
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingCancel}
+                  onClick={handleConfirmCancelOrder}
+                  className="flex-1 h-11 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {isSubmittingCancel ? 'Đang xử lý...' : 'Xác nhận hủy'}
+                </button>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
-              <button
-                type="button"
-                disabled={isSubmittingCancel}
-                onClick={() => setCancellingOrder(null)}
-                className="flex-1 h-11 rounded-2xl border border-stone-200 font-bold text-xs sm:text-sm text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
-              >
-                Giữ lại đơn
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingCancel}
-                onClick={handleConfirmCancelOrder}
-                className="flex-1 h-11 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                {isSubmittingCancel ? 'Đang xử lý...' : 'Xác nhận hủy'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* Modal Đánh giá đơn hàng */}
       {reviewOrderTarget && (
@@ -831,29 +854,37 @@ export default function OrderLookupPage({
         />
       )}
 
-      {/* Lightbox Phóng to ảnh đóng gói */}
-      {previewImage && (
-        <div
-          onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 bg-stone-950/90 backdrop-blur-sm p-4 flex items-center justify-center animate-fadeIn cursor-zoom-out"
-        >
-          <div className="relative max-w-4xl w-full flex flex-col items-center">
-            <button
-              type="button"
-              onClick={() => setPreviewImage(null)}
-              className="self-end mb-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center font-bold cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img
-              src={previewImage}
-              alt="Ảnh đóng gói thực tế"
-              className="max-h-[80vh] w-auto rounded-2xl border border-white/20 shadow-2xl object-contain"
+      {/* Lightbox Phóng to ảnh đóng gói (Render qua Portal ra document.body) */}
+      {previewImage &&
+        createPortal(
+          <div
+            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 z-[9999] bg-stone-950/90 backdrop-blur-sm p-4 sm:p-8 flex items-center justify-center animate-fadeIn cursor-zoom-out"
+          >
+            <div
               onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
+              className="relative max-w-3xl w-full flex flex-col items-center cursor-default"
+            >
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                aria-label="Đóng ảnh phóng to"
+                className="self-end mb-3 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center font-bold transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="bg-white p-2 sm:p-3 rounded-2xl shadow-2xl border border-white/20 max-h-[82vh] flex items-center justify-center">
+                <img
+                  src={previewImage}
+                  alt="Ảnh phóng to"
+                  className="max-h-[76vh] w-auto rounded-xl object-contain"
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

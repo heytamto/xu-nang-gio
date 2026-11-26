@@ -4,7 +4,6 @@ import { ShoppingBag, Loader2 } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import OrderLookupModal from './components/OrderLookupModal';
 import OrderSuccessModal from './components/checkout/OrderSuccessModal';
 import ShopAnnouncementBar from './components/ShopAnnouncementBar';
 import CartCenterSplash from './components/common/CartCenterSplash';
@@ -18,6 +17,7 @@ import ShopPage from './pages/ShopPage';
 import StoryPage from './pages/StoryPage';
 import CheckoutPage from './pages/CheckoutPage';
 import PolicyPage from './pages/PolicyPage';
+import OrderLookupPage from './pages/OrderLookupPage';
 
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 const PackingPage = lazy(() => import('./pages/PackingPage'));
@@ -28,12 +28,15 @@ import { supabase } from './supabaseClient';
 import { useCartManager } from './hooks/useCartManager';
 import { useShopOrders } from './hooks/useShopOrders';
 
-const VALID_PAGES = ['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy'];
+const VALID_PAGES = ['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy', 'lookup'];
 
 function MainAppContent() {
   const [currentPage, setCurrentPage] = useState(() => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
+      if (code) return 'lookup';
+
       const urlPage = urlParams.get('page');
       if (urlPage) {
         const mapped = urlPage === 'blog' ? 'story' : urlPage;
@@ -77,9 +80,16 @@ function MainAppContent() {
 
   const [isLoadingMasterData, setIsLoadingMasterData] = useState(() => !localStorage.getItem('shop_products'));
 
-  // Modals state
-  const [isLookupModalOpen, setIsLookupModalOpen] = useState(false);
-  const [initialLookupCode, setInitialLookupCode] = useState('');
+  // Modals & Lookup state
+  const [initialLookupCode, setInitialLookupCode] = useState(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
+      return code ? code.trim().toUpperCase() : '';
+    } catch {
+      return '';
+    }
+  });
   const [selectedDetailProduct, setSelectedDetailProduct] = useState(null);
   const [isTenantRegisterOpen, setIsTenantRegisterOpen] = useState(false);
 
@@ -97,7 +107,7 @@ function MainAppContent() {
     handleAddToCart,
     handleUpdateQuantity,
     handleRemoveCartItem,
-    syncCartWithMasterData
+    syncCartWithMasterData,
   } = useCartManager();
 
   // 2. Quản lý Đơn hàng qua Hook
@@ -108,7 +118,7 @@ function MainAppContent() {
     handleProcessOrder,
     successOrderInfo,
     isSuccessModalOpen,
-    setIsSuccessModalOpen
+    setIsSuccessModalOpen,
   } = useShopOrders(clearCart);
 
   // 3. Tải Master Data & Tự động đồng bộ giỏ hàng
@@ -147,7 +157,6 @@ function MainAppContent() {
       await refreshOrders();
     } catch (err) {
       console.warn('Lỗi kết nối tải dữ liệu Supabase:', err);
-      // Nếu không có dữ liệu cache local và mất kết nối database -> Báo lỗi 500
       if (!localStorage.getItem('shop_products')) {
         setServerErrorDetail(err?.message || 'Không thể kết nối máy chủ dữ liệu');
         setCurrentPage('500');
@@ -186,7 +195,6 @@ function MainAppContent() {
   useEffect(() => {
     const syncRouteFromUrl = () => {
       try {
-        // Kiểm tra đường dẫn phụ (nếu truy cập /abcxyz thay vì /) -> 404
         const pathname = window.location.pathname;
         if (pathname && pathname !== '/' && pathname !== '/index.html') {
           setCurrentPage('404');
@@ -198,16 +206,18 @@ function MainAppContent() {
         const page = urlParams.get('page');
         const cat = urlParams.get('cat');
 
-        // Kiểm tra tham số không hợp lệ (ví dụ ký tự lạ hoặc quá dài) -> 400
         if ((code && code.length > 40) || (cat && !/^[a-zA-Z0-9_-]{1,30}$/.test(cat))) {
           setCurrentPage('400');
           return;
         }
 
         if (code) {
-          setInitialLookupCode(code.trim().toUpperCase());
-          setIsLookupModalOpen(true);
-          window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+          const cleanCode = code.trim().toUpperCase();
+          setInitialLookupCode(cleanCode);
+          setCurrentPage('lookup');
+          sessionStorage.setItem('shop_current_page', 'lookup');
+          window.history.replaceState({ page: 'lookup' }, '', `/?page=lookup&code=${cleanCode}`);
+          return;
         }
 
         if (page) {
@@ -313,7 +323,7 @@ function MainAppContent() {
             cartTotal={totalCartAmount}
             onOpenLookup={() => {
               setInitialLookupCode('');
-              setIsLookupModalOpen(true);
+              navigateTo('lookup');
             }}
             isCartBouncing={isCartBouncing}
             forceVisible={forceNavVisible}
@@ -349,10 +359,10 @@ function MainAppContent() {
         )}
 
         {currentPage === 'story' && (
-          <StoryPage 
-            stories={stories} 
-            posts={posts} 
-            onNavigate={navigateTo} 
+          <StoryPage
+            stories={stories}
+            posts={posts}
+            onNavigate={navigateTo}
           />
         )}
 
@@ -364,6 +374,14 @@ function MainAppContent() {
             shopConfig={shopConfig}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveCartItem}
+          />
+        )}
+
+        {currentPage === 'lookup' && (
+          <OrderLookupPage
+            shopConfig={shopConfig}
+            initialCode={initialLookupCode}
+            onNavigate={navigateTo}
           />
         )}
 
@@ -477,16 +495,6 @@ function MainAppContent() {
         shopConfig={shopConfig}
       />
 
-      <OrderLookupModal
-        isOpen={isLookupModalOpen}
-        initialCode={initialLookupCode}
-        onClose={() => {
-          setIsLookupModalOpen(false);
-          setInitialLookupCode('');
-        }}
-        shopConfig={shopConfig}
-      />
-
       {currentPage !== 'packing' && currentPage !== 'admin' && currentPage !== 'policy' && (
         <Footer
           config={shopConfig}
@@ -495,7 +503,7 @@ function MainAppContent() {
           onNavigatePolicy={() => navigateTo('policy')}
           onOpenLookup={() => {
             setInitialLookupCode('');
-            setIsLookupModalOpen(true);
+            navigateTo('lookup');
           }}
           onOpenTenantRegister={() => setIsTenantRegisterOpen(true)}
         />
