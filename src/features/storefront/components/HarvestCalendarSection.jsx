@@ -12,11 +12,15 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { MONTHLY_HARVEST_CALENDAR } from '../data/harvestCalendar';
-export { MONTHLY_HARVEST_CALENDAR } from '../data/harvestCalendar';
 
-export default function HarvestCalendarSection({ onNavigateShop }) {
-  const { currentRealMonth, selectedMonth, isFlipped, isPressing, activeMonthData, handleCardClick, handlePrevMonth, handleNextMonth } = useHarvestCalendar();
+export default function HarvestCalendarSection({ onNavigateShop, config }) {
+  if (!config?.enabled || !Array.isArray(config.items) || config.items.length !== 12) return null;
+  return <HarvestCalendarContent config={config} onNavigateShop={onNavigateShop} />;
+}
+
+function HarvestCalendarContent({ onNavigateShop, config }) {
+  const items = config.items;
+  const { currentRealMonth, selectedMonth, isFlipped, isPressing, activeMonthData, handleCardClick, handlePrevMonth, handleNextMonth } = useHarvestCalendar(items);
 
   return (
     <section className="bg-white rounded-3xl p-5 sm:p-8 border border-stone-200/90 shadow-xs space-y-6 font-sans">
@@ -25,10 +29,10 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
         <div>
           <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
             <Compass className="w-4 h-4 text-amber-700 animate-spin-slow" />
-            <span>Xứ Nắng Gió • Nông Sản & Điểm Đến Phan Rang</span>
+            <span>{config.subtitle}</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-1">
-            Lịch Mùa Vụ Thu Hoạch & Trải Nghiệm 12 Tháng
+            {config.title}
           </h3>
         </div>
 
@@ -96,7 +100,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
           ========================================================================= */}
       <div className="block md:hidden space-y-4">
         <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {MONTHLY_HARVEST_CALENDAR.map((item) => {
+          {items.map((item) => {
             const isSelected = item.month === selectedMonth;
             const isCurrent = item.month === currentRealMonth;
 
@@ -301,7 +305,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
       <div className="hidden md:block relative w-full h-[620px] lg:h-[660px] select-none rounded-3xl p-3.5 bg-[#FAF6F0] border border-stone-200/90 shadow-inner overflow-visible">
         {/* LỚP 1: 12 THẺ CỘT ĐỨNG PHÂN BỐ CÂN XỨNG */}
         <div className="w-full h-full flex flex-row items-stretch gap-2">
-          {MONTHLY_HARVEST_CALENDAR.map((item) => {
+          {items.map((item) => {
             const isCurrent = item.month === currentRealMonth;
             const isSelected = item.month === selectedMonth;
             const highlightShort =
@@ -572,7 +576,7 @@ export default function HarvestCalendarSection({ onNavigateShop }) {
 
       {/* 4. CHỈ MỤC 12 CHẤM TRÒN (TÁCH CÁCH RA KHỎI ĐÁY THẺ ĐỂ KHÔNG BỊ ĐÈ) */}
       <div className="hidden md:flex items-center justify-center gap-2 pt-4">
-        {MONTHLY_HARVEST_CALENDAR.map((item) => {
+        {items.map((item) => {
           const isSelected = item.month === selectedMonth;
           const isCurrent = item.month === currentRealMonth;
 

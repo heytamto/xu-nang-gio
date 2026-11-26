@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { MONTHLY_HARVEST_CALENDAR } from "../data/harvestCalendar";
 
-export function useHarvestCalendar() {
+
+export function useHarvestCalendar(items) {
   const currentRealMonth = useMemo(() => new Date().getMonth() + 1, []);
   const [selectedMonth, setSelectedMonth] = useState(currentRealMonth);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -12,10 +12,10 @@ export function useHarvestCalendar() {
 
   const activeMonthData = useMemo(() => {
     return (
-      MONTHLY_HARVEST_CALENDAR.find((m) => m.month === selectedMonth) ||
-      MONTHLY_HARVEST_CALENDAR[0]
+      items.find((m) => m.month === selectedMonth) ||
+      items[0]
     );
-  }, [selectedMonth]);
+  }, [selectedMonth, items]);
 
   // Click chọn tháng hoặc lật thẻ khi click vào thẻ đang mở
   const handleCardClick = (month) => {
@@ -52,6 +52,7 @@ export function useHarvestCalendar() {
   // Điều hướng bằng bàn phím
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (e.target?.closest?.("input, textarea, select, [contenteditable=true]")) return;
       if (e.key === "ArrowLeft") handlePrevMonth();
       if (e.key === "ArrowRight") handleNextMonth();
     };

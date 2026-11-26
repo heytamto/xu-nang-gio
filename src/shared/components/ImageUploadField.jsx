@@ -64,7 +64,8 @@ export default function ImageUploadField({
   multiple = false,
   maxFiles = 3,
   placeholder = "Hoặc dán URL ảnh trực tiếp vào đây...",
-  hideManualUrl = false // Hỗ trợ ẩn ô nhập link thủ công khi dùng cho form khách hàng
+  hideManualUrl = false, // Hỗ trợ ẩn ô nhập link thủ công khi dùng cho form khách hàng
+  onUploadStateChange // Optional: thông báo trạng thái upload cho form cha
 }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -85,6 +86,7 @@ export default function ImageUploadField({
     }
 
     setIsUploading(true);
+    onUploadStateChange?.(true);
     setUploadError(null);
 
     try {
@@ -133,6 +135,7 @@ export default function ImageUploadField({
       setUploadError(err.message || 'Lỗi khi tải ảnh lên máy chủ lưu trữ');
     } finally {
       setIsUploading(false);
+      onUploadStateChange?.(false);
       e.target.value = '';
     }
   };

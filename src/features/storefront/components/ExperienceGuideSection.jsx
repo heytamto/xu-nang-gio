@@ -2,170 +2,15 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { HelpCircle, ChevronLeft, ChevronRight, MapPin, CheckCircle2, AlertCircle } from "lucide-react";
 
-export const NINH_THUAN_EXPERIENCES = [
-  {
-    id: "nho",
-    tabLabel: "Nho Đỏ & Xanh",
-    title: "Nho Đỏ & Nho Xanh Cắt Giàn Thái An",
-    origin: "Làng nho Thái An, Vĩnh Hải",
-    realSigns: [
-      "Chùm nho tự nhiên cuống tươi xanh, quả khít đều vừa phải chứ không tròn to căng bóng bất thường.",
-      "Nho đỏ Red Cardinal có màu đỏ tím phơn phớt cánh gián, hạt giòn dễ tách, vị chua ngọt thanh nhẹ.",
-      "Nho xanh NH01-48 vỏ dày dặn hơn một chút, có lớp phấn tự nhiên bảo vệ quả, ngọt thanh giòn rụm.",
-    ],
-    fakeWarning:
-      "Tránh loại nho vỏ đen thẫm, trái to mọng mướt mắt không hạt, cuống héo rũ nhưng quả vẫn mềm nhũn tẩm ướp.",
-    storageTip:
-      "Chưa rửa khi chưa ăn; để ngăn mát tủ lạnh bọc giấy báo giữ được 7–10 ngày cuống vẫn xanh tươi.",
-    badge: "Nông Sản Giàn Nắng",
-  },
-  {
-    id: "tao",
-    tabLabel: "Táo Gió Mật",
-    title: "Táo Gió Giòn Mật Hái Sớm",
-    origin: "Vườn Phước Hậu, Ninh Phước",
-    realSigns: [
-      "Vỏ quả táo gió màu xanh ngả vàng mơ tự nhiên, da căng bóng vừa phải, có thể có vết rám nắng nhẹ.",
-      "Cầm chắc tay, cắn vào giòn tan rôm rốp, mọng nước, hậu vị ngọt thơm thanh tao mát cổ.",
-      "Người làm vườn bọc màn lưới bao trái từ nhỏ để ngừa ruồi đục quả mà không phun xịt hóa chất.",
-    ],
-    fakeWarning:
-      "Cẩn thận táo trữ lạnh lâu ngày cuống thâm đen, thịt quả xốp mềm, vỏ ngoài bóng nhẫy sáp bảo quản.",
-    storageTip:
-      "Rửa sạch ngâm nước muối loãng, để mát ăn giòn rụm mát lạnh suốt tuần.",
-    badge: "Đặc Sản Giòn Ngọt",
-  },
-  {
-    id: "toi",
-    tabLabel: "Tỏi Cô Đơn",
-    title: "Tỏi Cô Đơn & Tỏi Nhánh Nhơn Hải",
-    origin: "Bán đảo Nhơn Hải - Vĩnh Hải",
-    realSigns: [
-      "Củ tỏi chắc nịch, tép nhỏ đều, rễ cắt sát khô sạch, vỏ ngoài trắng ngà vân tím nhạt tự nhiên.",
-      "Khi bóc vỏ tép tỏi thơm nồng nàn, vị cay đượm ấm bụng mà không hăng rát cuống họng.",
-      "Trồng trên đất cát pha san hô biển và tưới nước lợ nên hàm lượng tinh dầu và dược tính cao vượt trội.",
-    ],
-    fakeWarning:
-      "Tránh nhầm với tỏi nhập củ to tròn đều chằn chặn, tép to xốp, ruột nhiều nước nhưng mùi vị nhạt nhẽo.",
-    storageTip:
-      "Treo nơi thoáng gió râm mát, tuyệt đối không bỏ túi nilon kín hay để trong tủ lạnh.",
-    badge: "Dược Liệu Đất Nắng",
-  },
-  {
-    id: "hanh",
-    tabLabel: "Hành Tím",
-    title: "Hành Tím Đất Cát Phan Rang",
-    origin: "Vựa hành Mỹ Tường, Ninh Hải",
-    realSigns: [
-      "Củ hành tròn chắc, vỏ khô nhiều lớp mỏng màu đỏ tía rực rỡ, bảo quản tự nhiên 4-6 tháng không teo tóp.",
-      "Tép hành cay thơm đậm vị, phi lên vàng giòn thơm nức mũi mà không bị ỉu mềm.",
-      "Thu hoạch chính vụ mùa nắng gắt nên củ khô ráo, không bị ẩm mốc ruột trong.",
-    ],
-    fakeWarning:
-      "Không chọn loại hành củ dài to bất thường, vỏ ướt sũng hoặc nhuộm phẩm màu dễ thối rữa sau vài ngày.",
-    storageTip:
-      "Rải ra rổ tre hoặc túi lưới nơi thoáng gió, bảo quản được 4–6 tháng.",
-    badge: "Gia Vị Gác Bếp",
-  },
-  {
-    id: "mang_tay",
-    tabLabel: "Măng Tây Xanh",
-    title: "Măng Tây Xanh Đất Cát Phù Sa",
-    origin: "Cánh đồng cát An Hải, Ninh Phước",
-    realSigns: [
-      "Đọt măng thon thẳng, chồi búp bọc chặt không bung nở, gốc măng mướt giòn không bị xơ già cỗi.",
-      "Thu hoạch tinh mơ lúc 4h sáng khi sương còn đọng, thân cây giòn ngọt, giàu chất xơ tự nhiên.",
-      "Trồng bằng phân ủ mục hữu cơ và bón phân chuồng tự nhiên trên bãi cát ven biển.",
-    ],
-    fakeWarning:
-      "Cẩn thận măng ngâm nước tẩy trắng phần gốc, thân teo tóp uể oải, búp hoa nở bung rơi rụng.",
-    storageTip:
-      "Cắm gốc vào cốc nước sâu 2cm hoặc bọc khăn ẩm quấn gốc rồi cất ngăn mát tủ lạnh.",
-    badge: "Vua Rau Màu Cát",
-  },
-  {
-    id: "cha_ca",
-    tabLabel: "Chả Cá Quết",
-    title: "Chả Cá Đỏ Củ & Cá Nhồng Quết Mộc",
-    origin: "Cảng cá Đông Hải & Cà Ná",
-    realSigns: [
-      "Quết 100% từ cá đỏ củ, cá mối, cá nhồng tươi cập bến trong ngày, dẻo quánh tự nhiên nhờ lực quết tay.",
-      "Miếng chả khi chiên hoặc hấp phồng đều, thơm dậy mùi tiêu sọ hành tím, vị ngọt đượm thịt cá biển sâu.",
-      "Mặt chả hơi sần sùi mộc mạc chứ không bóng loáng, nhẵn thín hay dai giòn sần sật bất thường.",
-    ],
-    fakeWarning:
-      "Tránh xa loại chả cá dai đanh do trộn hàn the hoặc độn nhiều bột mì, khi chiên teo xẹp nhăn nheo.",
-    storageTip:
-      "Hút chân không để ngăn đông giữ vị ngon 3 tháng; trước khi ăn rã đông tự nhiên rồi áp chảo sơ.",
-    badge: "Đặc Sản Làng Biển",
-  },
-  {
-    id: "muc",
-    tabLabel: "Mực Một Nắng",
-    title: "Mực Một Nắng Dẻo Nước Sâu Cà Ná",
-    origin: "Làng chài biển mặn Cà Ná",
-    realSigns: [
-      "Chỉ xẻ từ mực ống tươi dong thuyền câu trong đêm, ráo nước biển rồi phơi đúng duy nhất 1 nắng giòn gắt.",
-      "Bề mặt mực khô ráo, thịt bên trong mềm ngọt dẻo quánh, khi nướng nở phồng thơm phức vị biển.",
-      "Bụng mực trắng đục tự nhiên, lưng còn nguyên lớp phấn hồng phơn phớt.",
-    ],
-    fakeWarning:
-      "Tránh mực ngâm nước tăng trọng lượng: sờ vào mềm nhũn ướt tay, khi nướng teo tóp ra nhiều nước đục.",
-    storageTip:
-      "Bọc kín túi zipper hoặc hút chân không để ngăn đông -18°C, tránh lẫn mùi với đồ sống.",
-    badge: "Hải Sản Khô Thượng Hạng",
-  },
-  {
-    id: "nuoc_mam",
-    tabLabel: "Nước Mắm Cà Ná",
-    title: "Nước Mắm Nhĩ Cá Cơm Than Truyền Thống",
-    origin: "Làng nghề nước mắm Cà Ná",
-    realSigns: [
-      "Ủ ròng rã 12–18 tháng từ cá cơm than béo mẫm và muối hạt sạch Phan Rang theo tỷ lệ vàng 3 cá : 1 muối.",
-      "Nước mắm có màu hổ phách nâu đỏ sóng sánh, mùi thơm nồng nàn dịu êm, hậu vị ngọt đượm nơi cuống họng.",
-      "Độ đạm tự nhiên từ 30–40 độ đạm nguyên chất, không cần pha hương liệu hay chất tạo sánh.",
-    ],
-    fakeWarning:
-      "Cảnh giác nước mắm công nghiệp lỏng le lỏng lét, ngọt lợ vị bột ngọt mì chính và phẩm màu hóa học.",
-    storageTip:
-      "Đậy chặt nắp sau khi rót, để nơi khô mát tránh ánh nắng trực tiếp; có thể đọng muối đáy chai là bình thường.",
-    badge: "Gia Vị Biển Mặn",
-  },
-  {
-    id: "mat_nho",
-    tabLabel: "Mật Nho",
-    title: "Mật Nho & Rượu Nho Men Chum Sành",
-    origin: "Ủ gia truyền Phước Sanh, Phan Rang",
-    realSigns: [
-      "Chưng cất từ 100% trái nho chín kỹ ủ cùng đường phèn nguyên chất trong chum sành phơi nắng trời.",
-      "Mật có màu đỏ cánh gián sánh quyện tự nhiên, vị ngọt thanh mát, chua nhẹ hậu vị chứ không gắt khé cổ.",
-      "Mở nắp dậy mùi thơm nồng nàn của men nho ủ ráo nắng, để càng lâu hương vị càng sâu.",
-    ],
-    fakeWarning:
-      "Cảnh giác mật nho pha hương liệu màu tổng hợp: nước lỏng toẹt, ngọt gắt đường hóa học và lắng cặn đục đáy.",
-    storageTip:
-      "Để ở nhiệt độ phòng hoặc ngăn mát; pha với nước đá và vài giọt tắc/chanh giải nhiệt cực đã.",
-    badge: "Ủ Men Truyền Thống",
-  },
-  {
-    id: "hat_dieu",
-    tabLabel: "Hạt Điều Rang Củi",
-    title: "Hạt Điều Vỏ Lụa Rang Củi Truyền Thống",
-    origin: "Nương rẫy Bình Sơn, Ninh Hải",
-    realSigns: [
-      "Hạt điều kích cỡ đều vừa vặn, còn nguyên lớp vỏ lụa nâu mỏng bảo vệ nhân hạt khỏi cháy xém.",
-      "Rang thủ công trên chảo gang đun củi cà phê, hạt giòn rụm, vị ngọt bùi béo ngậy nguyên bản.",
-      "Chỉ rang cùng một lượng muối biển hạt vừa đủ để tăng độ ngọt bùi chứ không mặn chát.",
-    ],
-    fakeWarning:
-      "Tránh hạt điều ngâm hóa chất tẩy trắng vỏ, hạt ẩm mốc ỉu mềm hoặc chiên dầu công nghiệp hôi dầu.",
-    storageTip:
-      "Đậy kín nắp hũ sau khi ăn, tránh để hở gió làm hạt bị ỉu mất độ giòn.",
-    badge: "Hạt Dinh Dưỡng Rừng Khô",
-  },
-];
+export default function ExperienceGuideSection({ config }) {
+  if (!config?.enabled || !Array.isArray(config.items) || !config.items.length) return null;
+  return <ExperienceGuideContent key={JSON.stringify(config.items)} config={config} />;
+}
 
-export default function ExperienceGuideSection() {
+function ExperienceGuideContent({ config }) {
+  const items = config.items;
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isFading, setIsFading] = useState(false);
@@ -175,7 +20,7 @@ export default function ExperienceGuideSection() {
     (newIndex) => {
       if (newIndex === currentIndex || isFading) return;
       setIsFading(true);
-      setTimeout(() => {
+      timerRef.current = setTimeout(() => {
         setCurrentIndex(newIndex);
         setIsFading(false);
       }, 150);
@@ -185,25 +30,25 @@ export default function ExperienceGuideSection() {
 
   const handlePrev = useCallback(() => {
     const nextIdx =
-      (currentIndex - 1 + NINH_THUAN_EXPERIENCES.length) %
-      NINH_THUAN_EXPERIENCES.length;
+      (currentIndex - 1 + items.length) %
+      items.length;
     changeTab(nextIdx);
-  }, [currentIndex, changeTab]);
+  }, [currentIndex, changeTab, items.length]);
 
   const handleNext = useCallback(() => {
-    const nextIdx = (currentIndex + 1) % NINH_THUAN_EXPERIENCES.length;
+    const nextIdx = (currentIndex + 1) % items.length;
     changeTab(nextIdx);
-  }, [currentIndex, changeTab]);
+  }, [currentIndex, changeTab, items.length]);
 
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || items.length < 2) return;
 
     const timer = setInterval(() => {
       handleNext();
     }, 6000);
 
     return () => clearInterval(timer);
-  }, [isPaused, handleNext]);
+  }, [isPaused, handleNext, items.length]);
 
   useEffect(() => {
     const container = tabsContainerRef.current;
@@ -222,7 +67,7 @@ export default function ExperienceGuideSection() {
     }
   }, [currentIndex]);
 
-  const currentItem = NINH_THUAN_EXPERIENCES[currentIndex];
+  const currentItem = items[currentIndex];
 
   return (
     <section
@@ -256,16 +101,16 @@ export default function ExperienceGuideSection() {
         <div>
           <div className="flex items-center gap-2 text-amber-800 text-xs sm:text-sm font-black tracking-wider uppercase">
             <HelpCircle className="w-4 h-4 text-amber-600" />
-            <span>Kinh nghiệm nhà nông • 10 đặc sản chuẩn gốc</span>
+            <span>{config.subtitle}</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-stone-900 mt-1">
-            Mẹo Phân Biệt & Nhận Diện Nông Sản Ninh Thuận Thật
+            {config.title}
           </h3>
         </div>
 
         <div className="flex items-center gap-3 self-end sm:self-auto">
           <span className="text-sm font-mono font-bold text-stone-500">
-            {currentIndex + 1} / {NINH_THUAN_EXPERIENCES.length}
+            {currentIndex + 1} / {items.length}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -292,7 +137,7 @@ export default function ExperienceGuideSection() {
         ref={tabsContainerRef}
         className="flex items-center gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] scroll-smooth"
       >
-        {NINH_THUAN_EXPERIENCES.map((exp, idx) => (
+        {items.map((exp, idx) => (
           <button
             key={exp.id}
             type="button"
@@ -380,8 +225,8 @@ export default function ExperienceGuideSection() {
           </div>
 
           <div className="pt-3.5 border-t border-rose-200/60 flex items-center justify-between text-xs sm:text-sm text-rose-700 font-bold">
-            <span>🛡️ Bao ăn tận miệng</span>
-            <span>🌿 Chuẩn gốc hái giàn</span>
+            <span>{config.footerLeft}</span>
+            <span>{config.footerRight}</span>
           </div>
         </div>
       </div>

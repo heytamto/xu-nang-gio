@@ -1,12 +1,22 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Gift, Plus, Trash2, Loader2 } from "lucide-react";
+import { Gift, Trash2, Loader2, Pencil, Save } from "lucide-react";
+import ImageUploadField from "../../../../shared/components/ImageUploadField";
 import { giftRepo, shopConfigRepo } from "../../../../infrastructure/supabase/repositories/index";
 
 export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalConfig }) {
   const [gifts, setGifts] = useState([]);
   const [isEnabled, setIsEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [newGift, setNewGift] = useState({ id: "", title: "", tag: "Quà Quê", description: "" });
+  const [newGift, setNewGift] = useState({ id: "", title: "", tag: "Quà Quê", description: "", image_url: "" });
+
+  const [editingId, setEditingId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setNewGift({ id: "", title: "", tag: "Quà Quê", description: "", image_url: "" });
+  };
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -70,25 +80,35 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
 
   const handleAddGift = async (e) => {
     e.preventDefault();
-    if (!newGift.title.trim()) return;
+    if (!newGift.title.trim() || uploading || saving) return;
 
     const payload = {
       id: (newGift.id.trim() || `gift_${Date.now()}`).toLowerCase(),
       title: newGift.title.trim(),
       tag: newGift.tag.trim() || "Quà Quê",
       description: newGift.description.trim() || null,
+      image_url: newGift.image_url.trim() || null,
       type: "payment_reward",
       is_active: true,
     };
 
+    setSaving(true);
     try {
-      const data = await giftRepo.create(payload);
-      setGifts((prev) => [...prev, data]);
-      setNewGift({ id: "", title: "", tag: "Quà Quê", description: "" });
-      onShowAlert?.(`Đã thêm quà tặng "${data.title}"!`);
+      if (editingId) {
+        const { id, is_active, type, ...changes } = payload;
+        const data = await giftRepo.update(editingId, changes);
+        setGifts(prev => prev.map(g => g.id === editingId ? { ...g, ...changes, ...data } : g));
+        onShowAlert?.("Đã cập nhật quà tặng!");
+      } else {
+        const data = await giftRepo.create(payload);
+        setGifts(prev => [...prev, data]);
+        onShowAlert?.(`Đã thêm quà tặng "${data.title}"!`);
+      }
+      resetForm();
     } catch (err) {
-      console.error("Lỗi thêm quà:", err);
-      onShowAlert?.("Lỗi thêm quà: " + err.message);
+      onShowAlert?.("Lỗi lưu quà: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -105,9 +125,7 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
 
   const handleDelete = (giftId, giftTitle) => {
     if (!setConfirmModalConfig) {
-      if (window.confirm(`Bạn có chắc muốn xóa món quà "${giftTitle}" (#${giftId})?`)) {
-        executeDelete(giftId, giftTitle);
-      }
+      onShowAlert?.("Không thể mở hộp thoại xác nhận.");
       return;
     }
 
@@ -141,7 +159,8 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
         <label className="relative inline-flex items-center cursor-pointer shrink-0">
           <input 
             type="checkbox" 
-            checked={isEnabled} 
+            checked={isEnabled}
+            disabled={uploading || saving} 
             onChange={handleToggleGlobalGift} 
             className="sr-only peer" 
           />
@@ -167,12 +186,15 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
                       active ? "bg-white border-stone-200/90 shadow-2xs" : "bg-stone-100/80 border-stone-200 opacity-70"
                     }`}
                   >
-                    <div>
+                    <div className="flex gap-3 items-start">
+                      {g.image_url ? <img src={g.image_url} alt={g.title} loading="lazy" className="w-16 h-16 rounded-xl object-cover border border-stone-200 shrink-0" onError={e => { e.currentTarget.hidden = true; }} /> : <div className="w-16 h-16 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center shrink-0"><Gift className="w-6 h-6" /></div>}
+                      <div className="min-w-0 flex-1">
                       <div className="flex justify-between items-center gap-2">
                         <span className="font-bold text-sm text-stone-900 truncate">{g.title}</span>
                         <span className="text-[11px] font-mono text-stone-400 shrink-0">#{g.id}</span>
                       </div>
                       {g.description && <p className="text-xs text-stone-500 line-clamp-2 mt-1 leading-relaxed">{g.description}</p>}
+                    </div>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-stone-100">
                       <button
@@ -186,14 +208,17 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
                       >
                         {active ? "Đang bật" : "Đã tắt"}
                       </button>
+                      <div className="flex items-center gap-2">
+                      <button type="button" disabled={uploading || saving} title="Sửa quà tặng" aria-label="Sửa quà tặng" className="p-1.5 text-stone-500 hover:text-amber-700 rounded-lg hover:bg-stone-50 disabled:opacity-50" onClick={() => { setEditingId(g.id); setNewGift({ id: g.id, title: g.title || "", tag: g.tag || "Quà Quê", description: g.description || "", image_url: g.image_url || "" }); }}><Pencil className="w-4 h-4" /></button>
                       <button 
-                        type="button" 
+                        type="button" disabled={uploading || saving || editingId === g.id}
                         onClick={() => handleDelete(g.id, g.title)} 
                         className="p-1.5 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-stone-50 transition-colors cursor-pointer"
                         title="Xóa món quà này"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -202,12 +227,13 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
           )}
 
           <form onSubmit={handleAddGift} className="bg-stone-50 p-4 sm:p-5 rounded-2xl border border-stone-200 space-y-3 text-xs sm:text-sm shadow-2xs">
-            <span className="font-bold text-stone-800 block text-xs uppercase tracking-wide">Thêm Món Quà Quê Mới:</span>
+            <span className="font-bold text-stone-800 block text-xs uppercase tracking-wide">{editingId ? "Cập nhật quà tặng" : "Thêm món quà quê mới:"}</span>
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               <input
                 type="text"
                 placeholder="Mã ID (VD: g_me)"
                 value={newGift.id}
+                disabled={!!editingId || saving}
                 onChange={(e) => setNewGift({ ...newGift, id: e.target.value })}
                 className="sm:col-span-3 h-11 px-3 border border-stone-200 rounded-xl bg-white font-mono focus:outline-none focus:border-amber-600 shadow-2xs"
               />
@@ -226,19 +252,15 @@ export default function PaymentGiftConfigSection({ onShowAlert, setConfirmModalC
                 onChange={(e) => setNewGift({ ...newGift, tag: e.target.value })}
                 className="sm:col-span-3 h-11 px-3 border border-stone-200 rounded-xl bg-white focus:outline-none focus:border-amber-600 shadow-2xs"
               />
-              <div className="sm:col-span-12 flex gap-3">
-                <input
-                  type="text"
-                  placeholder="Mô tả quà tặng (Hũ mủ trôm, túi táo sấy dẻo...)"
-                  value={newGift.description}
-                  onChange={(e) => setNewGift({ ...newGift, description: e.target.value })}
-                  className="flex-1 h-11 px-3 border border-stone-200 rounded-xl bg-white focus:outline-none focus:border-amber-600 shadow-2xs"
-                />
-                <button 
-                  type="submit" 
-                  className="h-11 px-6 bg-amber-800 hover:bg-amber-900 text-white rounded-xl font-bold shrink-0 transition-all active:scale-95 cursor-pointer shadow-xs"
-                >
-                  Thêm Quà
+              <input type="text" placeholder="Mô tả quà tặng" value={newGift.description} onChange={e => setNewGift(prev => ({ ...prev, description: e.target.value }))} className="sm:col-span-12 h-11 px-3 border border-stone-200 rounded-xl bg-white focus:outline-none focus:border-amber-600" />
+              <div className="sm:col-span-12">
+                <ImageUploadField key={editingId || "new-gift"} label="Ảnh quà tặng" bucket="images" value={newGift.image_url} onChange={url => setNewGift(prev => ({ ...prev, image_url: url }))} onUploadStateChange={setUploading} />
+              </div>
+              <div className="sm:col-span-12 flex justify-end items-center gap-3 pt-3 border-t border-stone-200">
+                {editingId && <button type="button" disabled={uploading || saving} onClick={resetForm} className="px-4 py-3 rounded-xl font-bold text-stone-600 hover:bg-stone-100 disabled:opacity-50">Hủy bỏ</button>}
+                <button type="submit" disabled={uploading || saving} className="h-11 px-6 bg-amber-800 hover:bg-amber-900 text-white rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
+                  {saving || uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {uploading ? "Đang tải ảnh…" : saving ? "Đang lưu…" : editingId ? "Lưu thay đổi" : "Thêm quà"}
                 </button>
               </div>
             </div>

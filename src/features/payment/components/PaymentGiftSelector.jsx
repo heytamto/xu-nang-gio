@@ -2,6 +2,28 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Gift, Check } from 'lucide-react';
 
+function GiftImage({ src, title }) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <div className="relative w-full h-32 sm:h-36 rounded-xl overflow-hidden bg-amber-50 border border-amber-100 flex items-center justify-center">
+      {src && !failed ? (
+        <img
+          src={src}
+          alt={title || 'Quà tặng thanh toán'}
+          className="w-full h-full object-contain p-2"
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <Gift aria-hidden="true" className="w-10 h-10 text-amber-400" />
+      )}
+    </div>
+  );
+}
+
 export default function PaymentGiftSelector({ 
   paymentGifts = [], 
   selectedGiftId, 
@@ -119,13 +141,19 @@ export default function PaymentGiftSelector({
       >
         {activeGifts.map((gift) => {
           const isSelected = selectedGiftId === gift.id;
-          const giftImage = gift.image_url || gift.image;
+          const giftImage = gift.image_url || gift.image || '';
+          const giftTitle = gift.title || gift.name || 'Quà tặng';
 
           return (
-            <div
+            <button
+              type="button"
               key={gift.id}
-              onClick={() => handleCardClick(gift.id)}
-              className={`min-w-[250px] sm:min-w-[270px] max-w-[280px] p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none cursor-pointer ${
+              aria-pressed={isSelected}
+              onClick={(event) => {
+                if (event.detail === 0) onSelectGift?.(gift.id);
+                else handleCardClick(gift.id);
+              }}
+              className={`min-w-[250px] sm:min-w-[270px] max-w-[280px] p-4 text-left focus-visible:outline-2 focus-visible:outline-amber-600 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none cursor-pointer ${
                 isSelected
                   ? 'bg-white border-amber-600 ring-2 ring-amber-600/25 shadow-sm'
                   : 'bg-white/85 border-amber-200/80 hover:bg-white hover:border-amber-400'
@@ -148,27 +176,16 @@ export default function PaymentGiftSelector({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {giftImage && (
-                    <img 
-                      src={giftImage} 
-                      alt={gift.title || gift.name} 
-                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-stone-200 bg-stone-100"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  )}
-                  <strong className="font-bold text-sm sm:text-base leading-snug line-clamp-2 text-stone-900">
-                    {gift.title || gift.name}
-                  </strong>
-                </div>
+                <GiftImage key={`${gift.id}:${giftImage}`} src={giftImage} title={giftTitle} />
+                <strong className="block font-bold text-sm sm:text-base leading-snug line-clamp-2 text-stone-900">
+                  {giftTitle}
+                </strong>
               </div>
 
               <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed font-normal pointer-events-none">
                 {gift.description || gift.desc || 'Gửi kèm thùng xốp hái tươi'}
               </p>
-            </div>
+            </button>
           );
         })}
       </div>

@@ -2,10 +2,24 @@ import React, { useState, useEffect, useCallback } from "react";
 import { FolderTree, Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 import { categoryRepo } from "../../../../infrastructure/supabase/repositories/index";
 
+import CustomDropdown from '../../../../shared/components/CustomDropdown';
+import ModalPortal from '../../../../shared/components/ModalPortal';
+import { CATEGORY_ICON_OPTIONS, resolveCategoryIcon } from '../../utils/categoryIcons';
+
+function CategoryIconPicker({ category, onChange }) {
+  const renderIcon = (option) => {
+    const Icon = resolveCategoryIcon({ ...category, icon: option.value });
+    return <span className="flex items-center gap-2"><Icon className="w-4 h-4 text-amber-700 shrink-0" /><span>{option.label}</span></span>;
+  };
+  return <CustomDropdown label="Biểu tượng" options={CATEGORY_ICON_OPTIONS}
+    value={category.icon || 'auto'} onChange={onChange}
+    renderSelected={renderIcon} renderOption={renderIcon} />;
+}
+
 export default function CategoryConfigSection({ onShowAlert, setConfirmModalConfig }) {
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [newCategory, setNewCategory] = useState({ id: "", name: "", order: 0 });
+  const [newCategory, setNewCategory] = useState({ id: "", name: "", order: 0, icon: "auto" });
   const [editingCategory, setEditingCategory] = useState(null);
 
   const loadCategories = useCallback(async () => {
@@ -34,12 +48,13 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
       id: catId,
       name: newCategory.name.trim(),
       order: Number(newCategory.order) || 0,
+      icon: newCategory.icon === "auto" ? null : newCategory.icon,
     };
 
     try {
       const data = await categoryRepo.create(payload);
       setCategories((prev) => [...prev, data].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
-      setNewCategory({ id: "", name: "", order: 0 });
+      setNewCategory({ id: "", name: "", order: 0, icon: "auto" });
       onShowAlert?.(`Đã thêm danh mục "${data.name}"!`);
     } catch (err) {
       onShowAlert?.("Không thể thêm danh mục: " + err.message);
@@ -54,6 +69,7 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
       await categoryRepo.update(editingCategory.id, {
         name: editingCategory.name.trim(),
         order: Number(editingCategory.order) || 0,
+        icon: !editingCategory.icon || editingCategory.icon === "auto" ? null : editingCategory.icon,
       });
 
       setCategories((prev) =>
@@ -113,13 +129,16 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-          {categories.map((cat) => (
+          {categories.map((cat) => {
+            const Icon = resolveCategoryIcon(cat);
+            return (
             <div
               key={cat.id}
               className="p-4 rounded-2xl border border-stone-200 bg-stone-50/50 hover:bg-white flex items-center justify-between gap-3 shadow-2xs"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
+                  <Icon className="w-5 h-5 text-amber-700 shrink-0" />
                   <span className="font-bold text-stone-900 text-xs sm:text-sm truncate">{cat.name}</span>
                   <span className="text-[11px] font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded-md">#{cat.id}</span>
                 </div>
@@ -134,7 +153,7 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
                 </button>
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       )}
 
@@ -169,6 +188,7 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
             className="w-full h-11 px-3.5 rounded-2xl border border-stone-200 bg-white text-center font-bold"
           />
         </div>
+        <div className="flex-1 min-w-[200px]"><CategoryIconPicker category={newCategory} onChange={(icon) => setNewCategory(prev => ({ ...prev, icon }))} /></div>
         <button type="submit" className="h-11 px-6 bg-amber-800 hover:bg-amber-900 text-white rounded-2xl font-bold flex items-center gap-1.5 shrink-0">
           <Plus className="w-4 h-4" />
           <span>Thêm Danh Mục</span>
@@ -177,6 +197,7 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
 
       {/* Modal Sửa Danh Mục - Chuẩn hóa màu sắc đồng bộ với toàn app */}
       {editingCategory && (
+        <ModalPortal onClose={() => setEditingCategory(null)}>
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn font-sans text-stone-800"
           onClick={() => setEditingCategory(null)}
@@ -227,6 +248,8 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
                 />
               </div>
 
+              <CategoryIconPicker category={editingCategory} onChange={(icon) => setEditingCategory(prev => ({ ...prev, icon }))} />
+
               {/* Cụm nút bấm tỷ lệ cân đối */}
               <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
                 <button 
@@ -246,6 +269,7 @@ export default function CategoryConfigSection({ onShowAlert, setConfirmModalConf
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

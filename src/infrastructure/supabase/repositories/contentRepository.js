@@ -5,7 +5,7 @@ export const contentRepo = {
   async getCategories() {
     const { data, error } = await supabase
       .from('categories')
-      .select('id, name, "order", created_at')
+      .select('id, name, "order", created_at, icon')
       .order('order', { ascending: true });
     if (error) throw error;
     return data || [];

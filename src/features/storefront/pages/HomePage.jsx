@@ -1,3 +1,4 @@
+import { useStorefrontSections } from "../../shop-config/services/storefrontSections";
 // src/pages/HomePage.jsx
 import React, { useRef, useMemo } from "react";
 import {
@@ -51,6 +52,7 @@ export default function HomePage({
   onViewProductDetail,
 }) {
   const scrollRef = useRef(null);
+  const { data: sections } = useStorefrontSections();
 
   const isReviewsEnabled =
     shopConfig?.showCustomerReviews !== false &&
@@ -267,7 +269,7 @@ export default function HomePage({
       </section>
 
       {/* 3. LỊCH MÙA VỤ 12 THÁNG */}
-      <HarvestCalendarSection onNavigateShop={goToShop} />
+      <HarvestCalendarSection onNavigateShop={goToShop} config={sections?.harvest_calendar} />
 
       {/* 4. MÓN NGON TUYỂN CHỌN */}
       <section className="space-y-6">
@@ -412,7 +414,7 @@ export default function HomePage({
       </section>
 
       {/* 7. CẨM NANG 10 NÔNG SẢN SẠCH BẢN ĐỊA */}
-      <ExperienceGuideSection />
+      <ExperienceGuideSection config={sections?.experience_guide} />
 
       {/* 8. ĐÁNH GIÁ CỦA KHÁCH THƯƠNG */}
       {isReviewsEnabled && <CustomerReviewsSection />}

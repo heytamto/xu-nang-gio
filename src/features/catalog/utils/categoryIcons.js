@@ -25,6 +25,18 @@ const ICON_REGISTRY = {
   ShieldCheck
 };
 
+const ICON_LABELS = {
+  Sparkles: 'Ưu đãi / Combo', Apple: 'Trái cây', Flame: 'Đồ cay / Nem chả',
+  Fish: 'Hải sản', Wine: 'Đồ uống / Rượu', Leaf: 'Rau / Nông sản',
+  Carrot: 'Củ quả', Cherry: 'Trái mọng', Citrus: 'Cam / Quýt', Coffee: 'Cà phê',
+  Cookie: 'Bánh / Hạt', Package: 'Đặc sản đóng gói', ShoppingBag: 'Quà / Giỏ hàng',
+  Sun: 'Đặc sản phơi nắng', Award: 'Đặc sản tuyển chọn', ShieldCheck: 'Sản phẩm đảm bảo'
+};
+export const CATEGORY_ICON_OPTIONS = [
+  { value: 'auto', label: 'Tự động theo tên' },
+  ...Object.keys(ICON_REGISTRY).map(value => ({ value, label: ICON_LABELS[value] }))
+];
+
 /**
  * Lấy Icon component chuẩn động từ dữ liệu Category trong Database
  * @param {Object} category Dữ liệu danh mục lấy từ Supabase
@@ -35,7 +47,7 @@ export function resolveCategoryIcon(category) {
 
   // 1. Ưu tiên lấy từ trường `icon` được lưu trong DB (Ví dụ: "Flame", "Fish", "Apple")
   const iconName = category.icon || category.icon_name || category.iconName;
-  if (iconName && ICON_REGISTRY[iconName]) {
+  if (iconName && Object.hasOwn(ICON_REGISTRY, iconName)) {
     return ICON_REGISTRY[iconName];
   }
 
