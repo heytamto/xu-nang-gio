@@ -6,12 +6,12 @@ import CustomDropdown from '../../../../shared/components/CustomDropdown';
 import { useStorefrontSections, saveStorefrontSection, sectionQueryKey } from '../../services/storefrontSections';
 
 const guideFields = { tabLabel:'Tên tab', title:'Tiêu đề', origin:'Nguồn gốc', badge:'Nhãn', fakeWarning:'Cảnh báo chất lượng', storageTip:'Mẹo bảo quản' };
-const harvestFields = { title:'Tiêu đề', highlight:'Nông sản nổi bật', status:'Trạng thái mùa vụ', desc:'Mô tả', categoryTarget:'ID danh mục (all = tất cả)', tips:'Mẹo chọn mua' };
-const destinationFields = { spot:'Địa điểm', badge:'Nhãn', tagline:'Lời giới thiệu', experience:'Trải nghiệm', bestTime:'Thời gian phù hợp' };
+const harvestFields = { title:'Tiêu đề', highlight:'Nông sản nổi bật', status:'Trạng thái mùa vụ', categoryTarget:'ID danh mục (all = tất cả)', desc:'Mô tả', tips:'Mẹo chọn mua' };
+const destinationFields = { spot:'Địa điểm', badge:'Nhãn', bestTime:'Thời gian phù hợp', tagline:'Lời giới thiệu', experience:'Trải nghiệm' };
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm focus:outline-none focus:border-amber-600';
-function Field({ label, value, onChange, multiline = false }) {
+function Field({ label, value, onChange, multiline = false, fullWidth = false }) {
   const Tag = multiline ? 'textarea' : 'input';
-  return <label className="block space-y-1"><span className="text-xs font-bold text-stone-700">{label}</span><Tag className={inputClass} value={value ?? ''} onChange={e => onChange(e.target.value)} {...(multiline ? {rows:3} : {})}/></label>;
+  return <label className={`block min-w-0 space-y-1 ${fullWidth ? 'sm:col-span-2' : ''}`}><span className="text-xs font-bold text-stone-700">{label}</span><Tag className={`${inputClass} ${multiline ? 'block min-h-[96px] resize-y leading-relaxed' : 'h-11'}`} value={value ?? ''} onChange={e => onChange(e.target.value)} {...(multiline ? {rows:3} : {})}/></label>;
 }
 function SectionEditor({ sectionKey, initial, onShowAlert, setConfirmModalConfig }) {
   const guide = sectionKey === 'experience_guide';
@@ -58,7 +58,7 @@ function SectionEditor({ sectionKey, initial, onShowAlert, setConfirmModalConfig
       </div>
       {item&&<div className="border border-stone-200 rounded-2xl p-4 space-y-3"><div className="grid sm:grid-cols-2 gap-3">{Object.entries(guide?guideFields:harvestFields).map(([k,label])=><Field key={k} label={label} value={item[k]} onChange={v=>editItem({[k]:v})} multiline={['fakeWarning','storageTip','desc','tips'].includes(k)}/>)}</div>
       {!guide && <ImageUploadField key={`harvest-${item.month}`} label="Ảnh nông sản" bucket="images" value={item.image || ''} onChange={url=>updateMonthImage(item.month,false,url)} onUploadStateChange={handleUploadState}/> }
-      {guide?<Field label="Dấu hiệu nhận biết (mỗi dòng một ý)" value={item.realSigns.join('\n')} onChange={v=>editItem({realSigns:v.split('\n')})} multiline/>:<><h4 className="font-bold pt-2">Điểm đến & trải nghiệm</h4><div className="grid sm:grid-cols-2 gap-3">{Object.entries(destinationFields).map(([k,label])=><Field key={k} label={label} value={item.destination[k]} onChange={v=>editItem({destination:{...item.destination,[k]:v}})} multiline={k==='experience'}/>)}</div><ImageUploadField key={`destination-${item.month}`} label="Ảnh địa điểm" bucket="images" value={item.destination?.image || ''} onChange={url=>updateMonthImage(item.month,true,url)} onUploadStateChange={handleUploadState}/></>}
+      {guide?<Field label="Dấu hiệu nhận biết (mỗi dòng một ý)" value={item.realSigns.join('\n')} onChange={v=>editItem({realSigns:v.split('\n')})} multiline/>:<><h4 className="font-bold pt-4 border-t border-stone-100">Điểm đến & trải nghiệm</h4><div className="grid sm:grid-cols-2 gap-3">{Object.entries(destinationFields).map(([k,label])=><Field key={k} label={label} value={item.destination[k]} onChange={v=>editItem({destination:{...item.destination,[k]:v}})} multiline={['tagline','experience'].includes(k)} fullWidth={k==='spot'}/>)}</div><ImageUploadField key={`destination-${item.month}`} label="Ảnh địa điểm" bucket="images" value={item.destination?.image || ''} onChange={url=>updateMonthImage(item.month,true,url)} onUploadStateChange={handleUploadState}/></>}
       </div>}
       {error&&<p role="alert" className="text-sm text-rose-700">{error}</p>}
       <div className="flex items-center justify-end pt-3 border-t border-stone-100">
