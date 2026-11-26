@@ -1,0 +1,35 @@
+// src/constants/vietqrBanks.js
+export const VIETQR_BANKS = [
+  { bin: '970422', shortName: 'MBBank', name: 'MB - Ngân hàng Quân Đội', appCode: 'mb' },
+  { bin: '970436', shortName: 'Vietcombank', name: 'VCB - Ngoại Thương Việt Nam', appCode: 'vcb' },
+  { bin: '970415', shortName: 'VietinBank', name: 'VietinBank - Công Thương Việt Nam', appCode: 'vtb' },
+  { bin: '970405', shortName: 'Agribank', name: 'Agribank - Nông Nghiệp & PTNT', appCode: 'vba' },
+  { bin: '970418', shortName: 'BIDV', name: 'BIDV - Đầu Tư & Phát Triển Việt Nam', appCode: 'bidv' },
+  { bin: '970407', shortName: 'Techcombank', name: 'TCB - Kỹ Thương Việt Nam', appCode: 'tcb' },
+  { bin: '970416', shortName: 'ACB', name: 'ACB - Á Châu', appCode: 'acb' },
+  { bin: '970432', shortName: 'VPBank', name: 'VPBank - Việt Nam Thịnh Vượng', appCode: 'vpb' },
+  { bin: '970423', shortName: 'TPBank', name: 'TPBank - Tiên Phong', appCode: 'tpb' },
+  { bin: '970403', shortName: 'Sacombank', name: 'STB - Sài Gòn Thương Tín', appCode: 'stb' },
+  { bin: '970441', shortName: 'VIB', name: 'VIB - Quốc Tế', appCode: 'vib' },
+  { bin: '970448', shortName: 'OCB', name: 'OCB - Phương Đông', appCode: 'ocb' },
+  { bin: '970437', shortName: 'HDBank', name: 'HDBank - Phát Triển TP.HCM', appCode: 'hdb' },
+  { bin: '970454', shortName: 'VietCapitalBank', name: 'BVBank - Bản Việt', appCode: 'bvb' },
+  { bin: '970429', shortName: 'SCB', name: 'SCB - Sài Gòn', appCode: 'scb' },
+  { bin: '970443', shortName: 'SHB', name: 'SHB - Sài Gòn - Hà Nội', appCode: 'shb' },
+  { bin: '970431', shortName: 'Eximbank', name: 'EIB - Xuất Nhập Khẩu Việt Nam', appCode: 'eib' },
+  { bin: '970449', shortName: 'LienVietPostBank', name: 'LPBank - Lộc Phát Việt Nam', appCode: 'lpb' },
+  { bin: '970414', shortName: 'Oceanbank', name: 'Oceanbank - Đại Dương', appCode: 'ojb' },
+  { bin: '970419', shortName: 'NCB', name: 'NCB - Quốc Dân', appCode: 'ncb' },
+  { bin: '970428', shortName: 'NamABank', name: 'Nam A Bank - Nam Á', appCode: 'nab' },
+  { bin: '970433', shortName: 'VietBank', name: 'VietBank - Việt Nam Thương Tín', appCode: 'vb' },
+  { bin: '970406', shortName: 'DongABank', name: 'Đông Á Bank', appCode: 'dab' },
+  { bin: '970427', shortName: 'VietABank', name: 'Việt Á Bank', appCode: 'vab' },
+  { bin: '970438', shortName: 'BaoVietBank', name: 'Bảo Việt Bank', appCode: 'bvb' },
+  { bin: '970440', shortName: 'SeABank', name: 'SeABank - Đông Nam Á', appCode: 'seab' },
+  { bin: '970452', shortName: 'KienLongBank', name: 'Kiên Long Bank', appCode: 'klb' },
+  { bin: '963388', shortName: 'TIMO', name: 'Timo by BVBank', appCode: 'timo' },
+  { bin: '546034', shortName: 'Cake', name: 'Cake by VPBank', appCode: 'cake' },
+  { bin: '546035', shortName: 'ViettelMoney', name: 'Viettel Money', appCode: 'viettelmoney' }
+];
+
+export const getBankByBin = (bin) => VIETQR_BANKS.find((b) => b.bin === String(bin));
