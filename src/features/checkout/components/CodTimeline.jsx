@@ -6,8 +6,8 @@ export default function CodTimeline({ finalTotalAmount = 0 }) {
   const safeTotal = Number(finalTotalAmount) || 0;
 
   return (
-    <div className="p-4 sm:p-5 bg-white rounded-3xl border border-stone-200/90 shadow-2xs space-y-4 animate-fadeIn font-sans text-stone-800">
-      <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+    <div className="p-3 sm:p-4 bg-white rounded-3xl border border-stone-200/90 shadow-2xs space-y-3 animate-fadeIn font-sans text-stone-800">
+      <div className="flex items-center justify-between border-b border-stone-100 pb-2">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
           <span className="text-xs sm:text-sm font-black text-stone-900 uppercase tracking-wide">
@@ -19,7 +19,7 @@ export default function CodTimeline({ finalTotalAmount = 0 }) {
         </span>
       </div>
 
-      <div className="relative pl-7 space-y-4 text-xs sm:text-sm before:absolute before:left-3.5 before:top-2.5 before:bottom-2.5 before:w-0.5 before:bg-stone-200">
+      <div className="relative pl-7 space-y-3 text-xs sm:text-sm before:absolute before:left-3.5 before:top-2.5 before:bottom-2.5 before:w-0.5 before:bg-stone-200">
         {/* Bước 1 */}
         <div className="relative">
           <span className="absolute -left-7 top-0.5 w-7 h-7 rounded-full bg-amber-500 text-white font-bold flex items-center justify-center ring-4 ring-white shadow-2xs">

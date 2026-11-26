@@ -1,0 +1,2 @@
+import { PolicyHeader, PolicyIcon } from './PolicyParts';
+export default function CompactPolicy({policy}) { return <><PolicyHeader policy={policy} compact/><div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{policy.items.map((item,i)=><div key={i} className="flex items-center gap-2 min-w-0"><PolicyIcon item={item} small/><span className="text-xs font-semibold text-stone-700 break-words min-w-0">{item.title}</span></div>)}</div></>; }

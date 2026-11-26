@@ -67,7 +67,7 @@ export default function PaymentMethodSelector({
 
       <div className="grid grid-cols-1 gap-2.5">
         {/* 1. Chuyển khoản 100% (Luôn mở) */}
-        <label className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center justify-between ${
+        <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
           paymentMethod === 'full_qr' 
             ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-600/20 shadow-2xs' 
             : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -107,7 +107,7 @@ export default function PaymentMethodSelector({
         {/* 2. Cọc giữ đơn (Nói rõ số tiền cọc và số tiền gửi nhà xe) */}
         {!isTotalLowerThanDeposit && (
           !isLastOrderBombed ? (
-            <label className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center justify-between ${
+            <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
               paymentMethod === 'deposit' 
                 ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-600/20 shadow-2xs' 
                 : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -142,7 +142,7 @@ export default function PaymentMethodSelector({
               />
             </label>
           ) : (
-            <div className="p-4 rounded-2xl border border-dashed border-rose-300 bg-rose-50/60 text-stone-500 flex items-center justify-between select-none">
+            <div className="p-3 rounded-2xl border border-dashed border-rose-300 bg-rose-50/60 text-stone-500 flex items-center justify-between select-none">
               <div className="flex items-center gap-3">
                 <Ban className="w-5 h-5 text-rose-500 shrink-0" />
                 <div className="space-y-0.5">
@@ -163,7 +163,7 @@ export default function PaymentMethodSelector({
 
         {/* 3. COD (Bị khóa nếu bom đơn trước đó hoặc hủy 2 đơn liên tiếp) */}
         {!isCodBlocked ? (
-          <label className={`cursor-pointer p-4 rounded-2xl border transition-all flex items-center justify-between ${
+          <label className={`cursor-pointer p-3 rounded-2xl border transition-all flex items-center justify-between ${
             paymentMethod === 'cod' 
               ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-600/20 shadow-2xs' 
               : 'border-stone-200 bg-white hover:bg-stone-50'
@@ -189,7 +189,7 @@ export default function PaymentMethodSelector({
             />
           </label>
         ) : (
-          <div className="p-4 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 text-stone-500 flex items-center justify-between select-none">
+          <div className="p-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 text-stone-500 flex items-center justify-between select-none">
             <div className="flex items-center gap-3">
               <Truck className="w-5 h-5 text-amber-600 shrink-0" />
               <div className="space-y-0.5">

@@ -6,19 +6,19 @@ function GiftImage({ src, title }) {
   const [failed, setFailed] = useState(false);
 
   return (
-    <div className="relative w-full h-32 sm:h-36 rounded-xl overflow-hidden bg-amber-50 border border-amber-100 flex items-center justify-center">
+    <div className="relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl overflow-hidden bg-amber-50 border border-amber-100 flex items-center justify-center">
       {src && !failed ? (
         <img
           src={src}
           alt={title || 'Quà tặng thanh toán'}
-          className="w-full h-full object-contain p-2"
+          className="w-full h-full object-contain p-1"
           draggable={false}
           loading="lazy"
           decoding="async"
           onError={() => setFailed(true)}
         />
       ) : (
-        <Gift aria-hidden="true" className="w-10 h-10 text-amber-400" />
+        <Gift aria-hidden="true" className="w-6 h-6 text-amber-400" />
       )}
     </div>
   );
@@ -65,6 +65,8 @@ export default function PaymentGiftSelector({
 
     const handleWheel = (e) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0 || (e.deltaY < 0 && el.scrollLeft <= 0) || (e.deltaY > 0 && el.scrollLeft >= max - 1)) return;
       if (e.deltaY !== 0) {
         e.preventDefault();
         el.scrollLeft += e.deltaY * 0.9;
@@ -115,8 +117,8 @@ export default function PaymentGiftSelector({
   }
 
   return (
-    <div className="bg-amber-50/80 rounded-3xl p-5 sm:p-6 border border-amber-200/90 space-y-3.5 animate-fadeIn font-sans text-stone-800">
-      <div className="flex items-center justify-between border-b border-amber-200/70 pb-3 flex-wrap gap-2">
+    <div className="bg-amber-50/80 rounded-3xl p-3 sm:p-4 border border-amber-200/90 space-y-2.5 animate-fadeIn font-sans text-stone-800">
+      <div className="flex items-center justify-between border-b border-amber-200/70 pb-2 flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <Gift className="w-5 h-5 text-amber-700 shrink-0" />
           <span className="text-sm sm:text-base font-black text-amber-950 uppercase tracking-wide">
@@ -135,7 +137,7 @@ export default function PaymentGiftSelector({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUpOrLeave}
         onMouseLeave={handleMouseUpOrLeave}
-        className={`flex items-stretch gap-3 overflow-x-auto pb-2 pt-1 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+        className={`flex items-stretch gap-2 overflow-x-auto pb-1 pt-1 select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
       >
@@ -153,20 +155,21 @@ export default function PaymentGiftSelector({
                 if (event.detail === 0) onSelectGift?.(gift.id);
                 else handleCardClick(gift.id);
               }}
-              className={`min-w-[250px] sm:min-w-[270px] max-w-[280px] p-4 text-left focus-visible:outline-2 focus-visible:outline-amber-600 rounded-2xl border transition-all flex flex-col justify-between gap-3 shrink-0 select-none cursor-pointer ${
+              className={`w-[min(100%,240px)] sm:w-[260px] p-2.5 text-left focus-visible:outline-2 focus-visible:outline-amber-600 rounded-2xl border transition-all flex items-center gap-2.5 shrink-0 select-none cursor-pointer ${
                 isSelected
                   ? 'bg-white border-amber-600 ring-2 ring-amber-600/25 shadow-sm'
                   : 'bg-white/85 border-amber-200/80 hover:bg-white hover:border-amber-400'
               }`}
             >
-              <div className="space-y-2 pointer-events-none">
+              <GiftImage key={`${gift.id}:${giftImage}`} src={giftImage} title={giftTitle} />
+              <div className="min-w-0 flex-1 space-y-1 pointer-events-none">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg truncate max-w-[160px] bg-amber-100 text-amber-900">
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg truncate max-w-full min-w-0 bg-amber-100 text-amber-900">
                     {gift.tag || 'Quà Quê'}
                   </span>
 
                   <div
-                    className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
+                    className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 border transition-colors ${
                       isSelected
                         ? 'bg-amber-600 border-amber-600 text-white'
                         : 'border-stone-300 bg-white'
@@ -176,15 +179,13 @@ export default function PaymentGiftSelector({
                   </div>
                 </div>
 
-                <GiftImage key={`${gift.id}:${giftImage}`} src={giftImage} title={giftTitle} />
-                <strong className="block font-bold text-sm sm:text-base leading-snug line-clamp-2 text-stone-900">
+                <strong className="block font-bold text-xs sm:text-sm leading-snug line-clamp-2 text-stone-900">
                   {giftTitle}
                 </strong>
-              </div>
-
-              <p className="text-xs text-stone-600 line-clamp-2 leading-relaxed font-normal pointer-events-none">
+                <p className="text-xs text-stone-600 line-clamp-2 leading-snug font-normal">
                 {gift.description || gift.desc || 'Gửi kèm thùng xốp hái tươi'}
-              </p>
+                </p>
+              </div>
             </button>
           );
         })}

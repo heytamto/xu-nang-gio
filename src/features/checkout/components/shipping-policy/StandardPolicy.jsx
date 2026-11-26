@@ -1,0 +1,2 @@
+import { PolicyHeader, PolicyIcon } from './PolicyParts';
+export default function StandardPolicy({policy}) { return <><PolicyHeader policy={policy}/><div className="grid grid-cols-1 sm:grid-cols-3 gap-2">{policy.items.map((item,i)=><div key={i} className="rounded-xl bg-white/85 border border-stone-200/70 p-3 space-y-1.5 min-w-0"><PolicyIcon item={item} small/><h4 className="text-sm font-bold text-stone-900 break-words">{item.title}</h4><p className="text-xs text-stone-600 leading-relaxed break-words">{item.description}</p></div>)}</div></>; }

@@ -4,6 +4,7 @@ import PaymentGiftConfigSection from "./PaymentGiftConfigSection";
 import ShopGeneralConfigSection from "./ShopGeneralConfigSection";
 import VoucherConfigSection from "./VoucherConfigSection";
 import EmailTemplateConfigSection from "./EmailTemplateConfigSection";
+import ShippingPolicyConfig from "./ShippingPolicyConfig";
 import StorefrontSectionsConfig from "./StorefrontSectionsConfig";
 import ConfirmModal from "../../../admin/components/ConfirmModal";
 
@@ -43,6 +44,8 @@ export default function ConfigVoucherTab({
       />
 
       <StorefrontSectionsConfig onShowAlert={onShowAlert} setConfirmModalConfig={setConfirmModalConfig} />
+
+      <ShippingPolicyConfig onShowAlert={onShowAlert} setConfirmModalConfig={setConfirmModalConfig} />
 
       {/* Modal Xác Nhận Chung */}
       <ConfirmModal

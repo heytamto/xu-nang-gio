@@ -114,10 +114,10 @@ export default function CustomerInfoForm({
   };
 
   return (
-    <div className="bg-stone-50/90 rounded-3xl p-5 sm:p-6 border border-stone-200/90 space-y-4 sm:space-y-5 font-sans text-stone-800">
+    <div className="bg-stone-50/90 rounded-3xl p-3 sm:p-4 border border-stone-200/90 space-y-3 font-sans text-stone-800">
       
       {/* Tiêu đề nhóm */}
-      <div className="flex items-center justify-between border-b border-stone-200/70 pb-3.5">
+      <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
         <div className="flex items-center gap-2.5">
           <span className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
             2
@@ -136,7 +136,7 @@ export default function CustomerInfoForm({
       </div>
 
       {/* Họ tên & Số điện thoại */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
         <div>
           <div className="relative">
             <User className="w-5 h-5 text-stone-400 absolute left-3.5 top-3.5" />

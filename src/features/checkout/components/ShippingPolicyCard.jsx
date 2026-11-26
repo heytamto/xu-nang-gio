@@ -1,91 +1,38 @@
-// src/components/checkout/ShippingPolicyCard.jsx
-import React from 'react';
-import { HeartHandshake, Sparkles, PackageCheck, ShieldCheck, Headphones, BadgeCheck, Phone } from 'lucide-react';
-
-// Helper bóc tách an toàn mọi object {text} từ Supabase config
-function extractText(val, fallback = '') {
-  if (!val) return fallback;
-  if (typeof val === 'string' || typeof val === 'number') return String(val);
-  if (typeof val === 'object') {
-    return val.text || val.label || val.content || val.title || fallback;
-  }
-  return fallback;
-}
-
-export default function ShippingPolicyCard({ 
-  shouldShowFullPolicy, 
-  hotline = '0848.957.345',
-  shopConfig = {}
-}) {
-  const activeHotline = extractText(shopConfig?.hotline, hotline);
-  const cleanPhone = String(activeHotline).replace(/\D/g, '');
-  const announcementText = extractText(
-    shopConfig?.announcement,
-    'Bao ăn từng quả • Đóng thùng xốp dày • Bù hàng trong 24h'
-  );
-
-  if (!shouldShowFullPolicy) {
-    return (
-      <div className="p-3.5 sm:p-4 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/50 rounded-2xl border border-amber-200/90 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm animate-fadeIn font-sans text-stone-800">
-        <span className="flex items-center gap-2 font-bold text-amber-950 text-xs sm:text-sm min-w-0">
-          <BadgeCheck className="w-5 h-5 text-amber-700 shrink-0" />
-          <span className="truncate">{announcementText}</span>
-        </span>
-        <a
-          href={`tel:${cleanPhone}`}
-          className="text-xs sm:text-sm font-mono font-bold text-amber-950 bg-amber-100 hover:bg-amber-200/90 px-3 py-1.5 rounded-xl shrink-0 flex items-center gap-1.5 transition-colors border border-amber-300/60 shadow-2xs"
-        >
-          <Phone className="w-3.5 h-3.5 text-amber-700" />
-          <span>Hotline: {activeHotline}</span>
-        </a>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-gradient-to-br from-amber-50/70 via-stone-50 to-emerald-50/40 rounded-3xl p-5 sm:p-6 border border-amber-200/80 shadow-2xs space-y-4 animate-fadeIn font-sans text-stone-800">
-      <div className="flex items-center justify-between border-b border-amber-200/60 pb-3 flex-wrap gap-2">
-        <span className="text-sm sm:text-base font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
-          <HeartHandshake className="w-5 h-5 text-amber-700" />
-          <span>Chính Sách Giao Hàng & Bảo Vệ Khách Hàng</span>
-        </span>
-        <span className="text-xs font-bold text-emerald-900 bg-emerald-100/90 px-3 py-1 rounded-full border border-emerald-300 flex items-center gap-1.5 shadow-2xs shrink-0">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
-          <span>Bao ăn từng quả</span>
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs sm:text-sm">
-        <div className="bg-white/95 p-4 rounded-2xl border border-stone-200/90 space-y-1.5 shadow-2xs">
-          <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold mb-1">
-            <PackageCheck className="w-4 h-4" />
-          </div>
-          <strong className="block text-xs sm:text-sm text-stone-900 font-bold">Đóng thùng xốp dày</strong>
-          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-normal">
-            Lưới xốp từng chùm, chèn vụn chống dập khi xe chạy.
-          </p>
-        </div>
-
-        <div className="bg-white/95 p-4 rounded-2xl border border-stone-200/90 space-y-1.5 shadow-2xs">
-          <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold mb-1">
-            <ShieldCheck className="w-4 h-4" />
-          </div>
-          <strong className="block text-xs sm:text-sm text-stone-900 font-bold">Bao ăn - Bao dập</strong>
-          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-normal">
-            Quả dập úng, vườn gửi bù ngay hoặc hoàn tiền 24h.
-          </p>
-        </div>
-
-        <div className="bg-white/95 p-4 rounded-2xl border border-stone-200/90 space-y-1.5 shadow-2xs">
-          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold mb-1">
-            <Headphones className="w-4 h-4" />
-          </div>
-          <strong className="block text-xs sm:text-sm text-stone-900 font-bold">Báo giờ xe đến</strong>
-          <p className="text-xs sm:text-sm text-stone-600 leading-relaxed font-normal">
-            Thông báo biển số xe và giờ xe tới để bạn đón hàng.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+import { useLayoutEffect, useRef, useState } from 'react';
+import { useShippingPolicy } from '../../shop-config/services/shippingPolicy';
+import CompactPolicy from './shipping-policy/CompactPolicy';
+import StandardPolicy from './shipping-policy/StandardPolicy';
+import LargePolicy from './shipping-policy/LargePolicy';
+import ExpandedPolicy from './shipping-policy/ExpandedPolicy';
+import { choosePolicyLayout, MODES } from './shipping-policy/policyLayout.mjs';
+import DeliveryTimeline from './shipping-policy/DeliveryTimeline';
+import PolicySupport from './shipping-policy/PolicySupport';
+function StandardSupport(props) { return <><StandardPolicy {...props}/>{props.policy.showSupport && <PolicySupport hotline={props.hotline} text={props.policy.supportText}/>}</>; }
+function StandardTimeline(props) { return <><StandardPolicy {...props}/>{props.policy.showTimeline && <DeliveryTimeline steps={props.policy.steps}/>}</>; }
+function StandardPlus(props) { return <><StandardTimeline {...props}/>{props.policy.showSupport && <PolicySupport hotline={props.hotline} text={props.policy.supportText}/>}</>; }
+const layouts = {compact:CompactPolicy,standard:StandardPolicy,standardSupport:StandardSupport,standardTimeline:StandardTimeline,standardPlus:StandardPlus,large:LargePolicy,expanded:ExpandedPolicy};
+const shell='rounded-2xl border border-amber-200/60 bg-gradient-to-br from-amber-50/60 via-white to-stone-50 p-3 sm:p-4 flex flex-col gap-3 min-w-0';
+export default function ShippingPolicyCard({budget=null, hotline, shopConfig={}, previewPolicy, previewMode}) {
+  const {data} = useShippingPolicy();
+  const policy = previewPolicy ?? data;
+  const probe=useRef(null);
+  const [heights,setHeights]=useState({});
+  const active=Boolean(policy?.enabled && Array.isArray(policy?.items) && policy.items.length);
+  useLayoutEffect(()=>{
+    if(!active || budget==null || !probe.current)return;
+    const root=probe.current;
+    const measure=()=>{
+      const next=Object.fromEntries([...root.children].map(el=>[el.dataset.mode,Math.ceil(el.getBoundingClientRect().height)]));
+      setHeights(prev=>MODES.every(m=>prev[m]===next[m])?prev:next);
+    };
+    const observer=typeof ResizeObserver!=='undefined'?new ResizeObserver(measure):null;
+    for(const el of root.children)observer?.observe(el);
+    measure();
+    return ()=>observer?.disconnect();
+  },[active,budget==null,policy]);
+  if(!active)return null;
+  const phone=hotline||shopConfig?.hotline||shopConfig?.general?.hotline;
+  const mode=MODES.includes(previewMode)?previewMode:choosePolicyLayout(budget,heights);
+  const Layout=layouts[mode];
+  return <div className="relative min-w-0"><section className={shell} data-policy-layout={mode}><Layout policy={policy} hotline={phone}/></section>{budget!=null&&<div ref={probe} aria-hidden="true" inert className="absolute inset-x-0 top-0 h-0 overflow-hidden invisible pointer-events-none">{MODES.map(m=>{const Variant=layouts[m];return <div key={m} data-mode={m} className={shell}><Variant policy={policy} hotline={phone}/></div>;})}</div>}</div>;
 }

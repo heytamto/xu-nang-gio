@@ -1,0 +1,2 @@
+import { PolicyIcon } from './PolicyParts';
+export default function DeliveryTimeline({steps=[]}) { if (!steps.length) return null; return <div className="border-t border-stone-200/70 pt-3 space-y-2"><h4 className="font-bold text-sm text-amber-950">Hành trình đơn hàng</h4><ol className="grid grid-cols-2 sm:grid-cols-4 gap-2">{steps.map((step,i)=><li key={i} className="flex flex-col items-center gap-1 text-center"><PolicyIcon item={step} small/><span className="text-xs font-medium text-stone-700 break-words">{step.title}</span></li>)}</ol></div>; }

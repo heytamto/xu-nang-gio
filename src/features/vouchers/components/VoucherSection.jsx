@@ -22,7 +22,7 @@ export default function VoucherSection({
   };
 
   return (
-    <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-2xs space-y-3.5 font-sans text-stone-800">
+    <div className="bg-white p-3 sm:p-4 rounded-3xl border border-stone-200/90 shadow-2xs space-y-3 font-sans text-stone-800">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <label className="text-sm sm:text-base font-black text-stone-900 flex items-center gap-2 tracking-wide">
           <Tag className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />

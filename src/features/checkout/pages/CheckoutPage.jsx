@@ -1,5 +1,5 @@
 import { supabase } from '../../../infrastructure/supabase/supabaseClient';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ArrowLeft, AlertCircle } from "lucide-react";
 import { generatePrefixedDateId } from "../../../shared/utils/idGenerator";
 import { validateName, validatePhone, validateEmail } from "../../../shared/utils/validationUtils";
@@ -14,6 +14,7 @@ import CodTimeline from "../components/CodTimeline";
 import VietQrBox from "../../payment/components/VietQrBox";
 import OrderSummaryCard from "../components/OrderSummaryCard";
 import EmptyCheckout from "../components/EmptyCheckout";
+import { useCheckoutColumnBalance } from "../hooks/useCheckoutColumnBalance";
 import { useCheckoutPricing } from "../hooks/useCheckoutPricing";
 import { useCheckoutLiveData } from "../hooks/useCheckoutLiveData";
 import { useCheckoutCustomer } from "../hooks/useCheckoutCustomer";
@@ -48,12 +49,15 @@ export default function CheckoutPage({
 
   const [accepting,setAccepting]=useState(null);
   useEffect(()=>{let alive=true;async function refresh(){try{const {data,error}=await supabase.rpc('xng_checkout_open');if(alive)setAccepting(error?null:data);}catch{if(alive)setAccepting(null);}} refresh();const timer=setInterval(refresh,30000);return()=>{alive=false;clearInterval(timer);};},[]);
+  const leftContent = useRef(null);
+  const rightColumn = useRef(null);
+  const policyBudget = useCheckoutColumnBalance(leftContent, rightColumn, cart.length > 0);
   if (!cart.length) return <EmptyCheckout onNavigate={onNavigate} />;
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 font-sans">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5 font-sans">
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl overflow-hidden relative">
-        <div className="bg-stone-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-stone-900 text-white p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -92,10 +96,10 @@ export default function CheckoutPage({
 
         <form
           onSubmit={e=>{if(accepting===false){e.preventDefault();showNotice("Vườn đang tạm ngừng nhận đơn. Giỏ hàng vẫn được giữ nguyên. Vui lòng quay lại sau.", "Tạm ngừng nhận đơn");return;}handleSubmit(e);}}
-          className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch"
+          className="p-3 sm:p-4 lg:p-5 grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start"
         >
-          <div className="lg:col-span-7 flex flex-col justify-between gap-5 h-full">
-            <div className="space-y-4">
+          <div className="lg:col-span-7 min-w-0 flex flex-col gap-3">
+            <div ref={leftContent} className="space-y-3">
               <OrderItemsList
                 cart={activeCart}
                 totalAmount={activeSubtotal}
@@ -128,14 +132,14 @@ export default function CheckoutPage({
               />
             </div>
             <ShippingPolicyCard
-              shouldShowFullPolicy={activeCart.length <= 2}
+              budget={policyBudget}
               hotline={liveConfig?.hotline}
               shopConfig={liveConfig}
             />
           </div>
 
-          <div className="lg:col-span-5 bg-stone-50/90 rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-xs flex flex-col justify-between gap-4 h-full">
-            <div className="space-y-4">
+          <div ref={rightColumn} className="lg:col-span-5 min-w-0 bg-stone-50/90 rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs flex flex-col gap-3">
+            <div className="space-y-3">
               <VoucherSection
                 voucherInput={voucherInput}
                 setVoucherInput={setVoucherInput}

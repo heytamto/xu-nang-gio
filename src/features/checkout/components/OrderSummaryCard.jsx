@@ -27,12 +27,12 @@ export default function OrderSummaryCard({
   const freeshipProgressPercent = Math.min(100, Math.round((safeTotal / freeShippingThreshold) * 100));
 
   return (
-    <div className="space-y-3.5 pt-2 font-sans text-stone-800">
-      <div className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 space-y-3.5 text-xs sm:text-sm shadow-2xs">
+    <div className="space-y-3 font-sans text-stone-800">
+      <div className="bg-white p-3 sm:p-4 rounded-3xl border border-stone-200/90 space-y-3 text-xs sm:text-sm shadow-2xs">
         
         {/* Thanh gợi ý Freeship */}
         {safeTotal > 0 && remainingForFreeship > 0 && (
-          <div className="bg-amber-50/80 p-3.5 rounded-2xl border border-amber-200/70 space-y-2">
+          <div className="bg-amber-50/80 p-3 rounded-2xl border border-amber-200/70 space-y-2">
             <div className="flex items-center justify-between text-xs sm:text-sm">
               <span className="text-amber-950 font-medium flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-amber-700 shrink-0" />

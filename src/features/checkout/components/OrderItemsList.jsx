@@ -24,10 +24,10 @@ export default function OrderItemsList({
   };
 
   return (
-    <div className="@container bg-stone-50/90 rounded-3xl p-3 sm:p-5 border border-stone-200/90 space-y-4 font-sans text-stone-800">
+    <div className="@container bg-stone-50/90 rounded-3xl p-3 sm:p-4 border border-stone-200/90 space-y-3 font-sans text-stone-800">
       
       {/* Header nhóm */}
-      <div className="flex items-center justify-between border-b border-stone-200/80 pb-3 flex-wrap gap-x-4 gap-y-2">
+      <div className="flex items-center justify-between border-b border-stone-200/80 pb-2 flex-wrap gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="w-6 h-6 shrink-0 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
             1
@@ -54,7 +54,7 @@ export default function OrderItemsList({
           const uniqueKey = item.cartItemId || item.id || `${item.product_id || item.productId || idx}_${item.weight_id || item.weightId || 'std'}`;
 
           return (
-            <div key={uniqueKey} className="py-3 first:pt-1 last:pb-0 flex flex-col gap-3 text-xs sm:text-sm">
+            <div key={uniqueKey} className="py-2.5 first:pt-1 last:pb-0 flex flex-col gap-2 text-xs sm:text-sm">
               
               {/* Tên món chiếm toàn bộ chiều rộng; xuống dòng tự nhiên trên mobile */}
               <h4 className="font-bold text-stone-900 text-sm sm:text-base leading-snug [overflow-wrap:anywhere]">

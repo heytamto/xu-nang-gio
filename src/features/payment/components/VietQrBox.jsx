@@ -71,7 +71,7 @@ export default function VietQrBox({
   };
 
   return (
-    <div className="p-5 sm:p-6 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-4 text-center font-sans animate-fadeIn text-stone-800">
+    <div className="p-3 sm:p-4 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-3 text-center font-sans animate-fadeIn text-stone-800">
       {/* Tiêu đề & Số tiền */}
       <div className="flex items-center justify-between px-1 flex-wrap gap-2">
         <span className="text-sm sm:text-base font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
@@ -104,7 +104,7 @@ export default function VietQrBox({
         </div>
       ) : (
         /* Khung ảnh QR khi chưa thanh toán */
-        <div className="inline-flex p-3 sm:p-4 bg-white rounded-3xl border border-stone-200/90 shadow-inner relative group">
+        <div className="inline-flex p-2 sm:p-3 bg-white rounded-3xl border border-stone-200/90 shadow-inner relative group">
           <img
             src={qrImageUrl}
             alt="Mã VietQR Chuyển Khoản"
@@ -115,7 +115,7 @@ export default function VietQrBox({
       )}
 
       {/* Thông tin tài khoản kèm nút sao chép */}
-      <div className="bg-stone-50/90 p-4 rounded-2xl border border-stone-200/80 space-y-2.5 text-xs sm:text-sm text-left">
+      <div className="bg-stone-50/90 p-3 rounded-2xl border border-stone-200/80 space-y-2.5 text-xs sm:text-sm text-left">
         <div className="flex items-center justify-between">
           <span className="text-stone-500 font-medium">Ngân hàng:</span>
           <strong className="text-stone-800 font-bold">{currentBankName}</strong>
