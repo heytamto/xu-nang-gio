@@ -10,6 +10,8 @@ import ShopAnnouncementBar from './components/ShopAnnouncementBar';
 import CartCenterSplash from './components/common/CartCenterSplash';
 import ProductDetailModal from './components/shop/ProductDetailModal';
 import TenantRegisterModal from './components/tenant/TenantRegisterModal';
+import ErrorPage from './components/common/ErrorPage';
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
@@ -26,16 +28,26 @@ import { supabase } from './supabaseClient';
 import { useCartManager } from './hooks/useCartManager';
 import { useShopOrders } from './hooks/useShopOrders';
 
-export default function App() {
+const VALID_PAGES = ['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy'];
+
+function MainAppContent() {
   const [currentPage, setCurrentPage] = useState(() => {
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlPage = urlParams.get('page');
+      if (urlPage) {
+        const mapped = urlPage === 'blog' ? 'story' : urlPage;
+        return VALID_PAGES.includes(mapped) ? mapped : '404';
+      }
       const savedPage = sessionStorage.getItem('shop_current_page') || 'home';
-      return savedPage === 'blog' ? 'story' : savedPage;
+      const mappedSaved = savedPage === 'blog' ? 'story' : savedPage;
+      return VALID_PAGES.includes(mappedSaved) ? mappedSaved : 'home';
     } catch {
       return 'home';
     }
   });
 
+  const [serverErrorDetail, setServerErrorDetail] = useState(null);
   const [shopConfig, setShopConfig] = useState(() => getShopConfig());
   const [isAnnouncementVisible, setIsAnnouncementVisible] = useState(false);
   const [highlightedProductId, setHighlightedProductId] = useState(null);
@@ -102,6 +114,7 @@ export default function App() {
   // 3. Tải Master Data & Tự động đồng bộ giỏ hàng
   const loadSupabaseData = useCallback(async () => {
     try {
+      setServerErrorDetail(null);
       const masterData = await fetchAllMasterDataFromSupabase();
       if (masterData) {
         if (Array.isArray(masterData.categories)) {
@@ -134,6 +147,11 @@ export default function App() {
       await refreshOrders();
     } catch (err) {
       console.warn('Lỗi kết nối tải dữ liệu Supabase:', err);
+      // Nếu không có dữ liệu cache local và mất kết nối database -> Báo lỗi 500
+      if (!localStorage.getItem('shop_products')) {
+        setServerErrorDetail(err?.message || 'Không thể kết nối máy chủ dữ liệu');
+        setCurrentPage('500');
+      }
     } finally {
       setIsLoadingMasterData(false);
     }
@@ -164,33 +182,65 @@ export default function App() {
     };
   }, [loadSupabaseData]);
 
-  // URL Params listener
+  // URL Params & Browser Back/Forward listener
   useEffect(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
-      const page = urlParams.get('page');
-
-      if (code) {
-        setInitialLookupCode(code.trim().toUpperCase());
-        setIsLookupModalOpen(true);
-        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
-      }
-
-      if (page) {
-        const targetPage = page === 'blog' ? 'story' : page;
-        if (['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy'].includes(targetPage)) {
-          setCurrentPage(targetPage);
-          sessionStorage.setItem('shop_current_page', targetPage);
+    const syncRouteFromUrl = () => {
+      try {
+        // Kiểm tra đường dẫn phụ (nếu truy cập /abcxyz thay vì /) -> 404
+        const pathname = window.location.pathname;
+        if (pathname && pathname !== '/' && pathname !== '/index.html') {
+          setCurrentPage('404');
+          return;
         }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
+        const page = urlParams.get('page');
+        const cat = urlParams.get('cat');
+
+        // Kiểm tra tham số không hợp lệ (ví dụ ký tự lạ hoặc quá dài) -> 400
+        if ((code && code.length > 40) || (cat && !/^[a-zA-Z0-9_-]{1,30}$/.test(cat))) {
+          setCurrentPage('400');
+          return;
+        }
+
+        if (code) {
+          setInitialLookupCode(code.trim().toUpperCase());
+          setIsLookupModalOpen(true);
+          window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+        }
+
+        if (page) {
+          const targetPage = page === 'blog' ? 'story' : page;
+          if (VALID_PAGES.includes(targetPage)) {
+            setCurrentPage(targetPage);
+            sessionStorage.setItem('shop_current_page', targetPage);
+            if (cat && targetPage === 'shop') {
+              setSelectedShopCategory(cat);
+              sessionStorage.setItem('shop_selected_category', cat);
+            }
+          } else {
+            setCurrentPage('404');
+          }
+        }
+      } catch (e) {
+        console.error('Lỗi URL Params:', e);
+        setCurrentPage('400');
       }
-    } catch (e) {
-      console.error('Lỗi URL Params:', e);
-    }
+    };
+
+    syncRouteFromUrl();
+    window.addEventListener('popstate', syncRouteFromUrl);
+    return () => window.removeEventListener('popstate', syncRouteFromUrl);
   }, []);
 
   const navigateTo = (page) => {
     const targetPage = page === 'blog' ? 'story' : page;
+    if (!VALID_PAGES.includes(targetPage)) {
+      setCurrentPage('404');
+      return;
+    }
+
     if (targetPage !== 'shop') {
       setSelectedShopCategory('all');
       try { sessionStorage.setItem('shop_selected_category', 'all'); } catch (e) {}
@@ -198,7 +248,7 @@ export default function App() {
     setCurrentPage(targetPage);
     try {
       sessionStorage.setItem('shop_current_page', targetPage);
-      const newUrl = targetPage === 'home' ? window.location.pathname : `?page=${targetPage}`;
+      const newUrl = targetPage === 'home' ? '/' : `/?page=${targetPage}`;
       window.history.pushState({ page: targetPage }, '', newUrl);
     } catch (e) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -210,7 +260,7 @@ export default function App() {
     try {
       sessionStorage.setItem('shop_selected_category', catId);
       sessionStorage.setItem('shop_current_page', 'shop');
-      window.history.pushState({ page: 'shop', category: catId }, '', `?page=shop&cat=${catId}`);
+      window.history.pushState({ page: 'shop', category: catId }, '', `/?page=shop&cat=${catId}`);
     } catch (e) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -241,6 +291,8 @@ export default function App() {
       </div>
     );
   }
+
+  const isErrorPage = ['400', '404', '500'].includes(String(currentPage));
 
   return (
     <div className="min-h-screen w-full max-w-full [overflow-x:clip] bg-[#faf8f5] text-stone-800 flex flex-col font-sans relative">
@@ -379,6 +431,21 @@ export default function App() {
             />
           </Suspense>
         )}
+
+        {/* TRANG BÁO LỖI 400 / 404 / 500 */}
+        {isErrorPage && (
+          <ErrorPage
+            statusCode={Number(currentPage)}
+            errorDetail={currentPage === '500' ? serverErrorDetail : null}
+            onReset={() => {
+              setIsLoadingMasterData(true);
+              setCurrentPage('home');
+              loadSupabaseData();
+            }}
+            onGoHome={() => navigateTo('home')}
+            onGoShop={() => handleNavigateToShopCategory('all')}
+          />
+        )}
       </main>
 
       {/* Modal Xem chi tiết & Phóng to nhiều ảnh sản phẩm */}
@@ -436,5 +503,13 @@ export default function App() {
 
       <CartCenterSplash splash={centerSplash} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainAppContent />
+    </ErrorBoundary>
   );
 }
