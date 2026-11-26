@@ -9,3 +9,12 @@ entrypoint = "./functions/send-order-email/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/send-order-email/*.html" ]
+
+[functions.process-email-outbox]
+verify_jwt = false
+
+[functions.lookup-order]
+verify_jwt = false
+
+[functions.customer-order]
+verify_jwt = false

@@ -1,5 +1,6 @@
 // src/components/admin/dashboard/StatusReasonModal.jsx
 import React, { useState, useRef, useEffect } from 'react';
+import ModalPortal from '../../../../shared/components/ModalPortal';
 import { ShieldAlert, AlertTriangle, ChevronDown, Check } from 'lucide-react';
 
 const CANCEL_REASONS = [
@@ -63,8 +64,9 @@ export default function StatusReasonModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/75 backdrop-blur-xs p-4 animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
+    <ModalPortal onClose={onClose} closeOnEscape={!isProcessing}>
+    <div onClick={(e) => e.stopPropagation()} className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-stone-950/75 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+      <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto border border-stone-200 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3.5">
           <div className="flex items-center gap-3">
             {modalData.isBombed ? (
@@ -189,5 +191,6 @@ export default function StatusReasonModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

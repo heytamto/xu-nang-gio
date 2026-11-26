@@ -1,5 +1,6 @@
 // src/components/admin/dashboard/PaymentVerificationModal.jsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import ModalPortal from '../../../../shared/components/ModalPortal';
 import { ShieldCheck, X, Info, CheckCircle2 } from 'lucide-react';
 
 export default function PaymentVerificationModal({
@@ -8,11 +9,16 @@ export default function PaymentVerificationModal({
   onClose,
   onConfirm
 }) {
+  const [received, setReceived] = useState('');
+  useEffect(() => { setReceived(''); }, [modalData]);
   if (!modalData) return null;
+  const amount = Number(received);
+  const valid = Number.isSafeInteger(amount) && amount > 0 && amount === modalData.expectedAmount && /^[0-9]+$/.test(received);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/75 backdrop-blur-xs p-4 animate-fadeIn font-sans">
-      <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md border border-stone-200 shadow-2xl space-y-4">
+    <ModalPortal onClose={onClose}>
+    <div onClick={(e) => e.stopPropagation()} className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-stone-950/75 backdrop-blur-xs p-4 animate-fadeIn font-sans">
+      <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto border border-stone-200 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-stone-100 pb-3.5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
@@ -76,6 +82,10 @@ export default function PaymentVerificationModal({
           </span>
         </div>
 
+        <label className="block text-sm font-bold">Số tiền thực nhận (VNĐ)
+          <input inputMode="numeric" value={received} onChange={e=>setReceived(e.target.value)} className="w-full border rounded-xl p-3 mt-1" />
+        </label>
+        {modalData.expectedAmount <= 0 && <p role="alert" className="text-red-700 text-sm">Đơn cũ chưa có số tiền dự kiến. Cần đối soát thủ công.</p>}
         <div className="flex items-center gap-3 pt-2.5 border-t border-stone-100">
           <button
             type="button"
@@ -87,8 +97,9 @@ export default function PaymentVerificationModal({
 
           <button
             type="button"
-            onClick={() => onConfirm(modalData.order)}
-            className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+            disabled={!valid}
+            onClick={() => { if(valid) onConfirm(modalData.order, amount); }}
+            className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Đã Nhận Đủ Tiền</span>
@@ -96,5 +107,6 @@ export default function PaymentVerificationModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

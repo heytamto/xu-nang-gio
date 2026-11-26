@@ -1,4 +1,5 @@
 // src/hooks/useCartManager.js
+import { calculateCartTotals } from '../utils/cartTotals';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 export function useCartManager() {
@@ -69,7 +70,7 @@ export function useCartManager() {
       const removedNames = [];
 
       const cleanCart = prevCart.filter((item) => {
-        const prodId = String(item.productId || item.id).split('-')[0];
+        const prodId = String(item.productId || item.id);
         const exists = productMap.has(prodId) || productMap.has(String(item.productId)) || productMap.has(String(item.id));
 
         if (!exists) {
@@ -88,12 +89,13 @@ export function useCartManager() {
       }
 
       const updatedCart = cleanCart.map((item) => {
-        const prodId = String(item.productId || item.id).split('-')[0];
+        const prodId = String(item.productId || item.id);
         const freshProd = productMap.get(prodId) || productMap.get(String(item.productId)) || productMap.get(String(item.id));
         if (!freshProd) return item;
 
         const base = Number(freshProd.basePrice ?? freshProd.base_price ?? freshProd.price ?? 0);
-        let finalUnitPrice = base;
+        const flavorBonus = Number(Array.isArray(freshProd.flavors) ? freshProd.flavors.find(f => f.label === item.flavor)?.priceBonus ?? 0 : 0);
+        let finalUnitPrice = base + flavorBonus;
 
         const rawWeights = freshProd.product_weights || freshProd.weights;
         if (Array.isArray(rawWeights) && rawWeights.length > 0) {
@@ -109,9 +111,9 @@ export function useCartManager() {
             const mult = parseFloat(matchedWeight.multiplier) || 1;
 
             if (override != null && override > 0) {
-              finalUnitPrice = override < 10000 && base >= 20000 ? base + override : override;
+              finalUnitPrice = (override < 10000 && base >= 20000 ? base + override : override) + flavorBonus;
             } else {
-              finalUnitPrice = Math.round(base * mult);
+              finalUnitPrice = Math.round((base + flavorBonus) * mult);
             }
           }
         }
@@ -169,7 +171,8 @@ export function useCartManager() {
     }
 
     const weightId = weightObj?.id || weightObj?.weight_key || 'std';
-    const flavorTag = weightObj?.flavor ? `-${weightObj.flavor}` : '';
+    const selectedFlavor = weightObj?.flavor || product.flavor || null;
+    const flavorTag = selectedFlavor ? `-${selectedFlavor}` : '';
     const cartItemId = `${product.id}-${weightId}${flavorTag}`;
 
     setCart((prevCart) => {
@@ -203,7 +206,7 @@ export function useCartManager() {
           weightId: weightId,
           name: product.name || product.title,
           price: unitPrice,
-          flavor: weightObj?.flavor || null,
+          flavor: selectedFlavor,
           weightLabel: weightObj?.label || weightObj?.weight_label || product.unit || 'Tiêu chuẩn',
           image: product.image || product.image_url,
           campaign_gift: product.campaign_gift_id || product.campaign_gift || null,
@@ -297,8 +300,7 @@ export function useCartManager() {
     }
   }, []);
 
-  const totalCartCount = useMemo(() => cart.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0), [cart]);
-  const totalCartAmount = useMemo(() => cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0), [cart]);
+  const { totalCartCount, totalCartAmount } = useMemo(() => calculateCartTotals(cart), [cart]);
 
   return {
     cart,

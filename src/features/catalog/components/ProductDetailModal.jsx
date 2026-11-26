@@ -1,4 +1,5 @@
 // src/components/shop/ProductDetailModal.jsx
+import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   X, ChevronLeft, ChevronRight, Maximize2, Minimize2, 
@@ -102,10 +103,7 @@ export default function ProductDetailModal({
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (isLightboxOpen) setIsLightboxOpen(false);
-        else onClose();
-      } else if (mediaTab === 'gallery') {
+      if (mediaTab === 'gallery') {
         if (e.key === 'ArrowRight') {
           nextImage();
         } else if (e.key === 'ArrowLeft') {
@@ -132,7 +130,7 @@ export default function ProductDetailModal({
   const activeWeight = selectedWeight || weightsList[0] || { id: 'std', label: 'Tiêu chuẩn', multiplier: 1 };
   const basePrice = Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0);
   const multiplier = Number(activeWeight.multiplier) || 1;
-  const priceBonus = selectedFlavor?.priceBonus || 0;
+  const priceBonus = Number(selectedFlavor?.priceBonus) || 0;
 
   const unitPrice = activeWeight.priceOverride != null && activeWeight.priceOverride > 0
     ? (activeWeight.priceOverride < 10000 && basePrice >= 20000 ? basePrice + activeWeight.priceOverride + priceBonus : activeWeight.priceOverride + priceBonus)
@@ -185,13 +183,14 @@ export default function ProductDetailModal({
   };
 
   return (
+    <ModalPortal onClose={() => isLightboxOpen ? setIsLightboxOpen(false) : onClose()}>
     <>
       {/* 1. MODAL CHÍNH */}
       <div 
         className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs font-sans text-stone-800 animate-fadeIn"
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
-        <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden relative max-h-[92vh] flex flex-col md:flex-row">
+        <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden relative max-h-[92dvh] flex flex-col md:flex-row">
           
           {/* Nút đóng */}
           <button
@@ -538,5 +537,6 @@ export default function ProductDetailModal({
         </div>
       )}
     </>
+    </ModalPortal>
   );
 }

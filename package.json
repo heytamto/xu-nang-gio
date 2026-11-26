@@ -6,18 +6,25 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "lint": "eslint src scripts tests",
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --test tests/*.mjs",
+    "typecheck": "npm exec --yes --package=typescript@5.8.3 -- tsc -p tsconfig.json",
+    "quality:core": "node scripts/quality-check.mjs --core",
+    "format:check": "npm exec --yes --package=prettier@3.6.2 -- prettier --check \"src/**/*.{js,jsx,ts,tsx,css}\"",
+    "quality": "node scripts/quality-check.mjs --build"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
     "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.108.4",
     "canvas-confetti": "^1.9.4",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^1.55.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

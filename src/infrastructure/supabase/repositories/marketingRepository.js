@@ -3,9 +3,8 @@ import { supabase } from '../supabaseClient';
 
 export const marketingRepo = {
   async getVouchers() {
-    const { data, error } = await supabase.from('vouchers').select('*');
-    if (error) throw error;
-    return data || [];
+    // Voucher codes are not public catalog data; use voucher quote API.
+    return [];
   },
 
   async getPaymentRewardsGifts() {
@@ -19,24 +18,16 @@ export const marketingRepo = {
   },
 
   async getShopConfigs() {
-    try {
-      const { data, error } = await supabase.from('shop_configs').select('*');
-      if (error) return [];
-      return data || [];
-    } catch {
-      return [];
-    }
+    const { data, error } = await supabase.rpc('xng_public_config_staging');
+    if (error) throw error;
+    return data || [];
   },
 
   async getApprovedReviews(limit = 8) {
     try {
-      const { data, error } = await supabase.from('reviews')
-        .select('*')
-        .eq('is_approved', true)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+      const { data, error } = await supabase.rpc('xng_public_reviews_staging', {p_page:0,p_page_size:Math.min(24,Math.max(1,limit))});
       if (error) return [];
-      return data || [];
+      return data?.reviews || [];
     } catch {
       return [];
     }

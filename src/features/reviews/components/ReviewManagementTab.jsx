@@ -1,6 +1,9 @@
 // src/components/admin/ReviewManagementTab.jsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useListPagination } from '../../../shared/hooks/useListPagination';
+import { ListPagination, PageSizeControl } from '../../../shared/components/ListPagination';
 import { createPortal } from 'react-dom';
+import ModalPortal from '../../../shared/components/ModalPortal';
 import { 
   Search, Star, EyeOff, CheckCircle2, Trash2, Loader2, MessageSquare,
   Globe, Power, PackageCheck, Camera, X, Square, CheckSquare
@@ -188,6 +191,19 @@ export default function ReviewManagementTab({
     });
   }, [reviewsList, filterStatus, searchTerm]);
 
+  const pagination = useListPagination(filteredReviews, JSON.stringify([filterStatus, searchTerm]));
+  const visibleReviews = pagination.result.items;
+  // Never retain hidden selections after page/filter changes or removal.
+  useEffect(() => {
+    const visibleIds = new Set(visibleReviews.map(r => r.id));
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visibleReviews]);
+  const changePage = page => { setSelectedIds(new Set()); pagination.setPage(page); };
+  const changeSize = size => { setSelectedIds(new Set()); pagination.setPageSize(size); };
+
   // 6. Xử lý chọn/bỏ chọn
   const handleToggleSelectOne = (id) => {
     setSelectedIds((prev) => {
@@ -201,19 +217,19 @@ export default function ReviewManagementTab({
     });
   };
 
-  const isAllSelected = filteredReviews.length > 0 && filteredReviews.every((r) => selectedIds.has(r.id));
+  const isAllSelected = visibleReviews.length > 0 && visibleReviews.every((r) => selectedIds.has(r.id));
 
   const handleToggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        filteredReviews.forEach((r) => next.delete(r.id));
+        visibleReviews.forEach((r) => next.delete(r.id));
         return next;
       });
     } else {
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        filteredReviews.forEach((r) => next.add(r.id));
+        visibleReviews.forEach((r) => next.add(r.id));
         return next;
       });
     }
@@ -263,7 +279,7 @@ export default function ReviewManagementTab({
       setIsBulkProcessing(true);
       try {
         await Promise.all(targetIds.map((id) => reviewRepo.remove(id)));
-        setReviewsList((prev) => prev.filter((item) => !selectedIds.has(item.id)));
+        setReviewsList((prev) => prev.filter((item) => !targetIds.includes(item.id)));
         if (onShowToast) onShowToast(`Đã xóa vĩnh viễn ${targetIds.length} đánh giá!`);
         handleClearSelection();
       } catch (err) {
@@ -344,7 +360,7 @@ export default function ReviewManagementTab({
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSelectedIds(new Set()); setSearchTerm(e.target.value); }}
               placeholder="Tìm theo mã đơn, tên khách, nội dung..."
               className="w-full pl-11 pr-4 py-3 text-xs sm:text-sm rounded-2xl border border-stone-200 bg-stone-50/90 focus:bg-white focus:outline-none focus:border-amber-600 text-stone-900 font-medium shadow-2xs transition-colors"
             />
@@ -359,7 +375,7 @@ export default function ReviewManagementTab({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setFilterStatus(tab.id)}
+                onClick={() => { setSelectedIds(new Set()); setFilterStatus(tab.id); }}
                 className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs ${
                   filterStatus === tab.id
                     ? 'bg-amber-100 text-amber-950 border border-amber-300/80 ring-1 ring-amber-400/30'
@@ -372,6 +388,7 @@ export default function ReviewManagementTab({
           </div>
         </div>
 
+        {!loading && filteredReviews.length > 0 && <PageSizeControl value={pagination.pageSize} onChange={changeSize} unit="đánh giá" />}
         {/* HÀNG CHỌN TẤT CẢ (KHI CÓ KẾT QUẢ) */}
         {filteredReviews.length > 0 && (
           <div className="px-3 flex items-center justify-between text-xs sm:text-sm text-stone-600">
@@ -387,8 +404,8 @@ export default function ReviewManagementTab({
               )}
               <span>
                 {isAllSelected 
-                  ? `Bỏ chọn toàn bộ ${filteredReviews.length} đánh giá` 
-                  : `Chọn tất cả ${filteredReviews.length} đánh giá`}
+                  ? `Bỏ chọn toàn bộ ${visibleReviews.length} đánh giá trên trang` 
+                  : `Chọn tất cả ${visibleReviews.length} đánh giá trên trang`}
               </span>
             </button>
 
@@ -414,7 +431,7 @@ export default function ReviewManagementTab({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredReviews.map((rev) => {
+          {visibleReviews.map((rev) => {
             const isSelected = selectedIds.has(rev.id);
 
             const customerImages = Array.isArray(rev.image_urls)
@@ -608,6 +625,8 @@ export default function ReviewManagementTab({
         </div>
       )}
 
+      {!loading && <ListPagination result={pagination.result} onPageChange={changePage} unit="đánh giá" />}
+
       {/* 4. THANH BULK ACTION BAR NỔI DƯỚI ĐÁY BẰNG PORTAL */}
       {selectedIds.size > 0 && typeof document !== 'undefined' && createPortal(
         <aside 
@@ -676,7 +695,7 @@ export default function ReviewManagementTab({
       )}
 
       {/* 5. LIGHTBOX PHÓNG TO ẢNH ĐỐI CHIẾU BẰNG PORTAL */}
-      {previewZoomImage && typeof document !== 'undefined' && createPortal(
+      {previewZoomImage && typeof document !== 'undefined' && <ModalPortal onClose={() => setPreviewZoomImage(null)}>
         <div 
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-fadeIn"
           onClick={() => setPreviewZoomImage(null)}
@@ -701,9 +720,8 @@ export default function ReviewManagementTab({
           <span className="text-white text-xs mt-3 opacity-70">
             Nhấn ra ngoài hoặc bấm nút ✕ để đóng
           </span>
-        </div>,
-        document.body
-      )}
+        </div>
+      </ModalPortal>}
     </div>
   );
 }

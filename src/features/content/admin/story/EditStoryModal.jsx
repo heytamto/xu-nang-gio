@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ModalPortal from '../../../../shared/components/ModalPortal';
 import { X, Check, Calendar, MapPin, Loader2, Sun } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
@@ -45,7 +46,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
     }
   }, [story]);
 
-  if (!story || !story.id) return null;
+  if (!story || !story.id || typeof document === 'undefined') return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -95,8 +96,9 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <ModalPortal onClose={onClose} closeOnEscape={!isSubmitting}>
+    <div role="dialog" aria-modal="true" aria-label="Cập nhật chuyện vườn" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
@@ -256,5 +258,6 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }

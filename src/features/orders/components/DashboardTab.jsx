@@ -1,13 +1,15 @@
+import OperationsPanel from './OperationsPanel';
 // src/components/admin/DashboardTab.jsx
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { History, ArrowLeft } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 import { parseCleanMoney } from '../services/customerRiskService';
+import { useListPagination } from '../../../shared/hooks/useListPagination';
+import { ListPagination, PageSizeControl } from '../../../shared/components/ListPagination';
 import ConfirmModal from '../../admin/components/ConfirmModal';
 
 import { 
   FORWARD_STATUS_MAP, 
-  resolveDepositAmount, 
   getActiveBankLabel 
 } from '../admin/dashboard/dashboardUtils';
 import DashboardMetricsCard from '../admin/dashboard/DashboardMetricsCard';
@@ -45,7 +47,6 @@ export default function DashboardTab({
   actionLoadingCode = null,
   onShowAlert
 }) {
-  const activeConfigDeposit = resolveDepositAmount(shopConfig);
   const bankLabel = getActiveBankLabel(shopConfig);
 
   // 1. Quản lý bộ lọc & tìm kiếm trực tiếp
@@ -67,7 +68,7 @@ export default function DashboardTab({
     localStorage.setItem('shop_admin_dashboard_view_mode', mode);
   };
 
-  const [selectedOrderCodes, setSelectedOrderCodes] = useState([]);
+  const [rawSelectedOrderCodes, setSelectedOrderCodes] = useState([]);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const [pendingStatusModal, setPendingStatusModal] = useState(null);
@@ -77,7 +78,7 @@ export default function DashboardTab({
 
   useEffect(() => {
     setSelectedOrderCodes([]);
-  }, [statusFilter, dateFilterType, searchQuery]);
+  }, [statusFilter, dateFilterType, searchQuery, startDate, endDate]);
 
   // 2. Tra cứu hồ sơ rủi ro khách hàng
   const getRiskTraceDetails = useCallback((ord) => {
@@ -162,6 +163,10 @@ export default function DashboardTab({
       return true;
     });
   }, [orders, statusFilter, dateFilterType, startDate, endDate, searchQuery]);
+
+  const pagination = useListPagination(filteredOrders, JSON.stringify([statusFilter, dateFilterType, startDate, endDate, searchQuery]));
+  const pageOrders = pagination.result.items;
+  const selectedOrderCodes = rawSelectedOrderCodes.filter(code => pageOrders.some(o => o.code === code));
 
   // 4. Tính toán Metrics KPI & Doanh thu
   // 4. Tính toán Metrics KPI & Doanh thu đầy đủ trường cho DashboardMetricsCard
@@ -260,14 +265,16 @@ export default function DashboardTab({
     );
   };
 
-  const isAllFilteredSelected = filteredOrders.length > 0 && selectedOrderCodes.length === filteredOrders.length;
+  const isAllFilteredSelected = pageOrders.length > 0 && pageOrders.every(o => selectedOrderCodes.includes(o.code));
   const handleToggleSelectAll = () => {
     if (isAllFilteredSelected) {
       setSelectedOrderCodes([]);
     } else {
-      setSelectedOrderCodes(filteredOrders.map((o) => o.code));
+      setSelectedOrderCodes(pageOrders.map((o) => o.code));
     }
   };
+
+  useEffect(() => { setSelectedOrderCodes([]); }, [pagination.result.currentPage, pagination.pageSize]);
 
   const selectedOrderObjects = useMemo(() => {
     return orders.filter((o) => selectedOrderCodes.includes(o.code));
@@ -452,8 +459,7 @@ export default function DashboardTab({
   const handleRequestConfirmPayment = (ord) => {
     const isDeposit = (ord.payment_method || ord.paymentMethod) === 'deposit';
     const totalNum = parseCleanMoney(ord.final_total ?? ord.total ?? 0);
-    const targetDeposit = Number(ord.deposit_amount_expected) || activeConfigDeposit;
-    const expectedAmount = isDeposit ? Math.min(targetDeposit, totalNum) : totalNum;
+    const expectedAmount = Number(ord.deposit_amount_expected || 0);
 
     setPaymentVerificationModal({
       order: ord,
@@ -465,6 +471,7 @@ export default function DashboardTab({
 
   return (
     <div className="space-y-4 sm:space-y-5 animate-fadeIn font-sans pb-16 text-stone-800">
+      <OperationsPanel setConfirmModalConfig={setConfirmModalConfig} />
       {/* 1. CARD TỔNG HỢP DOANH THU & KPI */}
       <DashboardMetricsCard 
         metrics={metrics} 
@@ -489,7 +496,7 @@ export default function DashboardTab({
           viewMode={viewMode}
           handleToggleViewMode={handleToggleViewMode}
           statusCounts={statusCounts}
-          filteredOrdersLength={filteredOrders.length}
+          filteredOrdersLength={pageOrders.length}
           isAllFilteredSelected={isAllFilteredSelected}
           onToggleSelectAll={handleToggleSelectAll}
           onShowAlert={(msg) => setConfirmModalConfig({ isAlert: true, title: 'Thông Báo', message: msg })}
@@ -516,6 +523,7 @@ export default function DashboardTab({
           </div>
         )}
 
+        <PageSizeControl value={pagination.pageSize} onChange={pagination.setPageSize} />
         {/* Danh sách đơn hàng */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-12 bg-stone-50 rounded-3xl border border-dashed border-stone-200">
@@ -527,7 +535,7 @@ export default function DashboardTab({
           </div>
         ) : viewMode === 'list' ? (
           <div className="divide-y divide-stone-100 space-y-3 pt-1">
-            {filteredOrders.map((ord) => (
+            {pageOrders.map((ord) => (
               <DashboardOrderRow
                 key={ord.code || ord.id}
                 ord={ord}
@@ -548,7 +556,7 @@ export default function DashboardTab({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
-            {filteredOrders.map((ord) => (
+            {pageOrders.map((ord) => (
               <DashboardOrderGridCard
                 key={ord.code || ord.id}
                 ord={ord}
@@ -567,6 +575,7 @@ export default function DashboardTab({
             ))}
           </div>
         )}
+        <ListPagination result={pagination.result} onPageChange={pagination.setPage} />
       </div>
 
       {/* 3. THANH THAO TÁC HÀNG LOẠT NỔI */}
@@ -588,9 +597,9 @@ export default function DashboardTab({
         modalData={paymentVerificationModal}
         bankLabel={bankLabel}
         onClose={() => setPaymentVerificationModal(null)}
-        onConfirm={async (targetOrd) => {
+        onConfirm={async (targetOrd, receivedAmount) => {
           setPaymentVerificationModal(null);
-          if (onConfirmPayment) await onConfirmPayment(targetOrd);
+          if (onConfirmPayment) await onConfirmPayment(targetOrd, receivedAmount);
         }}
       />
 

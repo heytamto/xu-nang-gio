@@ -1,6 +1,6 @@
-// src/pages/OrderLookupPage.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
+// src/features/orders/pages/OrderLookupPage.jsx
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ModalPortal from '../../../shared/components/ModalPortal';
 import {
   Search,
   PackageCheck,
@@ -22,9 +22,11 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
+import { paginateLookupOrders } from '../utils/lookupOrderPagination';
+import { LookupOrderFilters, LookupOrderPagination } from '../components/LookupOrderPagination';
+import { customerOrderAction, mergeVerifiedOrder } from '../services/customerOrderApi';
+import { useVerifiedPhoneHistory } from '../hooks/useVerifiedPhoneHistory';
 import { supabase } from '../../../infrastructure/supabase/supabaseClient';
-import { lookupOrderDirect, cancelOrderDirect } from '../services/orderService';
-import { reviewRepo } from '../../../infrastructure/supabase/repositories/index';
 import CustomDropdown from '../../../shared/components/CustomDropdown';
 import {
   formatDateTime,
@@ -32,7 +34,8 @@ import {
   getRemainingCancelMs,
   formatCountdownTimer,
 } from '../../../shared/utils/dateUtils';
-import OrderReviewModal from '../../reviews/components/OrderReviewModal';
+import PhoneOrderSummary from '../components/PhoneOrderSummary';
+import VerifiedReviewModal from '../components/VerifiedReviewModal';
 
 const CANCEL_REASONS = [
   { value: 'Đổi ý / Không còn nhu cầu', label: 'Đổi ý / Không còn nhu cầu' },
@@ -47,9 +50,34 @@ export default function OrderLookupPage({
   initialCode = '',
   onNavigate,
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialCode || '');
+  useEffect(() => { if(initialCode) setSearchTerm(String(initialCode)); }, [initialCode]);
+  const [phone, setPhone] = useState('');
+  const [summaryMode,setSummaryMode]=useState(true);
+  useEffect(()=>{if(initialCode)setSummaryMode(true);},[initialCode]);
+  const verifiedPhone = useRef('');
+  const lookupLock = useRef(false);
   const [loading, setLoading] = useState(false);
   const [orders, setOrders] = useState(null);
+  const [lookupStatus, setLookupStatus] = useState('all');
+  const [lookupPage, setLookupPage] = useState(1);
+  const [lookupPageSize, setLookupPageSize] = useState(6);
+  const otpAvailable = import.meta.env.VITE_ENABLE_CUSTOMER_PHONE_OTP === 'true';
+  const [historyMode,setHistoryMode] = useState(false);
+  const [otp,setOtp] = useState('');
+  const [historyRefresh,setHistoryRefresh] = useState(0);
+  const history = useVerifiedPhoneHistory({enabled:otpAvailable && historyMode,status:lookupStatus,page:lookupPage,pageSize:lookupPageSize,refreshKey:historyRefresh});
+  const manualResult = useMemo(() => paginateLookupOrders(orders, {
+    status: lookupStatus, page: lookupPage, pageSize: lookupPageSize,
+  }), [orders, lookupStatus, lookupPage, lookupPageSize]);
+
+  const lookupResult = historyMode ? history.result : manualResult;
+  const activePhone = historyMode ? history.verifiedPhone : verifiedPhone.current;
+  const resultCount = historyMode ? history.result?.counts.all : orders?.length;
+  const hasResults = historyMode ? Boolean(history.result) : Array.isArray(orders);
+  useEffect(() => {
+    if (lookupResult && lookupPage !== lookupResult.currentPage) setLookupPage(lookupResult.currentPage);
+  }, [lookupPage, lookupResult?.currentPage]);
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedCode, setCopiedCode] = useState('');
 
@@ -66,7 +94,6 @@ export default function OrderLookupPage({
   const [previewImage, setPreviewImage] = useState(null);
 
   const [now, setNow] = useState(Date.now());
-  const channelRef = useRef(null);
 
   // Đếm mỗi giây trên trang
   useEffect(() => {
@@ -108,154 +135,25 @@ export default function OrderLookupPage({
     setTimeout(() => setCopiedCode(''), 2000);
   };
 
-  // Tra cứu đơn hàng & kiểm tra đơn nào đã từng review qua reviewRepo
-  const performLookup = useCallback(async (queryValue) => {
-    setErrorMessage('');
-    setCancelSuccessNote('');
-    const rawVal = String(queryValue || '').trim().replace(/\s+/g, '');
-
-    if (!rawVal) {
-      setErrorMessage('Vui lòng nhập số điện thoại hoặc mã đơn hàng!');
-      return;
+  // Each code is independently verified. Never retrieve all orders by phone alone.
+  const handleLookup = async (e) => {
+    e.preventDefault();
+    if (lookupLock.current) return;
+    lookupLock.current = true;
+    setLoading(true); setErrorMessage(''); setCancelSuccessNote('');
+    const requestedPhone = phone.trim();
+    if (verifiedPhone.current !== requestedPhone) {
+      setOrders(null); setReviewedCodes(new Set()); verifiedPhone.current = '';
     }
-
-    const cleanDigits = rawVal.replace(/\D/g, '');
-    const hasLetters = /[A-Z]/i.test(rawVal);
-    const isPhoneSearch = !hasLetters && cleanDigits.length >= 8;
-
-    if (!isPhoneSearch && rawVal.length < 4) {
-      setErrorMessage('Vui lòng nhập tối thiểu 4 ký tự mã đơn hoặc 8 chữ số điện thoại!');
-      return;
-    }
-
-    setLoading(true);
-
     try {
-      const data = await lookupOrderDirect(rawVal);
-      setOrders(data || []);
-      if (!data || data.length === 0) {
-        setErrorMessage('Không tìm thấy đơn hàng nào khớp với thông tin bạn nhập.');
-      } else {
-        const codes = data.map((d) => d.code);
-        const allReviews = await reviewRepo.getAll();
-
-        if (Array.isArray(allReviews) && allReviews.length > 0) {
-          const matchingReviews = allReviews.filter((r) => codes.includes(r.order_code));
-          if (matchingReviews.length > 0) {
-            setReviewedCodes((prev) => {
-              const nextSet = new Set(prev);
-              matchingReviews.forEach((r) => nextSet.add(r.order_code));
-              return nextSet;
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Lỗi tra cứu:', err);
-      setErrorMessage('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const handleLookup = (e) => {
-    if (e) e.preventDefault();
-    performLookup(searchTerm);
+      const { order } = await customerOrderAction(supabase, 'lookup', searchTerm, requestedPhone);
+      verifiedPhone.current = requestedPhone;
+      setOrders(prev => mergeVerifiedOrder(prev, order));
+      setReviewedCodes(prev => { const next = new Set(prev); if (order.reviewed) next.add(order.code); else next.delete(order.code); return next; });
+      setLookupStatus('all'); setLookupPage(1);
+    } catch (err) { setErrorMessage(err.message); }
+    finally { lookupLock.current = false; setLoading(false); }
   };
-
-  useEffect(() => {
-    if (initialCode) {
-      const cleanInitial = String(initialCode).trim().replace(/\s+/g, '');
-      setSearchTerm(cleanInitial);
-      performLookup(cleanInitial);
-    }
-  }, [initialCode, performLookup]);
-
-  // Tự động nhận trạng thái mới nhất qua WebSocket và Polling ngầm
-  useEffect(() => {
-    if (!Array.isArray(orders) || orders.length === 0) return;
-
-    const activeOrderCodes = orders.map((o) => o.code).filter(Boolean);
-    if (activeOrderCodes.length === 0) return;
-
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-
-    const uniqueChannelKey = `lookup_page_orders_${Date.now()}`;
-    const channel = supabase
-      .channel(uniqueChannelKey)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-        },
-        (payload) => {
-          const updatedRow = payload.new || payload.record;
-          if (!updatedRow?.code || !activeOrderCodes.includes(updatedRow.code)) return;
-
-          setOrders((prev) => {
-            if (!prev) return prev;
-            return prev.map((o) => {
-              if (o.code === updatedRow.code) {
-                return {
-                  ...o,
-                  ...updatedRow,
-                  status: normalizeOrderStatus(updatedRow.status),
-                  order_items: updatedRow.order_items || o.order_items || [],
-                };
-              }
-              return o;
-            });
-          });
-        }
-      )
-      .subscribe();
-
-    channelRef.current = channel;
-
-    const pollInterval = setInterval(async () => {
-      try {
-        const { data: freshOrders, error } = await supabase
-          .from('orders')
-          .select('*')
-          .in('code', activeOrderCodes);
-
-        if (!error && Array.isArray(freshOrders)) {
-          setOrders((prev) => {
-            if (!prev) return prev;
-            return prev.map((curr) => {
-              const matched = freshOrders.find((f) => f.code === curr.code);
-              if (
-                matched &&
-                (matched.status !== curr.status || matched.payment_verified !== curr.payment_verified)
-              ) {
-                return {
-                  ...curr,
-                  ...matched,
-                  status: normalizeOrderStatus(matched.status),
-                };
-              }
-              return curr;
-            });
-          });
-        }
-      } catch (e) {
-        console.warn('Lỗi đồng bộ ngầm:', e);
-      }
-    }, 3500);
-
-    return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-      clearInterval(pollInterval);
-    };
-  }, [orders?.length]);
 
   // Xác nhận hủy đơn
   const handleConfirmCancelOrder = async () => {
@@ -272,28 +170,18 @@ export default function OrderLookupPage({
     const orderCode = cancellingOrder.code;
 
     try {
-      await cancelOrderDirect(orderCode, cancelReason);
+      await customerOrderAction(supabase, 'cancel', orderCode, activePhone, {reason: cancelReason});
 
       setOrders((prev) =>
         (prev || []).map((o) =>
           o.code === orderCode
-            ? { ...o, status: ORDER_STATUS.CANCELLED, cancel_reason: cancelReason }
+            ? { ...o, status: ORDER_STATUS.CANCELLED, can_cancel: false, cancel_reason: cancelReason }
             : o
         )
       );
 
-      const isPrepaid =
-        ['deposit', 'full_qr'].includes(cancellingOrder.payment_method) ||
-        String(cancellingOrder.payment_method || '').toLowerCase().includes('chuyển khoản') ||
-        Boolean(cancellingOrder.payment_verified);
-
-      if (isPrepaid) {
-        setCancelSuccessNote(
-          `Đơn ${orderCode} đã hủy thành công. Vui lòng liên hệ Hotline hoặc Zalo ${hotline} để kế toán hoàn tiền trong 24h.`
-        );
-      } else {
-        setCancelSuccessNote(`Đơn hàng ${orderCode} đã được hủy thành công.`);
-      }
+      if(historyMode) setHistoryRefresh(n=>n+1);
+      setCancelSuccessNote(`Đơn hàng ${orderCode} đã được hủy thành công.`);
     } catch (err) {
       alert('Không thể hủy đơn: ' + err.message);
     } finally {
@@ -324,12 +212,12 @@ export default function OrderLookupPage({
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15]">
             <span className="block text-white">Tra Cứu Đơn Hàng</span>
             <span className="block text-amber-400 mt-1">
-              & Ảnh Đóng Thùng Thực Tế
+              & Theo Dõi Trạng Thái
             </span>
           </h1>
 
           <p className="text-sm sm:text-base text-stone-300 leading-relaxed max-w-xl">
-            Nhập số điện thoại đặt hàng hoặc mã đơn <span className="font-mono text-amber-300 font-bold">XNG...</span> để kiểm tra tiến độ cắt giàn, xem ảnh chụp thùng xốp trước khi gửi nhà xe và quản lý đơn hàng.
+            Nhập số điện thoại hoặc mã đơn để theo dõi trạng thái đơn hàng. Dùng mã đơn trên hóa đơn để xem chi tiết và quản lý đơn.
           </p>
         </div>
 
@@ -355,7 +243,21 @@ export default function OrderLookupPage({
 
       {/* 2. THANH TÌM KIẾM FULL-CONTAINER */}
       <div className="bg-white rounded-3xl p-5 sm:p-7 border border-stone-200/90 shadow-xs space-y-3">
-        <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-3">
+        {!summaryMode && <button type="button" disabled={loading || history.loading} onClick={()=>{setSummaryMode(true);setHistoryMode(false);setOrders(null);verifiedPhone.current='';setReviewedCodes(new Set());setErrorMessage('');}} className="text-sm font-bold text-amber-800 flex items-center gap-2"><ArrowLeft className="w-4 h-4"/> Quay lại tra cứu</button>}
+        {summaryMode ? <PhoneOrderSummary key={initialCode} initialQuery={initialCode} onDetail={value=>{if(/^0[0-9]{9}$/.test(value)){setPhone(value);setSearchTerm('');}else{setSearchTerm(value);setPhone('');}setSummaryMode(false);setHistoryMode(false);}}/> : <>
+        {otpAvailable && <div className="flex flex-wrap gap-2" role="group" aria-label="Chế độ tra cứu">
+          {[false,true].map(mode=><button type="button" key={String(mode)} disabled={loading || history.loading} aria-pressed={historyMode===mode} onClick={()=>{if(historyMode===mode)return;setHistoryMode(mode);setOrders(null);setReviewedCodes(new Set());verifiedPhone.current='';setPhone('');setOtp('');setLookupStatus('all');setLookupPage(1);setErrorMessage('');setCancelSuccessNote('');}} className={`rounded-xl px-4 py-2 font-bold text-sm border ${historyMode===mode?'bg-amber-800 text-white':'bg-stone-50'}`}>{mode?'Lịch sử theo số điện thoại (OTP)':'Tra cứu bằng mã đơn'}</button>)}
+        </div>}
+        {historyMode ? <div className="space-y-3">
+          {history.verifiedPhone ? <div className="flex flex-wrap items-center justify-between gap-3"><span className="font-bold text-sm text-emerald-800">Số điện thoại đã xác minh •••{history.verifiedPhone.slice(-3)}</span><div className="flex gap-2"><button type="button" disabled={history.loading} onClick={()=>setHistoryRefresh(n=>n+1)} className="border rounded-xl px-3 py-2 text-sm">Làm mới</button><button type="button" onClick={()=>{history.reset();setOtp('');setPhone('');setReviewedCodes(new Set());setLookupPage(1);setLookupStatus('all');}} className="border rounded-xl px-3 py-2 text-sm">Kết thúc phiên</button></div></div> : <form className="flex flex-wrap gap-3 items-center" onSubmit={e=>{e.preventDefault();if(history.sentPhone)void history.verifyOtp(otp);else void history.sendOtp(phone);}}>
+            <input type="tel" aria-label="Số điện thoại nhận OTP" autoComplete="tel" disabled={history.loading||Boolean(history.sentPhone)} value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Số điện thoại" required className="h-12 rounded-xl border border-stone-200 px-4"/>
+            {history.sentPhone&&<input inputMode="numeric" aria-label="Mã xác minh OTP" autoComplete="one-time-code" value={otp} onChange={e=>setOtp(e.target.value)} maxLength={6} required className="h-12 rounded-xl border px-4" placeholder="Mã OTP"/>}
+            <button disabled={history.loading} className="h-12 rounded-xl px-5 font-bold text-white bg-amber-800 disabled:opacity-50">{history.loading?'Đang xử lý…':history.sentPhone?'Xác minh':'Gửi OTP'}</button>
+            {history.sentPhone&&<button type="button" disabled={history.loading} onClick={()=>{history.reset();setOtp('');}} className="text-sm underline">Đổi số / gửi lại</button>}
+          </form>}
+          {history.loading&&<p role="status" className="text-sm text-stone-600">Đang xử lý yêu cầu…</p>}
+          {history.error&&<p role="alert" className="text-sm text-rose-700">{history.error}</p>}
+        </div> : <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="w-5 h-5 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -365,15 +267,21 @@ export default function OrderLookupPage({
                 setSearchTerm(e.target.value);
                 if (errorMessage) setErrorMessage('');
               }}
-              placeholder="Nhập SĐT nhận hàng (VD: 0848957345) hoặc Mã đơn (VD: XNG261022-X31G)..."
+              placeholder="Mã đơn (VD: XNG261022-X31G)"
+              disabled={loading}
               className="w-full h-12 sm:h-13 rounded-2xl border border-stone-200 bg-stone-50/70 focus:bg-white pl-12 pr-11 text-sm sm:text-base text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-2xs font-mono uppercase tracking-wider transition-all"
             />
             {searchTerm && (
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setSearchTerm('');
                   setOrders(null);
+                  setReviewedCodes(new Set());
+                  verifiedPhone.current = ''; 
+                  setLookupStatus('all');
+                  setLookupPage(1);
                   setErrorMessage('');
                 }}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer p-1.5 rounded-full hover:bg-stone-100"
@@ -383,6 +291,9 @@ export default function OrderLookupPage({
             )}
           </div>
 
+          <input type="tel" aria-label="Số điện thoại đặt hàng" autoComplete="off" value={phone} disabled={loading}
+            onChange={e => { setPhone(e.target.value); setOrders(null); setReviewedCodes(new Set()); verifiedPhone.current = ''; }}
+            placeholder="Số điện thoại đặt hàng" className="h-12 rounded-2xl border border-stone-200 bg-stone-50 px-4" required />
           <button
             type="submit"
             disabled={loading}
@@ -395,7 +306,7 @@ export default function OrderLookupPage({
             )}
             <span>{loading ? 'Đang tìm đơn...' : 'Tra Cứu Ngay'}</span>
           </button>
-        </form>
+        </form>}
 
         {errorMessage && (
           <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs sm:text-sm font-semibold flex items-center gap-2">
@@ -410,10 +321,11 @@ export default function OrderLookupPage({
             <p className="leading-relaxed font-medium">{cancelSuccessNote}</p>
           </div>
         )}
+        </>}
       </div>
 
       {/* 3. KẾT QUẢ TRA CỨU HOẶC GỢI Ý KHI CHƯA NHẬP */}
-      {!orders && !loading && (
+      {!summaryMode && !hasResults && !loading && !historyMode && (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-xs">
           <div className="flex items-center gap-2 text-sm font-black text-stone-900 mb-4">
             <Sparkles className="w-4 h-4 text-amber-600" />
@@ -428,7 +340,7 @@ export default function OrderLookupPage({
                 30 phút đổi ý linh hoạt
               </div>
               <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                Bạn có thể tự bấm hủy đơn ngay trên trang này trong vòng 30 phút đầu trước khi nhà vườn xuất vườn hái trái.
+                Đơn COD chưa thanh toán có thể tự hủy trong 30 phút đầu nếu còn chờ xác nhận. Đơn chuyển khoản cần liên hệ nhà vườn.
               </p>
             </div>
 
@@ -440,7 +352,7 @@ export default function OrderLookupPage({
                 Chụp ảnh thực tế kiện hàng
               </div>
               <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                Nhân viên đóng gói chụp ảnh cận cảnh từng lớp trái cây/hải sản và cập nhật trực tiếp lên mã đơn của bạn.
+                Liên hệ nhà vườn nếu cần ảnh đóng gói trong giai đoạn thử nghiệm.
               </p>
             </div>
 
@@ -460,11 +372,11 @@ export default function OrderLookupPage({
       )}
 
       {/* DANH SÁCH ĐƠN HÀNG TÌM THẤY (DẠNG LƯỚI RỘNG RÃI) */}
-      {Array.isArray(orders) && orders.length > 0 && (
+      {!summaryMode && lookupResult && hasResults && (
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <span className="text-sm font-bold text-stone-700">
-              Tìm thấy <strong className="text-stone-950">{orders.length}</strong> đơn hàng phù hợp
+              Tìm thấy <strong className="text-stone-950">{resultCount ?? 0}</strong> đơn hàng phù hợp
             </span>
             <button
               type="button"
@@ -476,8 +388,16 @@ export default function OrderLookupPage({
             </button>
           </div>
 
+          <LookupOrderFilters status={lookupStatus} counts={lookupResult.counts} pageSize={lookupPageSize}
+            onStatusChange={(value) => { setLookupStatus(value); setLookupPage(1); }}
+            onPageSizeChange={(value) => { setLookupPageSize(value); setLookupPage(1); }} />
+          {lookupResult.total === 0 && (
+            <div className="bg-white border border-stone-200 rounded-2xl p-6 text-center text-sm text-stone-600" role="status">
+              Không có đơn hàng thuộc trạng thái này.
+            </div>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {orders.map((ord) => {
+            {lookupResult.items.map((ord) => {
               const isNew = isRecentOrder(ord.created_at);
               const isCopied = copiedCode === ord.code;
               const hasPaymentGift =
@@ -492,9 +412,9 @@ export default function OrderLookupPage({
 
               const remainingCancelMs = getRemainingCancelMs(ord.created_at, now);
               const canCancelDirectly =
-                statusCode === ORDER_STATUS.PENDING && remainingCancelMs > 0;
+                ord.can_cancel === true && statusCode === ORDER_STATUS.PENDING && remainingCancelMs > 0;
               const isCompleted = statusCode === ORDER_STATUS.COMPLETED;
-              const hasAlreadyReviewed = reviewedCodes.has(ord.code);
+              const hasAlreadyReviewed = ord.reviewed === true || reviewedCodes.has(ord.code);
 
               const displayTotal = Number(ord.final_total ?? ord.total ?? 0);
               const depositPaid = Number(ord.deposit_paid ?? 0);
@@ -556,21 +476,8 @@ export default function OrderLookupPage({
                       <span
                         className={`px-3 py-1 rounded-full font-bold text-xs border ${statusMeta.bg}`}
                       >
-                        {statusMeta.label}
+                        {statusCode === ORDER_STATUS.BOMBED ? 'Giao không thành công' : statusMeta.label}
                       </span>
-                    </div>
-
-                    {/* Thông tin người nhận */}
-                    <div className="text-xs sm:text-sm text-stone-700 leading-relaxed space-y-1 bg-[#FAF6F0] p-3.5 rounded-2xl border border-stone-200/70">
-                      <div>
-                        <strong>Người nhận:</strong> {ord.customer_name || ord.name} •{' '}
-                        <span className="font-mono text-stone-900 font-bold">
-                          {ord.phone}
-                        </span>
-                      </div>
-                      <div>
-                        <strong>Điểm giao:</strong> {ord.address}
-                      </div>
                     </div>
 
                     {/* Danh sách sản phẩm */}
@@ -766,12 +673,13 @@ export default function OrderLookupPage({
               );
             })}
           </div>
+          <LookupOrderPagination result={lookupResult} onPageChange={setLookupPage} />
         </div>
       )}
 
       {/* Popup Xác Nhận Hủy (Render qua Portal ra document.body) */}
       {cancellingOrder &&
-        createPortal(
+        <ModalPortal onClose={() => setCancellingOrder(null)} closeOnEscape={!isSubmittingCancel}>
           <div className="fixed inset-0 z-[9999] bg-stone-950/75 backdrop-blur-xs p-4 sm:p-6 flex flex-col justify-center items-center animate-fadeIn text-stone-900">
             <div className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg border border-stone-200 shadow-2xl space-y-5 animate-scaleUp">
               <div className="flex items-center gap-3.5 border-b border-stone-100 pb-3.5">
@@ -837,26 +745,19 @@ export default function OrderLookupPage({
                 </button>
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        </ModalPortal>}
 
       {/* Modal Đánh giá đơn hàng */}
       {reviewOrderTarget && (
-        <OrderReviewModal
-          isOpen={Boolean(reviewOrderTarget)}
-          order={reviewOrderTarget}
+        <VerifiedReviewModal order={reviewOrderTarget} phone={activePhone}
           onClose={() => setReviewOrderTarget(null)}
-          onSuccess={(submittedCode) => {
-            setReviewedCodes((prev) => new Set(prev).add(submittedCode));
-            setReviewOrderTarget(null);
-          }}
-        />
+          onSuccess={(code) => { setReviewedCodes(prev => new Set(prev).add(code)); setReviewOrderTarget(null); if(historyMode) setHistoryRefresh(n=>n+1); }} />
       )}
 
       {/* Lightbox Phóng to ảnh đóng gói (Render qua Portal ra document.body) */}
       {previewImage &&
-        createPortal(
+        <ModalPortal onClose={() => setPreviewImage(null)}>
           <div
             onClick={() => setPreviewImage(null)}
             className="fixed inset-0 z-[9999] bg-stone-950/90 backdrop-blur-sm p-4 sm:p-8 flex items-center justify-center animate-fadeIn cursor-zoom-out"
@@ -882,9 +783,8 @@ export default function OrderLookupPage({
                 />
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
+        </ModalPortal>}
     </div>
   );
 }

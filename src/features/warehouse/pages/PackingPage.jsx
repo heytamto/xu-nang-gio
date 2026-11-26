@@ -1,27 +1,28 @@
 // src/pages/PackingPage.jsx
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   PackageCheck, ArrowLeft, RefreshCw, Loader2, Layers, LogOut 
 } from 'lucide-react';
-import { ORDER_STATUS, normalizeOrderStatus, getOrderStatusLabel } from '../../orders/constants/orderStatus';
+import { ORDER_STATUS, normalizeOrderStatus } from '../../orders/constants/orderStatus';
 import { supabase } from '../../../infrastructure/supabase/supabaseClient';
-import WarehousePinModal from '../../auth/components/WarehousePinModal';
+import { useListPagination } from '../../../shared/hooks/useListPagination';
+import { ListPagination, PageSizeControl } from '../../../shared/components/ListPagination';
+import StaffGate from '../../auth/components/StaffGate';
 import PickingSummaryTab from '../components/PickingSummaryTab';
 import PackingOrderCard from '../components/PackingOrderCard';
 import { executeFastPrint } from '../utils/shippingLabelPrinter';
+import { fetchWarehouseOrders, advanceWarehouseOrder, attachWarehousePhoto, warehousePhotoPath, warehousePhotoUrl } from '../services/warehouseApi';
 
-export default function PackingPage({ 
-  orders: propOrders = [], 
+export default function PackingPage(props) {
+  return <StaffGate area="warehouse" onNavigateHome={props.onNavigateHome}>{(user, logout) => <PackingContent key={user.id} {...props} handleLogout={logout} />}</StaffGate>;
+}
+
+function PackingContent({
+  handleLogout, 
   shopConfig = {}, 
   onNavigateHome 
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    try {
-      return sessionStorage.getItem('warehouse_authenticated') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const isAuthenticated = true;
 
   const [activeTab, setActiveTab] = useState('picking');
   const [warehouseOrders, setWarehouseOrders] = useState([]);
@@ -30,8 +31,8 @@ export default function PackingPage({
   const [uploadingOrderCode, setUploadingOrderCode] = useState(null);
   const [previewImages, setPreviewImages] = useState({});
 
-  const validWarehousePin = String(shopConfig?.warehousePin || '1234').trim();
-  const configuredDeposit = Number(shopConfig?.depositAmount) || 50000;
+  const fetchBusy = useRef(false);
+  const [warehouseError,setWarehouseError] = useState('');
 
   // Map tra cứu quà tặng
   const giftCatalogMap = useMemo(() => {
@@ -132,7 +133,7 @@ export default function PackingPage({
     const method = String(order.payment_method || order.paymentMethod || '').toLowerCase();
     const rawTotal = Number(order.final_total ?? order.total ?? order.totalAmount ?? 0);
     const depositPaidFromDb = Number(order.deposit_paid ?? 0);
-    const isVerified = Boolean(order.payment_verified);
+    if(order.can_fulfill !== true) return {type:'REVIEW_REQUIRED',collectAmount:0,badgeText:'CẦN ĐỐI SOÁT THANH TOÁN',badgeStyle:'text-rose-950 bg-rose-100 border-rose-300',printTitle:'CẦN ĐỐI SOÁT',printSub:'Không in tem khi chưa đối soát'};
 
     if (method.includes('100%') || method.includes('full') || method === 'full_qr') {
       return {
@@ -146,9 +147,7 @@ export default function PackingPage({
     }
 
     if (method.includes('cọc') || method.includes('deposit')) {
-      const actualDeposit = depositPaidFromDb > 0 
-        ? depositPaidFromDb 
-        : (isVerified ? Math.min(configuredDeposit, rawTotal) : Math.min(configuredDeposit, rawTotal));
+      const actualDeposit = depositPaidFromDb;
       const remaining = Math.max(0, rawTotal - actualDeposit);
 
       return {
@@ -170,128 +169,43 @@ export default function PackingPage({
       printTitle: 'TIỀN THU HỘ TOÀN BỘ (COD):',
       printSub: 'Khách thanh toán 100% khi nhận kiện'
     };
-  }, [configuredDeposit]);
+  }, []);
 
-  // Nạp đơn hàng từ Supabase
+  // Only the active packing queue and required shipping fields are returned by RPC.
   const fetchPackableOrders = useCallback(async () => {
-    if (!isAuthenticated) return;
-    setIsLoading(true);
+    if (!isAuthenticated || fetchBusy.current) return;
+    fetchBusy.current=true; setIsLoading(true); setWarehouseError('');
     try {
-      const { data: ordersData, error: ordersErr } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (ordersErr) throw ordersErr;
-      if (!Array.isArray(ordersData) || ordersData.length === 0) {
-        setWarehouseOrders([]);
-        return;
-      }
-
-      const orderCodes = ordersData.map((o) => o.code).filter(Boolean);
-      let itemsMap = {};
-
-      if (orderCodes.length > 0) {
-        const { data: itemsData, error: itemsErr } = await supabase
-          .from('order_items')
-          .select('*')
-          .in('order_code', orderCodes);
-
-        if (!itemsErr && Array.isArray(itemsData)) {
-          itemsData.forEach((it) => {
-            const key = it.order_code;
-            if (!itemsMap[key]) itemsMap[key] = [];
-            itemsMap[key].push(it);
-          });
-        }
-      }
-
-      setWarehouseOrders(ordersData.map((ord) => ({
-        ...ord,
-        order_items: itemsMap[ord.code] || ord.cart || []
-      })));
-    } catch (err) {
-      console.error('Lỗi tải đơn hàng kho:', err);
-      if (Array.isArray(propOrders) && propOrders.length > 0) setWarehouseOrders(propOrders);
-    } finally {
-      setIsLoading(false);
+      const rows=await fetchWarehouseOrders(supabase);
+      const previews=await Promise.all(rows.map(async o=>[o.code,await warehousePhotoUrl(supabase,o.packing_image)]));
+      setWarehouseOrders(rows); setPreviewImages(Object.fromEntries(previews));
     }
-  }, [isAuthenticated, propOrders]);
-
+    catch (err) { setWarehouseOrders([]); setPreviewImages({}); setWarehouseError(err.message || 'Không thể tải đơn kho.'); }
+    finally { fetchBusy.current=false; setIsLoading(false); }
+  }, [isAuthenticated]);
   useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchPackableOrders();
-
-    const channel = supabase
-      .channel('public:orders:warehouse-live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchPackableOrders)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated, fetchPackableOrders]);
-
-  // Upload ảnh đóng thùng
-  const handleUploadPackingPhoto = async (orderCode, file) => {
-    if (!file) return;
+    if(!isAuthenticated)return;
+    void fetchPackableOrders();
+    const timer=setInterval(()=>{if(document.visibilityState==='visible')void fetchPackableOrders();},30000);
+    return()=>clearInterval(timer);
+  }, [isAuthenticated,fetchPackableOrders]);
+  const handleUploadPackingPhoto = async (orderCode,file) => {
+    if(!file)return;
     setUploadingOrderCode(orderCode);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${orderCode}_${Date.now()}.${fileExt}`;
-      const filePath = `packing/${fileName}`;
-
-      const { error: uploadErr } = await supabase.storage
-        .from('order-deliveries')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadErr) throw uploadErr;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('order-deliveries')
-        .getPublicUrl(filePath);
-
-      const imageUrl = publicUrlData?.publicUrl;
-
-      const { error: updateErr } = await supabase
-        .from('orders')
-        .update({
-          packing_image: imageUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('code', orderCode);
-
-      if (updateErr) throw updateErr;
-
-      setWarehouseOrders((prev) =>
-        prev.map((o) => (o.code === orderCode ? { ...o, packing_image: imageUrl } : o))
-      );
-      setPreviewImages((prev) => ({ ...prev, [orderCode]: imageUrl }));
-    } catch (err) {
-      console.error('Lỗi upload ảnh đóng hàng:', err);
-      alert('Không thể tải ảnh lên: ' + err.message);
-    } finally {
-      setUploadingOrderCode(null);
-    }
+      const path=warehousePhotoPath(orderCode,file,crypto.randomUUID());
+      const {error}=await supabase.storage.from('order-deliveries').upload(path,file,{upsert:false,contentType:file.type});
+      if(error)throw error;
+      await attachWarehousePhoto(supabase,orderCode,path);
+      setWarehouseOrders(prev=>prev.map(o=>o.code===orderCode?{...o,packing_image:path}:o));
+      const signedUrl=await warehousePhotoUrl(supabase,path);
+      setPreviewImages(prev=>({...prev,[orderCode]:signedUrl}));
+    } catch(err){alert('Không thể tải ảnh lên: '+err.message);}
+    finally{setUploadingOrderCode(null);}
   };
-
-  // Cập nhật trạng thái đơn hàng
-  const handleUpdateStatus = async (orderCode, targetStatusCode) => {
-    const finalLabel = getOrderStatusLabel(targetStatusCode);
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: finalLabel,
-          updated_at: new Date().toISOString()
-        })
-        .eq('code', orderCode);
-
-      if (error) throw error;
-      await fetchPackableOrders();
-    } catch (err) {
-      alert('Không thể cập nhật trạng thái đơn: ' + err.message);
-    }
+  const handleUpdateStatus = async (orderCode,targetStatusCode) => {
+    try{await advanceWarehouseOrder(supabase,orderCode,targetStatusCode);await fetchPackableOrders();}
+    catch(err){alert('Không thể cập nhật trạng thái đơn: '+err.message);}
   };
 
   // Checkbox picking state
@@ -317,10 +231,13 @@ export default function PackingPage({
     });
   }, [warehouseOrders]);
 
+  const pagination = useListPagination(packableOrders);
+  const fulfillableOrders=packableOrders.filter(o=>o.can_fulfill===true);
+
   // Gom hàng tổng hợp
   const pickingSummary = useMemo(() => {
     const summary = {};
-    packableOrders.forEach((ord) => {
+    packableOrders.filter(o=>o.can_fulfill===true).forEach((ord) => {
       parseOrderItems(ord).forEach((item) => {
         const key = `${item.name} (${item.spec})`;
         if (!summary[key]) {
@@ -331,18 +248,6 @@ export default function PackingPage({
     });
     return Object.values(summary).sort((a, b) => b.quantity - a.quantity);
   }, [packableOrders, parseOrderItems]);
-
-  if (!isAuthenticated) {
-    return (
-      <WarehousePinModal
-        validPin={validWarehousePin}
-        onAuthenticated={() => {
-          setIsAuthenticated(true);
-          sessionStorage.setItem('warehouse_authenticated', 'true');
-        }}
-      />
-    );
-  }
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">
@@ -373,14 +278,14 @@ export default function PackingPage({
             </div>
 
             <div className="flex items-center gap-2.5">
-              {packableOrders.length > 0 && (
+              {fulfillableOrders.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => executeFastPrint(packableOrders, shopConfig, getCollectInfo, parseOrderItems, `In ${packableOrders.length} Tem Gửi Hàng`)}
+                  onClick={() => executeFastPrint(fulfillableOrders, shopConfig, getCollectInfo, parseOrderItems, `In ${fulfillableOrders.length} Tem Gửi Hàng`)}
                   className="flex items-center gap-2 px-5 py-3 bg-stone-900 hover:bg-amber-800 text-white text-xs sm:text-sm font-bold rounded-2xl shadow-sm active:scale-95 cursor-pointer transition-colors"
                 >
                   <Layers className="w-4 h-4" />
-                  <span>In Hết ({packableOrders.length} Tem)</span>
+                  <span>In Hết ({fulfillableOrders.length} Tem)</span>
                 </button>
               )}
               <button
@@ -393,10 +298,7 @@ export default function PackingPage({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  sessionStorage.removeItem('warehouse_authenticated');
-                  setIsAuthenticated(false);
-                }}
+                onClick={handleLogout}
                 className="p-3 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-600 hover:text-rose-600 border border-stone-200/80 transition-colors cursor-pointer"
                 title="Khóa lại giao diện kho"
               >
@@ -435,6 +337,7 @@ export default function PackingPage({
       </div>
 
       <div className="space-y-6 pt-3">
+        {warehouseError&&<p role="alert" className="text-sm text-rose-700">{warehouseError}</p>}
         {activeTab === 'picking' && (
           <PickingSummaryTab
             pickingSummary={pickingSummary}
@@ -446,12 +349,13 @@ export default function PackingPage({
 
         {activeTab === 'orders' && (
           <div className="space-y-5">
+            <PageSizeControl value={pagination.pageSize} onChange={pagination.setPageSize} />
             {packableOrders.length === 0 ? (
               <div className="p-16 text-center bg-white rounded-3xl border border-stone-200 text-stone-500 text-sm">
                 Hiện không có đơn nào ở trạng thái chờ đóng.
               </div>
             ) : (
-              packableOrders.map((ord) => {
+              pagination.result.items.map((ord) => {
                 const orderCode = ord.code || ord.orderId;
                 const collectInfo = getCollectInfo(ord);
                 const items = parseOrderItems(ord);
@@ -471,11 +375,12 @@ export default function PackingPage({
                     onUpdateStatus={(targetStatusCode) => handleUpdateStatus(orderCode, targetStatusCode)}
                     onUploadPhoto={(file) => handleUploadPackingPhoto(orderCode, file)}
                     isUploading={uploadingOrderCode === orderCode}
-                    packingImageUrl={previewImages[orderCode] || ord.packing_image}
+                    packingImageUrl={previewImages[orderCode] || null}
                   />
                 );
               })
             )}
+            <ListPagination result={pagination.result} onPageChange={pagination.setPage} />
           </div>
         )}
       </div>

@@ -22,7 +22,6 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
     shippingFee: initialConfig.shippingFee ?? 30000,
     freeShippingThreshold: initialConfig.freeShippingThreshold ?? 300000,
     hotline: initialConfig.hotline || "0848.957.345",
-    warehousePin: initialConfig.warehousePin || "1234",
     address: initialConfig.address || "Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận",
     announcement: resolveAnnouncementText(initialConfig.announcement) || "Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm",
     loyaltyDiscountPercent: initialConfig.loyaltyDiscountPercent ?? 10,
@@ -42,7 +41,6 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
         shippingFee: initialConfig.shippingFee ?? prev.shippingFee,
         freeShippingThreshold: initialConfig.freeShippingThreshold ?? prev.freeShippingThreshold,
         hotline: initialConfig.hotline || prev.hotline,
-        warehousePin: initialConfig.warehousePin || prev.warehousePin,
         address: initialConfig.address || prev.address,
         announcement: resolveAnnouncementText(initialConfig.announcement) || prev.announcement,
         loyaltyDiscountPercent: initialConfig.loyaltyDiscountPercent ?? prev.loyaltyDiscountPercent,
@@ -82,7 +80,6 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
           value: {
             address: cfg.address,
             hotline: cfg.hotline,
-            warehousePin: cfg.warehousePin,
           },
           updated_at: nowIso,
         }, "key"),
@@ -218,17 +215,6 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
             value={cfg.hotline}
             onChange={(e) => setCfg({ ...cfg, hotline: e.target.value })}
             className="w-full h-11 px-3.5 border border-stone-200 rounded-2xl bg-stone-50 font-mono font-bold focus:outline-none focus:border-amber-600 shadow-2xs"
-          />
-        </div>
-
-        <div>
-          <label className="font-bold text-stone-700 block mb-1.5">Mã PIN Kho / Admin</label>
-          <input
-            type="text"
-            maxLength={6}
-            value={cfg.warehousePin}
-            onChange={(e) => setCfg({ ...cfg, warehousePin: e.target.value })}
-            className="w-full h-11 px-3.5 border border-stone-200 rounded-2xl bg-stone-50 font-mono font-bold tracking-widest focus:outline-none focus:border-amber-600 shadow-2xs"
           />
         </div>
 

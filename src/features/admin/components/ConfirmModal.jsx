@@ -1,28 +1,22 @@
 // src/components/admin/ConfirmModal.jsx
-import React, { useEffect } from 'react';
+import React from 'react';
+import ModalPortal from '../../../shared/components/ModalPortal';
 import { AlertTriangle, Info, Check, X } from 'lucide-react';
 
 export default function ConfirmModal({ modalConfig, onClose }) {
   const isAlert = Boolean(modalConfig?.isAlert);
   const isDanger = modalConfig?.isDanger !== undefined ? Boolean(modalConfig.isDanger) : !isAlert;
 
-  useEffect(() => {
-    if (!modalConfig) return;
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [modalConfig, onClose]);
 
   if (!modalConfig) return null;
 
   return (
+    <ModalPortal onClose={onClose}>
     <div 
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800"
+      onClick={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto p-4 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800"
     >
-      <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-stone-200/90 text-center space-y-4 relative animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-stone-200/90 text-center space-y-4 relative animate-in fade-in zoom-in-95 duration-150">
         
         {/* Nút X đóng góc trên */}
         <button
@@ -89,5 +83,6 @@ export default function ConfirmModal({ modalConfig, onClose }) {
 
       </div>
     </div>
+    </ModalPortal>
   );
 }

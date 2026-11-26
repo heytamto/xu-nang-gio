@@ -1,4 +1,4 @@
-// src/components/checkout/OrderItemsList.jsx
+// src/features/checkout/components/OrderItemsList.jsx
 import React from 'react';
 import { ShoppingBag, Trash2, Gift } from 'lucide-react';
 
@@ -24,16 +24,16 @@ export default function OrderItemsList({
   };
 
   return (
-    <div className="bg-stone-50/90 rounded-3xl p-5 sm:p-6 border border-stone-200/90 space-y-4 font-sans text-stone-800">
+    <div className="@container bg-stone-50/90 rounded-3xl p-3 sm:p-5 border border-stone-200/90 space-y-4 font-sans text-stone-800">
       
       {/* Header nhóm */}
-      <div className="flex items-center justify-between border-b border-stone-200/80 pb-3.5 flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <span className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
+      <div className="flex items-center justify-between border-b border-stone-200/80 pb-3 flex-wrap gap-x-4 gap-y-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="w-6 h-6 shrink-0 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
             1
           </span>
           <h3 className="text-sm sm:text-base font-black text-stone-900 uppercase tracking-wide flex items-center gap-2">
-            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700" />
+            <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-amber-700" />
             <span>Danh Sách Món Đã Chọn ({cart.length} món)</span>
           </h3>
         </div>
@@ -42,8 +42,8 @@ export default function OrderItemsList({
         </span>
       </div>
 
-      {/* Danh sách món cuộn dọc */}
-      <div className="divide-y divide-stone-200/80 max-h-80 overflow-y-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
+      {/* Danh sách món responsive */}
+      <div className="divide-y divide-stone-200/80">
         {cart.map((item, idx) => {
           const qty = Number(item.quantity) || 1;
           const unitPrice = Number(item.price ?? item.base_price ?? item.basePrice ?? 0);
@@ -54,66 +54,60 @@ export default function OrderItemsList({
           const uniqueKey = item.cartItemId || item.id || `${item.product_id || item.productId || idx}_${item.weight_id || item.weightId || 'std'}`;
 
           return (
-            <div key={uniqueKey} className="py-4 flex items-center justify-between gap-3 sm:gap-4 text-xs sm:text-sm">
+            <div key={uniqueKey} className="py-3 first:pt-1 last:pb-0 flex flex-col gap-3 text-xs sm:text-sm">
               
-              {/* Ảnh và thông tin món */}
-              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              {/* Tên món chiếm toàn bộ chiều rộng; xuống dòng tự nhiên trên mobile */}
+              <h4 className="font-bold text-stone-900 text-sm sm:text-base leading-snug [overflow-wrap:anywhere]">
+                {itemName}
+              </h4>
+              {/* Hai hàng trên mobile, một hàng khi container đủ rộng */}
+              <div className="grid min-w-0 grid-cols-1 gap-3 @min-[560px]:grid-cols-[minmax(0,1fr)_auto] @min-[560px]:items-center">
+                <div className="flex min-w-0 items-center gap-3">
                 {item.image && (
                   <img
                     src={item.image}
                     alt={itemName}
-                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover shrink-0 border border-stone-200/90 shadow-2xs bg-stone-100"
+                    className="w-14 h-14 @min-[420px]:w-16 @min-[420px]:h-16 rounded-2xl object-cover shrink-0 border border-stone-200/90 shadow-2xs bg-stone-100"
                     onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      if (e.currentTarget.dataset.fallback) return;
+                      e.currentTarget.dataset.fallback = "true";
                       e.currentTarget.src = "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80";
                     }}
                   />
                 )}
-                
-                <div className="min-w-0 flex-1 space-y-1">
-                  <span className="font-bold text-stone-900 block text-sm sm:text-base leading-snug">
-                    {itemName}
-                  </span>
-                  
-                  <div className="text-xs sm:text-sm text-stone-600 leading-normal flex flex-wrap items-center gap-1">
-                    <span>Quy cách:</span>
-                    <strong className="text-stone-800 font-semibold">{specLabel}</strong>
-                    {item.flavor && <span>• {item.flavor}</span>}
-                    {unitPrice > 0 && (
-                      <span className="text-stone-400 font-mono ml-1">
-                        ({unitPrice.toLocaleString('vi-VN')}đ)
-                      </span>
+
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="text-xs sm:text-sm font-semibold text-stone-800 leading-normal [overflow-wrap:anywhere]">
+                      {specLabel}
+                      {item.flavor && <span> • {item.flavor}</span>}
+                    </div>
+                    {unitPrice > 0 && qty > 1 && (
+                      <div className="text-xs text-stone-500 font-mono">
+                        Đơn giá: {unitPrice.toLocaleString('vi-VN')}đ
+                      </div>
+                    )}
+                    {giftTitle && (
+                      <div className="inline-flex max-w-full items-center gap-1 text-[11px] font-semibold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
+                        <Gift className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="min-w-0 [overflow-wrap:anywhere]">{giftTitle}</span>
+                      </div>
                     )}
                   </div>
-
-                  {/* Quà tặng theo món */}
-                  {giftTitle && (
-                    <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-900 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/80 mt-0.5 shadow-2xs">
-                      <Gift className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Tặng: {giftTitle}</span>
-                    </div>
-                  )}
-
-                  {/* Thành tiền trên mobile */}
-                  <div className="text-xs sm:text-sm font-black text-amber-950 font-mono sm:hidden pt-0.5">
-                    {itemTotal.toLocaleString('vi-VN')}đ
-                  </div>
                 </div>
-              </div>
-
-              {/* Cụm điều khiển số lượng & Giá tiền */}
-              <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                {/* Cụm tăng giảm số lượng tinh gọn (Nút trừ luôn là dấu trừ nhẹ nhàng) */}
-                <div className="flex items-center bg-white p-1 rounded-2xl border border-stone-200/90 shadow-2xs">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 @min-[560px]:flex-nowrap @min-[560px]:gap-3">
+                <div className="flex shrink-0 items-center bg-white p-1 rounded-2xl border border-stone-200/90 shadow-2xs">
                   <button
                     type="button"
                     onClick={() => handleQtyChange(item, -1)}
                     className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center font-bold text-base transition-colors cursor-pointer active:scale-95"
+                    aria-label="Giảm số lượng"
                     title={qty === 1 ? "Bỏ món này khỏi giỏ" : "Giảm 1"}
                   >
                     -
                   </button>
                   
-                  <span className="w-8 text-center font-black font-mono text-stone-900 text-sm sm:text-base">
+                  <span className="min-w-7 px-1 text-center font-black font-mono text-stone-900 text-sm sm:text-base">
                     {qty}
                   </span>
                   
@@ -121,28 +115,18 @@ export default function OrderItemsList({
                     type="button"
                     onClick={() => handleQtyChange(item, 1)}
                     className="w-8 h-8 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 flex items-center justify-center font-bold text-base transition-colors cursor-pointer active:scale-95"
+                    aria-label="Tăng số lượng"
                     title="Tăng 1"
                   >
                     +
                   </button>
                 </div>
+                  <span className="ml-auto font-mono font-black text-amber-950 whitespace-nowrap text-sm sm:text-base text-right">
+                    {itemTotal.toLocaleString('vi-VN')}đ
+                  </span>
 
-                {/* Duy nhất 1 nút Thùng rác xóa nhanh */}
-                <button
-                  type="button"
-                  onClick={() => onRemoveItem && onRemoveItem(item)}
-                  className="w-9 h-9 rounded-2xl bg-stone-100 hover:bg-rose-50 text-stone-400 hover:text-rose-600 border border-stone-200/80 flex items-center justify-center transition-colors cursor-pointer active:scale-95"
-                  title="Xóa hẳn món này"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-
-                {/* Thành tiền Desktop */}
-                <span className="hidden sm:inline-block font-mono font-black text-amber-950 whitespace-nowrap text-sm sm:text-base w-24 text-right">
-                  {itemTotal.toLocaleString('vi-VN')}đ
-                </span>
+                </div>
               </div>
-
             </div>
           );
         })}

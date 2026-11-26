@@ -125,7 +125,7 @@ export const productRepo = {
       ? productData.images
       : (productData.image_url ? [productData.image_url] : []);
 
-    const { data, error } = await supabase.rpc('create_product_with_weights', {
+    const { data, error } = await supabase.rpc('xng_create_product_staging', {
       p_name: productData.name,
       p_base_price: productData.base_price,
       p_unit: productData.unit,

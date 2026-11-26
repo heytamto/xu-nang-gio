@@ -1,17 +1,13 @@
+import { confirmOrderPayment } from '../services/paymentConfirmationApi';
+import { fetchOrderItemsByCodes } from '../../../infrastructure/supabase/repositories/orderItemsQuery';
 // src/hooks/useAdminOrders.js
 import { useState, useCallback, useEffect } from 'react';
-import { orderRepo, orderItemRepo } from '../../../infrastructure/supabase/repositories/index';
+import { orderRepo } from '../../../infrastructure/supabase/repositories/index';
 import { supabase } from '../../../infrastructure/supabase/supabaseClient';
-import { ORDER_STATUS, ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
+import { ORDER_STATUS_MAP, normalizeOrderStatus } from '../constants/orderStatus';
 
 export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus, showSavedToast, setModalConfig) {
-  const [dbOrders, setDbOrders] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('shop_orders') || '[]');
-    } catch {
-      return [];
-    }
-  });
+  const [dbOrders, setDbOrders] = useState([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [actionLoadingCode, setActionLoadingCode] = useState(null);
   const [confirmingOrderCode, setConfirmingOrderCode] = useState(null);
@@ -32,10 +28,10 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
       let itemsMap = {};
 
       if (orderCodes.length > 0) {
-        const itemsData = await orderItemRepo.getAll();
+        const itemsData = await fetchOrderItemsByCodes(supabase, orderCodes);
         if (Array.isArray(itemsData)) {
           itemsData.forEach((item) => {
-            if (orderCodes.includes(item.order_code)) {
+            if (item.order_code) {
               const key = item.order_code;
               if (!itemsMap[key]) itemsMap[key] = [];
               itemsMap[key].push(item);
@@ -51,19 +47,9 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
       }));
 
       setDbOrders(mergedOrders);
-      try {
-        localStorage.setItem('shop_orders', JSON.stringify(mergedOrders));
-      } catch (e) {
-        console.error(e);
-      }
     } catch (err) {
       console.error('Lỗi tải đơn hàng qua Repo:', err);
-      try {
-        const local = JSON.parse(localStorage.getItem('shop_orders') || '[]');
-        setDbOrders(local);
-      } catch {
-        setDbOrders([]);
-      }
+      setDbOrders([]);
     } finally {
       setIsLoadingOrders(false);
     }
@@ -94,7 +80,6 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
             ? { ...ord, status: normalizedStatus, ...(reason ? { cancel_reason: reason } : {}) } 
             : ord)
         );
-        try { localStorage.setItem('shop_orders', JSON.stringify(nextOrders)); } catch (e) {}
         return nextOrders;
       });
       
@@ -117,52 +102,15 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
   };
 
   // Duyệt thanh toán cọc và gửi email
-  const handleConfirmPaymentAndNotify = async (order) => {
+  const handleConfirmPaymentAndNotify = async (order, receivedAmount) => {
     if (!order || !order.code) return;
     setConfirmingOrderCode(order.code);
 
     try {
-      const totalOrderNum = Number(order.final_total || order.total || 0);
-      const configuredDeposit = Number(shopConfig?.depositAmount || 50000);
-      
-      const verifiedAmount = order.payment_method === 'deposit' 
-        ? Math.min(configuredDeposit, totalOrderNum) 
-        : totalOrderNum;
-
-      const updatedStatus = ORDER_STATUS.CONFIRMED;
-      const nowIso = new Date().toISOString();
-
-      await orderRepo.update(order.code, {
-        status: updatedStatus,
-        payment_verified: true,
-        deposit_paid: verifiedAmount,
-        payment_verified_at: nowIso
-      }, 'code');
-
-      const customerEmail = order.email || order.customer?.email;
-      let emailSent = false;
-
-      if (customerEmail && customerEmail.includes('@')) {
-        try {
-          const remainingCod = Math.max(0, totalOrderNum - verifiedAmount);
-          const { error: mailError } = await supabase.functions.invoke('send-order-email', {
-            body: {
-              to: customerEmail,
-              template: 'payment_success',
-              order_code: order.code,
-              customer_name: order.customer_name || order.name || 'Quý khách',
-              payment_method: order.payment_method,
-              deposit_paid: verifiedAmount,
-              final_total: totalOrderNum,
-              remaining_cod: remainingCod,
-              items: order.order_items || order.cart || []
-            }
-          });
-          if (!mailError) emailSent = true;
-        } catch (mailErr) {
-          console.warn('Gửi email thông báo thất bại:', mailErr);
-        }
-      }
+      const data = await confirmOrderPayment(supabase, order.code, receivedAmount);
+      const updatedStatus = normalizeOrderStatus(data.status);
+      const verifiedAmount = Number(data.deposit_paid);
+      const nowIso = data.payment_verified_at;
 
       setDbOrders((prev) => {
         const nextOrders = prev.map((o) =>
@@ -176,7 +124,6 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
               }
             : o
         );
-        try { localStorage.setItem('shop_orders', JSON.stringify(nextOrders)); } catch (e) {}
         return nextOrders;
       });
 
@@ -185,7 +132,7 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
       }
 
       showSavedToast(
-        `Đã duyệt đơn #${order.code}!` + (emailSent ? ` (Đã gửi email đến ${customerEmail})` : '')
+        `Đã duyệt đơn #${order.code}!`
       );
     } catch (err) {
       console.error('Lỗi khi duyệt thanh toán:', err);
@@ -211,7 +158,6 @@ export function useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus,
           await orderRepo.remove(orderCode, 'code');
           setDbOrders((prev) => {
             const nextOrders = prev.filter((ord) => ord.code !== orderCode);
-            try { localStorage.setItem('shop_orders', JSON.stringify(nextOrders)); } catch (e) {}
             return nextOrders;
           });
           showSavedToast(`Đã xóa đơn hàng ${orderCode}`);

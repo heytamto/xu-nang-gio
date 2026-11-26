@@ -1,4 +1,7 @@
 // src/utils/shippingLabelPrinter.js
+export function escapePrintHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 export function renderSingleShippingLabelHtml(order, shopConfig = {}, collectInfo, allItems = []) {
   const orderCode = order.code || order.orderId;
@@ -11,11 +14,11 @@ export function renderSingleShippingLabelHtml(order, shopConfig = {}, collectInf
     <tr style="${it.isGift ? 'background: #fffbeb;' : ''}">
       <td style="text-align: center; font-weight: bold; border-right: 1px solid #000; padding: 4px 2px;">${idx + 1}</td>
       <td style="padding: 4px 6px; border-right: 1px solid #000; font-weight: bold;">
-        ${it.name}
-        <div style="font-size: 11px; font-weight: normal; color: ${it.isGift ? '#b45309' : '#333'};">${it.spec}</div>
+        ${escapePrintHtml(it.name)}
+        <div style="font-size: 11px; font-weight: normal; color: ${it.isGift ? '#b45309' : '#333'};">${escapePrintHtml(it.spec)}</div>
       </td>
       <td style="text-align: center; font-weight: 900; font-family: monospace; font-size: 16px; padding: 4px 2px;">
-        x${it.quantity}
+        x${escapePrintHtml(it.quantity)}
       </td>
     </tr>
   `).join('');
@@ -29,25 +32,25 @@ export function renderSingleShippingLabelHtml(order, shopConfig = {}, collectInf
             <div class="shop-sub">Đặc sản Phan Rang gửi xe</div>
           </div>
           <div class="code-box">
-            <div class="order-code">${orderCode}</div>
+            <div class="order-code">${escapePrintHtml(orderCode)}</div>
             <div class="barcode-line">|||||||||||||||</div>
           </div>
         </div>
 
         <div class="info-grid">
           <div class="sender-box">
-            <strong>Người gửi:</strong> Xứ Nắng Gió • Hotline: <strong>${shopConfig.hotline || '0848.957.345'}</strong><br/>
-            <strong>Địa chỉ gửi:</strong> ${shopConfig.address || 'Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận'}
+            <strong>Người gửi:</strong> Xứ Nắng Gió • Hotline: <strong>${escapePrintHtml(shopConfig.hotline || '0848.957.345')}</strong><br/>
+            <strong>Địa chỉ gửi:</strong> ${escapePrintHtml(shopConfig.address || 'Thôn Thái An, Xã Vĩnh Hải, Ninh Hải, Ninh Thuận')}
           </div>
 
           <div class="recipient-box">
             <div style="font-size: 10.5px; font-weight: 800; color: #555; text-transform: uppercase;">NGƯỜI NHẬN HÀNG:</div>
             <div class="recipient-name-phone">
-              <span class="recipient-name">${order.customer_name || order.name || order.customerName || ''}</span>
-              <span class="recipient-phone">${order.phone || ''}</span>
+              <span class="recipient-name">${escapePrintHtml(order.customer_name || order.name || order.customerName || '')}</span>
+              <span class="recipient-phone">${escapePrintHtml(order.phone || '')}</span>
             </div>
             <div class="recipient-address">
-              <strong>Điểm giao / Bến xe:</strong> ${order.address || ''}
+              <strong>Điểm giao / Bến xe:</strong> ${escapePrintHtml(order.address || '')}
             </div>
           </div>
         </div>
@@ -78,21 +81,21 @@ export function renderSingleShippingLabelHtml(order, shopConfig = {}, collectInf
 
           ${cleanNote ? `
             <div class="note-box">
-              <strong>* Ghi chú khách:</strong> ${cleanNote}
+              <strong>* Ghi chú khách:</strong> ${escapePrintHtml(cleanNote)}
             </div>
           ` : ''}
         </div>
 
         ${collectInfo.type === 'PAID_FULL' ? `
           <div class="payment-block paid-block">
-            <div style="font-size: 15px; font-weight: 900;">${collectInfo.printTitle}</div>
-            <div style="font-size: 12px; color: #444; margin-top: 2px;">${collectInfo.printSub}</div>
+            <div style="font-size: 15px; font-weight: 900;">${escapePrintHtml(collectInfo.printTitle)}</div>
+            <div style="font-size: 12px; color: #444; margin-top: 2px;">${escapePrintHtml(collectInfo.printSub)}</div>
           </div>
         ` : `
           <div class="payment-block cod-block">
-            <div class="cod-label">${collectInfo.printTitle}</div>
-            <div class="cod-price">${collectInfo.collectAmount.toLocaleString('vi-VN')} đ</div>
-            <div class="cod-sub">${collectInfo.printSub}</div>
+            <div class="cod-label">${escapePrintHtml(collectInfo.printTitle)}</div>
+            <div class="cod-price">${escapePrintHtml(collectInfo.collectAmount.toLocaleString('vi-VN'))} đ</div>
+            <div class="cod-sub">${escapePrintHtml(collectInfo.printSub)}</div>
           </div>
         `}
 
@@ -125,7 +128,7 @@ export function executeFastPrint(ordersToPrint, shopConfig, getCollectInfo, pars
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>${title}</title>
+        <title>${escapePrintHtml(title)}</title>
         <style>
           @page { size: 100mm 150mm; margin: 0; }
           * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }

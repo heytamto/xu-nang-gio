@@ -87,6 +87,7 @@ export default function PackingOrderCard({
         <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
+            disabled={order.can_fulfill !== true}
             onClick={onPrintSingle}
             className="px-4 py-2.5 rounded-2xl border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
@@ -97,6 +98,7 @@ export default function PackingOrderCard({
           {!isPackingNow ? (
             <button
               type="button"
+              disabled={order.can_fulfill !== true}
               onClick={() => onUpdateStatus(ORDER_STATUS.PACKING)}
               className="px-5 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer"
             >
@@ -106,6 +108,7 @@ export default function PackingOrderCard({
           ) : (
             <button
               type="button"
+              disabled={order.can_fulfill !== true}
               onClick={() => onUpdateStatus(ORDER_STATUS.SHIPPING)}
               className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 cursor-pointer"
             >

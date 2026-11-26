@@ -1,7 +1,6 @@
 // src/components/admin/dashboard/dashboardUtils.jsx
 import React from 'react';
 import { Gift } from 'lucide-react';
-import { ORDER_STATUS } from '../../constants/orderStatus';
 
 export const DATE_OPTIONS = [
   { value: 'all', label: 'Tất cả thời gian' },
@@ -13,15 +12,7 @@ export const DATE_OPTIONS = [
   { value: 'custom', label: 'Khoảng ngày tùy chọn...' },
 ];
 
-export const FORWARD_STATUS_MAP = {
-  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PACKING, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.PACKING]: [ORDER_STATUS.SHIPPING, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.SHIPPING]: [ORDER_STATUS.COMPLETED, ORDER_STATUS.BOMBED, ORDER_STATUS.CANCELLED],
-  [ORDER_STATUS.COMPLETED]: [],
-  [ORDER_STATUS.CANCELLED]: [],
-  [ORDER_STATUS.BOMBED]: []
-};
+export { FORWARD_STATUS_MAP } from '../../constants/orderStatus';
 
 /**
  * Lấy tên ngân hàng đang kích hoạt để hiển thị nhãn
@@ -41,16 +32,7 @@ export function getActiveBankLabel(shopConfig) {
 /**
  * Trích xuất tiền cọc cấu hình chuẩn từ nhiều cấu trúc schema khác nhau
  */
-export function resolveDepositAmount(shopConfig) {
-  const amount = 
-    shopConfig?.payment?.depositAmount ?? 
-    shopConfig?.payment_config?.depositAmount ?? 
-    shopConfig?.depositAmount ?? 
-    shopConfig?.deposit_amount;
-    
-  const num = Number(amount);
-  return !isNaN(num) && num > 0 ? num : 50000;
-}
+export { resolveDepositAmount } from '../../../shop-config/config/shopConfig';
 
 /**
  * Sinh nhãn hiển thị phương thức thanh toán linh hoạt cho dòng đơn hàng

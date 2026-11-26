@@ -6,7 +6,8 @@ import { marketingRepo } from '../../infrastructure/supabase/repositories/market
 /**
  * Tải toàn bộ Master Data thông qua các Repository đã tách biệt
  */
-export async function fetchAllMasterDataFromSupabase() {
+export async function fetchAllMasterDataFromSupabase(groups = ['catalog', 'content', 'config', 'reviews']) {
+  const has = (group) => groups.includes(group);
   try {
     // Gọi song song qua các Repository
     const [
@@ -19,14 +20,14 @@ export async function fetchAllMasterDataFromSupabase() {
       configs,
       reviews
     ] = await Promise.all([
-      contentRepo.getCategories(),
-      productRepo.getAllWithWeights(),
-      contentRepo.getPosts(),
-      contentRepo.getStories(),
-      marketingRepo.getVouchers(),
-      marketingRepo.getPaymentRewardsGifts(),
-      marketingRepo.getShopConfigs(),
-      marketingRepo.getApprovedReviews(8)
+      has('catalog') ? contentRepo.getCategories() : null,
+      has('catalog') ? productRepo.getAllWithWeights() : null,
+      has('content') ? contentRepo.getPosts() : null,
+      has('content') ? contentRepo.getStories() : null,
+      has('config') ? marketingRepo.getVouchers() : null,
+      has('config') ? marketingRepo.getPaymentRewardsGifts() : null,
+      has('config') ? marketingRepo.getShopConfigs() : null,
+      has('reviews') ? marketingRepo.getApprovedReviews(8) : null
     ]);
 
     // Cấu hình mặc định của shop
@@ -60,7 +61,6 @@ export async function fetchAllMasterDataFromSupabase() {
           address: row.address,
           announcement: row.announcement,
           zaloPhone: row.zalo_phone || parsedConfig.zaloPhone,
-          warehousePin: row.warehouse_pin || '1234',
           loyaltyDiscountPercent: row.loyalty_discount_percent,
           loyaltyMaxDiscount: row.loyalty_max_discount,
           autoSendEmail: row.auto_send_email,
@@ -97,7 +97,6 @@ export async function fetchAllMasterDataFromSupabase() {
           address: gen.address,
           brandName: gen.brandName,
           tagline: gen.tagline,
-          warehousePin: gen.warehousePin || '1234',
           autoSendEmail: gen.autoSendEmail,
           enablePaymentGifts: isGiftsActive,
           bankBin: pay.bankBin || parsedConfig.bankBin,
@@ -177,7 +176,7 @@ export async function fetchAllMasterDataFromSupabase() {
 
     const validPaymentGifts = (gifts || []).filter(g => g.type === 'payment_reward' && g.is_active !== false);
 
-    return {
+    const result = {
       categories: (categories || []).map(c => ({ ...c, label: c.name })),
       products: formattedProducts,
       posts: (posts || []).map((post) => ({
@@ -200,6 +199,8 @@ export async function fetchAllMasterDataFromSupabase() {
       config: parsedConfig,
       reviews: reviews || []
     };
+    const keys = { catalog: ['categories', 'products'], content: ['posts', 'stories'], config: ['vouchers', 'giftsCatalog', 'paymentGifts', 'config'], reviews: ['reviews'] };
+    return Object.fromEntries(groups.flatMap(group => (keys[group] || []).map(key => [key, result[key]])));
   } catch (err) {
     console.error('Lỗi fetchAllMasterDataFromSupabase:', err);
     return null;

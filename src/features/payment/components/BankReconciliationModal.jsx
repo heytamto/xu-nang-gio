@@ -1,4 +1,5 @@
 // src/components/admin/BankReconciliationModal.jsx
+import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { 
@@ -219,8 +220,9 @@ export default function BankReconciliationModal({
   if (!isOpen) return null;
 
   return (
+    <ModalPortal onClose={onClose} closeOnEscape={!isProcessing}>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 sm:p-6 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 flex flex-col max-h-[92vh] space-y-5">
+      <div className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 flex flex-col max-h-[92dvh] space-y-5">
         
         {/* Header Modal */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
@@ -413,5 +415,6 @@ export default function BankReconciliationModal({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

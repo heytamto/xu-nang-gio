@@ -39,13 +39,13 @@ export default function Navbar({
 
   return (
     <div className="w-full bg-stone-950/95 backdrop-blur-md border-b border-stone-800 text-stone-200 font-sans shadow-md">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-4">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Logo & Tên Vườn */}
         <button
           type="button"
           onClick={() => handleNavClick('home')}
-          className="flex items-center gap-3 text-left group cursor-pointer shrink-0"
+          className="flex items-center gap-2 sm:gap-3 text-left group cursor-pointer min-w-0"
         >
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
             <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -79,7 +79,7 @@ export default function Navbar({
         </nav>
 
         {/* Cụm Nút Tra Cứu, Giỏ Hàng & Menu Mobile */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Nút Tra Cứu Đơn */}
           <button
             type="button"
@@ -105,11 +105,12 @@ export default function Navbar({
           <button
             type="button"
             onClick={handleCartClick}
-            className={`relative py-2 px-3 sm:px-3.5 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer shadow-2xs ${
+            className={`relative p-2.5 sm:py-2 sm:px-3.5 rounded-2xl border transition-all active:scale-95 flex items-center gap-2.5 cursor-pointer shadow-2xs ${
               isCartBouncing 
                 ? 'animate-cart-pop bg-amber-500 border-amber-300 text-stone-950 shadow-[0_0_20px_rgba(245,158,11,0.6)]' 
                 : 'bg-stone-900 hover:bg-stone-800 text-stone-200 border-stone-800 hover:border-amber-500/40'
             }`}
+            aria-label={`Giỏ hàng, ${cartCount} sản phẩm`}
             title="Xem đơn hàng & Thanh toán"
           >
             <div className="relative flex items-center justify-center">
@@ -134,8 +135,8 @@ export default function Navbar({
 
             {cartCount > 0 && cartTotal > 0 && (
               <>
-                <div className={`h-4 w-px ${isCartBouncing ? 'bg-stone-950/30' : 'bg-stone-700/80'}`} />
-                <span className={`font-mono text-xs sm:text-sm font-black tracking-tight transition-colors ${
+                <div className={`hidden md:block h-4 w-px ${isCartBouncing ? 'bg-stone-950/30' : 'bg-stone-700/80'}`} />
+                <span className={`hidden md:inline font-mono text-xs sm:text-sm font-black tracking-tight transition-colors ${
                   isCartBouncing ? 'text-stone-950' : 'text-amber-300'
                 }`}>
                   {cartTotal.toLocaleString('vi-VN')}₫

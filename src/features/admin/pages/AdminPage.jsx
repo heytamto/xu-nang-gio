@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Check } from 'lucide-react';
 
-import AdminLoginView from '../../auth/components/AdminLoginView';
+import StaffGate from '../../auth/components/StaffGate';
 import AdminHeaderBar from '../components/AdminHeaderBar';
 import DashboardTab from '../../orders/components/DashboardTab';
 import ProductsTab from '../../catalog/admin/product/ProductsTab';
@@ -16,11 +16,17 @@ import EditStoryModal from '../../content/admin/story/EditStoryModal';
 import ConfirmModal from '../components/ConfirmModal';
 import BankReconciliationModal from '../../payment/components/BankReconciliationModal';
 
-import { productRepo, postRepo, storyRepo } from '../../../infrastructure/supabase/repositories/index';
+import { postRepo, storyRepo } from '../../../infrastructure/supabase/repositories/index';
 import { supabase } from '../../../infrastructure/supabase/supabaseClient';
+import { useProductStockMutation } from '../../catalog/hooks/useProductStockMutation';
 import { useAdminOrders } from '../../orders/hooks/useAdminOrders';
 
-export default function AdminPage({ 
+export default function AdminPage(props) {
+  return <StaffGate area="admin" onNavigateHome={props.onNavigateHome}>{(user, logout) => <AdminContent key={user.id} {...props} adminUser={user} handleLogout={logout} />}</StaffGate>;
+}
+
+function AdminContent({
+  adminUser, handleLogout, 
   products = [], 
   categories = [],
   onSaveProducts, 
@@ -38,16 +44,7 @@ export default function AdminPage({
   onNavigateHome,
   onNavigatePacking
 }) {
-  const [adminUser, setAdminUser] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('xng_admin_user') || localStorage.getItem('xng_admin_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const isAuthenticated = Boolean(adminUser);
+  const isAuthenticated = true;
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [savedNotice, setSavedNotice] = useState(false);
@@ -75,13 +72,6 @@ export default function AdminPage({
     handleDeleteOrder
   } = useAdminOrders(isAuthenticated, shopConfig, onUpdateOrderStatus, showSavedToast, setModalConfig);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('xng_admin_user');
-    localStorage.removeItem('xng_admin_user');
-    setAdminUser(null);
-    if (onNavigateHome) onNavigateHome();
-  };
-
   const handleSaveProducts = (newProducts) => {
     if (onSaveProducts) onSaveProducts(newProducts);
     showSavedToast('Đã lưu danh mục sản phẩm!');
@@ -97,18 +87,16 @@ export default function AdminPage({
     showSavedToast('Đã lưu bài viết cẩm nang!');
   };
 
+  const stockMutation = useProductStockMutation();
+
   // Cập nhật kho sản phẩm
   const handleToggleProductStock = async (productId) => {
     const targetProduct = products.find((p) => p.id === productId);
-    if (!targetProduct) return;
+    if (!targetProduct || stockMutation.isPending) return;
     const nextStock = !(targetProduct.inStock ?? targetProduct.in_stock ?? true);
 
     try {
-      await productRepo.update(productId, { in_stock: nextStock });
-      const updated = products.map((p) =>
-        p.id === productId ? { ...p, inStock: nextStock, in_stock: nextStock } : p
-      );
-      handleSaveProducts(updated);
+      await stockMutation.mutateAsync({ productId, inStock: nextStock });
       showSavedToast(`Đã ${nextStock ? 'mở bán' : 'tắt bán'} sản phẩm #${productId}`);
     } catch (err) {
       setModalConfig({ title: 'Lỗi Cập Nhật Kho', message: err.message, isAlert: true });
@@ -183,15 +171,6 @@ export default function AdminPage({
       }
     });
   };
-
-  if (!isAuthenticated) {
-    return (
-      <AdminLoginView
-        onLoginSuccess={(userObj) => setAdminUser(userObj)}
-        onNavigateHome={onNavigateHome}
-      />
-    );
-  }
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">

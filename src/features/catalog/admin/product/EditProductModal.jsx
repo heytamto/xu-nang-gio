@@ -1,4 +1,5 @@
 // src/components/admin/EditProductModal.jsx
+import ModalPortal from '../../../../shared/components/ModalPortal';
 import React, { useState, useEffect } from 'react';
 import { 
   X, 
@@ -15,21 +16,14 @@ import {
 } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
-import { categoryRepo, productRepo, productWeightRepo } from '../../../../infrastructure/supabase/repositories/index';
+import { productRepo, productWeightRepo } from '../../../../infrastructure/supabase/repositories/index';
 import { supabase } from '../../../../infrastructure/supabase/supabaseClient';
 
-const CALC_TYPE_OPTIONS = [
-  { value: 'multiplier', label: 'Nhân hệ số (x)' },
-  { value: 'fixed', label: 'Giá cố định (VNĐ)' }
-];
+import { CALC_TYPE_OPTIONS } from '../../constants/productFormOptions';
+import { getYouTubeEmbedId } from '../../../../shared/utils/youtube';
+import { useProductCategories } from '../../hooks/useProductCategories';
 
-// Trích xuất videoId YouTube Shorts hoặc URL thông thường
-function getYouTubeEmbedId(url) {
-  if (!url) return null;
-  const regExp = /(?:shorts\/|youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[1].length === 11 ? match[1] : null;
-}
+import { mapProductToEditForm } from '../../utils/productFormMapper';
 
 export default function EditProductModal({ 
   product, 
@@ -38,112 +32,12 @@ export default function EditProductModal({
   onSave, 
   onShowAlert 
 }) {
-  const [categories, setCategories] = useState([]);
+  const categories = useProductCategories(propCategories);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [extraImageInput, setExtraImageInput] = useState('');
 
-  // 1. Tải danh mục động: Ưu tiên propCategories, nếu trống gọi qua categoryRepo
-  useEffect(() => {
-    if (Array.isArray(propCategories) && propCategories.length > 0) {
-      setCategories(
-        propCategories
-          .filter((c) => c.id !== 'all')
-          .map((c) => ({ id: c.id, label: c.name || c.label, name: c.name || c.label }))
-      );
-      return;
-    }
-
-    async function loadDbCategories() {
-      try {
-        const data = await categoryRepo.getAll();
-        if (Array.isArray(data) && data.length > 0) {
-          const sorted = data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          setCategories(
-            sorted
-              .filter((c) => c.id !== 'all')
-              .map((c) => ({ id: c.id, label: c.name, name: c.name }))
-          );
-        }
-      } catch (e) {
-        console.error('Lỗi tải categories trong EditProductModal:', e);
-      }
-    }
-    loadDbCategories();
-  }, [propCategories]);
-
-  const [formData, setFormData] = useState(() => {
-    const rawWeights = product?.product_weights || product?.weights;
-    let initialWeights = [];
-
-    if (Array.isArray(rawWeights) && rawWeights.length > 0) {
-      initialWeights = rawWeights.map((w, idx) => {
-        const hasPriceOverride = w.price_override !== null && w.price_override !== undefined && w.price_override !== '';
-        return {
-          id: w.id || `opt_${idx + 1}`,
-          weight_key: w.weight_key || w.key || `opt_${idx + 1}`,
-          label: w.label || w.weight_label || `Quy cách ${idx + 1}`,
-          calcType: hasPriceOverride ? 'fixed' : 'multiplier',
-          val: hasPriceOverride ? Number(w.price_override) : (parseFloat(w.multiplier) || 1),
-          multiplier: parseFloat(w.multiplier) || 1,
-          price_override: hasPriceOverride ? Number(w.price_override) : null,
-          is_default: Boolean(w.is_default || idx === 0),
-          sort_order: w.sort_order ?? idx
-        };
-      });
-    } else {
-      initialWeights = [
-        {
-          id: 'std',
-          weight_key: 'std',
-          label: `1 ${product?.unit || 'kg'}`,
-          calcType: 'multiplier',
-          val: 1,
-          multiplier: 1,
-          price_override: null,
-          is_default: true,
-          sort_order: 0
-        }
-      ];
-    }
-
-    // Chuẩn hóa danh sách nhiều ảnh (Multi-images)
-    const rawImages = Array.isArray(product?.images) && product.images.length > 0
-      ? product.images.filter(Boolean)
-      : (typeof product?.images === 'string' && product.images.trim()
-          ? product.images.split(/[,|\n]/).map(s => s.trim()).filter(Boolean)
-          : []);
-
-    const primaryCover = product?.image_url || product?.image || rawImages[0] || '';
-    const secondaryImages = rawImages.filter(img => img !== primaryCover);
-
-    // Chuẩn hóa flavors thành chuỗi để hiển thị trên input
-    let initialFlavorsStr = '';
-    if (Array.isArray(product?.flavors)) {
-      initialFlavorsStr = product.flavors.map(f => (typeof f === 'string' ? f : f?.label)).filter(Boolean).join(', ');
-    } else if (typeof product?.flavors === 'string') {
-      initialFlavorsStr = product.flavors.split('|').map(s => s.trim()).filter(Boolean).join(', ');
-    }
-
-    const currentCat = product?.category || product?.category_id || '';
-
-    return {
-      ...product,
-      name: product?.name || '',
-      category: currentCat,
-      unit: typeof product?.unit === 'object' ? (product?.unit?.label || 'kg') : (product?.unit || 'kg'),
-      basePrice: Number(product?.basePrice ?? product?.base_price ?? product?.price ?? 0),
-      badge: product?.badge || '',
-      source: product?.source || 'Vườn nhà Tâm (Phước Hậu)',
-      image: primaryCover,
-      images: secondaryImages,
-      videoUrl: product?.video_url || product?.videoUrl || '',
-      flavorsInput: initialFlavorsStr,
-      desc: product?.description || product?.desc || '',
-      inStock: product?.inStock ?? product?.in_stock ?? true,
-      weights: initialWeights
-    };
-  });
+  const [formData, setFormData] = useState(() => mapProductToEditForm(product));
 
   useEffect(() => {
     if (categories.length > 0 && !formData.category) {
@@ -378,8 +272,9 @@ export default function EditProductModal({
   const previewEmbedId = getYouTubeEmbedId(formData.videoUrl);
 
   return (
+    <ModalPortal onClose={onClose} closeOnEscape={!isSubmitting}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
@@ -783,5 +678,6 @@ export default function EditProductModal({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }

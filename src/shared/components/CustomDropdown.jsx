@@ -4,6 +4,7 @@ import { ChevronDown, Check } from "lucide-react";
 
 export default function CustomDropdown({
   label,
+  ariaLabel,
   headerLabel = "DANH SÁCH TÙY CHỌN:",
   options = [],
   value,
@@ -64,6 +65,8 @@ export default function CustomDropdown({
 
       <button
         type="button"
+        aria-label={ariaLabel}
+        aria-expanded={isOpen}
         onClick={() => {
           setIsOpen((prev) => !prev);
           if (isOpen) setSearchQuery("");

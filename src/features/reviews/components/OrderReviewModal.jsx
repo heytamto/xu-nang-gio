@@ -1,13 +1,13 @@
 // src/components/OrderReviewModal.jsx
+import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState, useEffect } from 'react';
 import { 
   X, Star, CheckCircle2, AlertCircle, Loader2, 
   Sparkles, Gift, MailCheck, Mail, Camera, PackageCheck, Eye
 } from 'lucide-react';
 import ImageUploadField from '../../../shared/components/ImageUploadField';
-import { submitOrderReview } from '../../orders/services/orderService';
+import { submitOrderReview } from '../services/reviewService';
 import { orderRepo } from '../../../infrastructure/supabase/repositories/index';
-import { supabase } from '../../../infrastructure/supabase/supabaseClient';
 
 const QUICK_REVIEW_SUGGESTIONS = {
   high: [
@@ -146,43 +146,8 @@ export default function OrderReviewModal({
       return;
     }
 
-    let sentEmail = false;
-    if (rating >= 4) {
-      try {
-        let recipientEmail = email?.trim();
-
-        if (!recipientEmail || !recipientEmail.includes('@')) {
-          const orderData = await orderRepo.getByCode(orderCode);
-          if (orderData?.email && orderData.email.includes('@')) {
-            recipientEmail = orderData.email.trim();
-          }
-        }
-
-        if (recipientEmail && recipientEmail.includes('@')) {
-          const { error: mailError } = await supabase.functions.invoke('send-order-email', {
-            body: {
-              to: recipientEmail,
-              template_id: 'tpl0003',
-              customer_name: name.trim(),
-              order_code: orderCode.trim(),
-              data: {
-                CUSTOMER_NAME: name.trim(),
-                ORDER_CODE: orderCode.trim(),
-                VOUCHER_CODE: orderCode.trim()
-              }
-            }
-          });
-
-          if (!mailError) {
-            sentEmail = true;
-          } else {
-            console.warn('Lỗi khi gửi mail tri ân qua Edge Function:', mailError);
-          }
-        }
-      } catch (mailErr) {
-        console.warn('Không thể gửi mail tri ân:', mailErr);
-      }
-    }
+    // Review thank-you email is deferred until verified review submission is server-side.
+    const sentEmail = false;
 
     setIsSubmitting(false);
     setReviewResult({
@@ -200,9 +165,10 @@ export default function OrderReviewModal({
   const suggestions = rating >= 4 ? QUICK_REVIEW_SUGGESTIONS.high : QUICK_REVIEW_SUGGESTIONS.low;
 
   return (
+    <ModalPortal onClose={() => previewZoomImage ? setPreviewZoomImage(null) : onClose()} closeOnEscape={!isSubmitting}>
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 backdrop-blur-xs p-4 font-sans select-none animate-fadeIn text-stone-800">
-        <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-stone-200 relative overflow-hidden max-h-[92vh] overflow-y-auto">
+        <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-stone-200 relative overflow-hidden max-h-[92dvh] overflow-y-auto">
           
           {/* Nút đóng */}
           <button
@@ -500,5 +466,6 @@ export default function OrderReviewModal({
         </div>
       )}
     </>
+    </ModalPortal>
   );
 }

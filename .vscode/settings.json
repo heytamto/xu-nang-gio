@@ -3,7 +3,6 @@
   "deno.enablePaths": [
     "supabase/functions"
   ],
-  "deno.path": "/home/tam/.deno/bin/deno",
   "deno.lint": true,
   "deno.unstable": [
     "bare-node-builtins",
@@ -19,8 +18,5 @@
     "fs",
     "http",
     "net"
-  ],
-  "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
-  }
+  ]
 }

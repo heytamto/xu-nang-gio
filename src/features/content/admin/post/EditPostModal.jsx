@@ -1,4 +1,5 @@
 // src/components/admin/post/EditPostModal.jsx
+import ModalPortal from '../../../../shared/components/ModalPortal';
 import React, { useState, useEffect } from 'react';
 import { X, Check, Loader2, BookOpen } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
@@ -97,8 +98,9 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
   };
 
   return (
+    <ModalPortal onClose={onClose} closeOnEscape={!isSubmitting}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92vh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
         <div className="flex items-center justify-between border-b border-stone-100 pb-4">
@@ -241,5 +243,6 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }

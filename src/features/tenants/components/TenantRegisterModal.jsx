@@ -1,4 +1,5 @@
 // src/components/tenant/TenantRegisterModal.jsx
+import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState } from 'react';
 import { Sparkles, X, Mail } from 'lucide-react';
 
@@ -57,6 +58,7 @@ export default function TenantRegisterModal({ isOpen, onClose, adminBankConfig }
     : '';
 
   return (
+    <ModalPortal onClose={onClose} closeOnEscape={!isSubmitting}>
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-sans text-stone-800"
       onClick={(e) => e.target === e.currentTarget && onClose()}
@@ -222,5 +224,6 @@ export default function TenantRegisterModal({ isOpen, onClose, adminBankConfig }
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }

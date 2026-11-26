@@ -1,5 +1,7 @@
 // src/components/packing/PickingSummaryTab.jsx
 import React from 'react';
+import { useListPagination } from '../../../shared/hooks/useListPagination';
+import { ListPagination, PageSizeControl } from '../../../shared/components/ListPagination';
 import { Gift, Check, RotateCcw } from 'lucide-react';
 
 export default function PickingSummaryTab({
@@ -8,6 +10,7 @@ export default function PickingSummaryTab({
   onTogglePickedItem,
   onResetTicks
 }) {
+  const pagination = useListPagination(pickingSummary);
   const completedPickingCount = pickingSummary.filter((it) => pickedItems[it.key]).length;
 
   return (
@@ -38,11 +41,12 @@ export default function PickingSummaryTab({
         </div>
       </div>
 
+      <PageSizeControl value={pagination.pageSize} onChange={pagination.setPageSize} unit="món" />
       {pickingSummary.length === 0 ? (
         <p className="text-sm text-stone-500 py-12 text-center italic">Hiện không có đơn nào cần chuẩn bị hàng.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {pickingSummary.map((item) => {
+          {pagination.result.items.map((item) => {
             const isPicked = !!pickedItems[item.key];
 
             return (
@@ -103,6 +107,7 @@ export default function PickingSummaryTab({
           })}
         </div>
       )}
+      <ListPagination result={pagination.result} onPageChange={pagination.setPage} unit="món" />
     </div>
   );
 }

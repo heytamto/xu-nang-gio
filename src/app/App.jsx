@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { ShoppingBag, Loader2 } from 'lucide-react';
 
 import Navbar from '../features/storefront/components/Navbar';
@@ -13,83 +13,25 @@ import ErrorPage from '../shared/components/ErrorPage';
 import ErrorBoundary from '../shared/components/ErrorBoundary';
 
 import HomePage from '../features/storefront/pages/HomePage';
-import ShopPage from '../features/catalog/pages/ShopPage';
-import StoryPage from '../features/content/pages/StoryPage';
-import CheckoutPage from '../features/checkout/pages/CheckoutPage';
-import PolicyPage from '../features/storefront/pages/PolicyPage';
-import OrderLookupPage from '../features/orders/pages/OrderLookupPage';
+const ShopPage = lazy(() => import('../features/catalog/pages/ShopPage'));
+const StoryPage = lazy(() => import('../features/content/pages/StoryPage'));
+const CheckoutPage = lazy(() => import('../features/checkout/pages/CheckoutPage'));
+const PolicyPage = lazy(() => import('../features/storefront/pages/PolicyPage'));
+const OrderLookupPage = lazy(() => import('../features/orders/pages/OrderLookupPage'));
 
 const AdminPage = lazy(() => import('../features/admin/pages/AdminPage'));
 const PackingPage = lazy(() => import('../features/warehouse/pages/PackingPage'));
 
-import { getShopConfig, DEFAULT_SHOP_CONFIG } from '../features/shop-config/config/shopConfig';
-import { fetchAllMasterDataFromSupabase } from './services/masterDataService';
-import { supabase } from '../infrastructure/supabase/supabaseClient';
+import { DEFAULT_SHOP_CONFIG } from '../features/shop-config/config/shopConfig';
+import { useStorefrontData } from './hooks/useStorefrontData';
+import { useAppNavigation } from './hooks/useAppNavigation';
 import { useCartManager } from '../features/cart/hooks/useCartManager';
 import { useShopOrders } from '../features/orders/hooks/useShopOrders';
 
-const VALID_PAGES = ['home', 'shop', 'story', 'checkout', 'admin', 'packing', 'policy', 'lookup'];
-
 function MainAppContent() {
-  const [currentPage, setCurrentPage] = useState(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
-      if (code) return 'lookup';
-
-      const urlPage = urlParams.get('page');
-      if (urlPage) {
-        const mapped = urlPage === 'blog' ? 'story' : urlPage;
-        return VALID_PAGES.includes(mapped) ? mapped : '404';
-      }
-      const savedPage = sessionStorage.getItem('shop_current_page') || 'home';
-      const mappedSaved = savedPage === 'blog' ? 'story' : savedPage;
-      return VALID_PAGES.includes(mappedSaved) ? mappedSaved : 'home';
-    } catch {
-      return 'home';
-    }
-  });
-
-  const [serverErrorDetail, setServerErrorDetail] = useState(null);
-  const [shopConfig, setShopConfig] = useState(() => getShopConfig());
+  const { currentPage, setCurrentPage, selectedShopCategory, highlightedProductId, initialLookupCode, navigateTo, handleNavigateToShopCategory, handleAnnouncementNavigate } = useAppNavigation();
   const [isAnnouncementVisible, setIsAnnouncementVisible] = useState(false);
-  const [highlightedProductId, setHighlightedProductId] = useState(null);
-  const highlightTimerRef = useRef(null);
-
-  const [selectedShopCategory, setSelectedShopCategory] = useState(() => {
-    try {
-      return sessionStorage.getItem('shop_selected_category') || 'all';
-    } catch {
-      return 'all';
-    }
-  });
-
-  // Master Data state
-  const [categories, setCategories] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('shop_categories') || '[]'); } catch { return []; }
-  });
-  const [products, setProducts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('shop_products') || '[]'); } catch { return []; }
-  });
-  const [posts, setPosts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('shop_posts') || '[]'); } catch { return []; }
-  });
-  const [stories, setStories] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('shop_stories') || '[]'); } catch { return []; }
-  });
-
-  const [isLoadingMasterData, setIsLoadingMasterData] = useState(() => !localStorage.getItem('shop_products'));
-
   // Modals & Lookup state
-  const [initialLookupCode, setInitialLookupCode] = useState(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
-      return code ? code.trim().toUpperCase() : '';
-    } catch {
-      return '';
-    }
-  });
   const [selectedDetailProduct, setSelectedDetailProduct] = useState(null);
   const [isTenantRegisterOpen, setIsTenantRegisterOpen] = useState(false);
 
@@ -112,181 +54,14 @@ function MainAppContent() {
 
   // 2. Quản lý Đơn hàng qua Hook
   const {
-    orders,
-    refreshOrders,
     handleUpdateOrderStatus,
     handleProcessOrder,
     successOrderInfo,
     isSuccessModalOpen,
     setIsSuccessModalOpen,
-  } = useShopOrders(clearCart);
+  } = useShopOrders(clearCart, false);
 
-  // 3. Tải Master Data & Tự động đồng bộ giỏ hàng
-  const loadSupabaseData = useCallback(async () => {
-    try {
-      setServerErrorDetail(null);
-      const masterData = await fetchAllMasterDataFromSupabase();
-      if (masterData) {
-        if (Array.isArray(masterData.categories)) {
-          setCategories(masterData.categories);
-          localStorage.setItem('shop_categories', JSON.stringify(masterData.categories));
-        }
-        if (Array.isArray(masterData.products)) {
-          setProducts(masterData.products);
-          localStorage.setItem('shop_products', JSON.stringify(masterData.products));
-          syncCartWithMasterData(masterData.products);
-        }
-        if (Array.isArray(masterData.posts)) {
-          setPosts(masterData.posts);
-          localStorage.setItem('shop_posts', JSON.stringify(masterData.posts));
-        }
-        if (Array.isArray(masterData.stories)) {
-          setStories(masterData.stories);
-          localStorage.setItem('shop_stories', JSON.stringify(masterData.stories));
-        }
-
-        setShopConfig((prev) => {
-          const nextConfig = { ...prev };
-          if (Array.isArray(masterData.vouchers)) nextConfig.vouchers = masterData.vouchers;
-          if (Array.isArray(masterData.giftsCatalog)) nextConfig.giftsCatalog = masterData.giftsCatalog;
-          if (masterData.config) Object.assign(nextConfig, masterData.config);
-          localStorage.setItem('shop_config', JSON.stringify(nextConfig));
-          return nextConfig;
-        });
-      }
-      await refreshOrders();
-    } catch (err) {
-      console.warn('Lỗi kết nối tải dữ liệu Supabase:', err);
-      if (!localStorage.getItem('shop_products')) {
-        setServerErrorDetail(err?.message || 'Không thể kết nối máy chủ dữ liệu');
-        setCurrentPage('500');
-      }
-    } finally {
-      setIsLoadingMasterData(false);
-    }
-  }, [syncCartWithMasterData, refreshOrders]);
-
-  useEffect(() => {
-    loadSupabaseData();
-  }, [loadSupabaseData]);
-
-  // Đồng bộ giỏ hàng khi danh sách products trong state cập nhật
-  useEffect(() => {
-    if (Array.isArray(products) && products.length > 0) {
-      syncCartWithMasterData(products);
-    }
-  }, [products, syncCartWithMasterData]);
-
-  // Lắng nghe Realtime Master data
-  useEffect(() => {
-    const channel = supabase
-      .channel('app:master-data-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, loadSupabaseData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_weights' }, loadSupabaseData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_configs' }, loadSupabaseData)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadSupabaseData]);
-
-  // URL Params & Browser Back/Forward listener
-  useEffect(() => {
-    const syncRouteFromUrl = () => {
-      try {
-        const pathname = window.location.pathname;
-        if (pathname && pathname !== '/' && pathname !== '/index.html') {
-          setCurrentPage('404');
-          return;
-        }
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('lookup') || urlParams.get('order') || urlParams.get('code');
-        const page = urlParams.get('page');
-        const cat = urlParams.get('cat');
-
-        if ((code && code.length > 40) || (cat && !/^[a-zA-Z0-9_-]{1,30}$/.test(cat))) {
-          setCurrentPage('400');
-          return;
-        }
-
-        if (code) {
-          const cleanCode = code.trim().toUpperCase();
-          setInitialLookupCode(cleanCode);
-          setCurrentPage('lookup');
-          sessionStorage.setItem('shop_current_page', 'lookup');
-          window.history.replaceState({ page: 'lookup' }, '', `/?page=lookup&code=${cleanCode}`);
-          return;
-        }
-
-        if (page) {
-          const targetPage = page === 'blog' ? 'story' : page;
-          if (VALID_PAGES.includes(targetPage)) {
-            setCurrentPage(targetPage);
-            sessionStorage.setItem('shop_current_page', targetPage);
-            if (cat && targetPage === 'shop') {
-              setSelectedShopCategory(cat);
-              sessionStorage.setItem('shop_selected_category', cat);
-            }
-          } else {
-            setCurrentPage('404');
-          }
-        }
-      } catch (e) {
-        console.error('Lỗi URL Params:', e);
-        setCurrentPage('400');
-      }
-    };
-
-    syncRouteFromUrl();
-    window.addEventListener('popstate', syncRouteFromUrl);
-    return () => window.removeEventListener('popstate', syncRouteFromUrl);
-  }, []);
-
-  const navigateTo = (page) => {
-    const targetPage = page === 'blog' ? 'story' : page;
-    if (!VALID_PAGES.includes(targetPage)) {
-      setCurrentPage('404');
-      return;
-    }
-
-    if (targetPage !== 'shop') {
-      setSelectedShopCategory('all');
-      try { sessionStorage.setItem('shop_selected_category', 'all'); } catch (e) {}
-    }
-    setCurrentPage(targetPage);
-    try {
-      sessionStorage.setItem('shop_current_page', targetPage);
-      const newUrl = targetPage === 'home' ? '/' : `/?page=${targetPage}`;
-      window.history.pushState({ page: targetPage }, '', newUrl);
-    } catch (e) {}
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleNavigateToShopCategory = (catId = 'all') => {
-    setSelectedShopCategory(catId);
-    setCurrentPage('shop');
-    try {
-      sessionStorage.setItem('shop_selected_category', catId);
-      sessionStorage.setItem('shop_current_page', 'shop');
-      window.history.pushState({ page: 'shop', category: catId }, '', `/?page=shop&cat=${catId}`);
-    } catch (e) {}
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleAnnouncementNavigate = (target) => {
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    if (target?.id) {
-      const targetCat = target.category || 'all';
-      setSelectedShopCategory(targetCat);
-      setCurrentPage('shop');
-      setHighlightedProductId(target.id);
-      highlightTimerRef.current = setTimeout(() => setHighlightedProductId(null), 3500);
-    } else {
-      handleNavigateToShopCategory('all');
-    }
-  };
+  const { serverErrorDetail, shopConfig, setShopConfig, categories, products, setProducts, posts, setPosts, stories, setStories, isLoadingMasterData, loadSupabaseData } = useStorefrontData({ syncCartWithMasterData, setCurrentPage, currentPage });
 
   if (isLoadingMasterData) {
     return (
@@ -322,7 +97,6 @@ function MainAppContent() {
             cartCount={totalCartCount}
             cartTotal={totalCartAmount}
             onOpenLookup={() => {
-              setInitialLookupCode('');
               navigateTo('lookup');
             }}
             isCartBouncing={isCartBouncing}
@@ -333,6 +107,7 @@ function MainAppContent() {
       )}
 
       <main className="flex-1 w-full max-w-full">
+        <Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center gap-2"><Loader2 className="w-6 h-6 animate-spin" />Đang tải trang...</div>}>
         {currentPage === 'home' && (
           <HomePage
             products={products}
@@ -403,29 +178,23 @@ function MainAppContent() {
             <AdminPage
               products={products}
               categories={categories}
-              orders={orders}
               onSaveProducts={(newList) => {
                 setProducts(newList);
-                localStorage.setItem('shop_products', JSON.stringify(newList));
-                syncCartWithMasterData(newList);
               }}
               onResetProducts={loadSupabaseData}
               posts={posts}
               onSavePosts={(newList) => {
                 setPosts(newList);
-                localStorage.setItem('shop_posts', JSON.stringify(newList));
               }}
               onResetPosts={loadSupabaseData}
               stories={stories}
               onSaveStories={(newList) => {
                 setStories(newList);
-                localStorage.setItem('shop_stories', JSON.stringify(newList));
               }}
               onResetStories={loadSupabaseData}
               shopConfig={shopConfig}
               onSaveConfig={(newCfg) => {
                 setShopConfig(newCfg);
-                localStorage.setItem('shop_config', JSON.stringify(newCfg));
               }}
               onResetConfig={() => setShopConfig(DEFAULT_SHOP_CONFIG)}
               onUpdateOrderStatus={handleUpdateOrderStatus}
@@ -443,7 +212,6 @@ function MainAppContent() {
             </div>
           }>
             <PackingPage
-              orders={orders}
               shopConfig={shopConfig}
               onNavigateHome={() => navigateTo('home')}
             />
@@ -456,7 +224,6 @@ function MainAppContent() {
             statusCode={Number(currentPage)}
             errorDetail={currentPage === '500' ? serverErrorDetail : null}
             onReset={() => {
-              setIsLoadingMasterData(true);
               setCurrentPage('home');
               loadSupabaseData();
             }}
@@ -464,6 +231,7 @@ function MainAppContent() {
             onGoShop={() => handleNavigateToShopCategory('all')}
           />
         )}
+        </Suspense>
       </main>
 
       {/* Modal Xem chi tiết & Phóng to nhiều ảnh sản phẩm */}
@@ -502,7 +270,6 @@ function MainAppContent() {
           onNavigatePacking={() => navigateTo('packing')}
           onNavigatePolicy={() => navigateTo('policy')}
           onOpenLookup={() => {
-            setInitialLookupCode('');
             navigateTo('lookup');
           }}
           onOpenTenantRegister={() => setIsTenantRegisterOpen(true)}

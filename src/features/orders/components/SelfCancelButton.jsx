@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, AlertTriangle, Loader2, XCircle, PhoneCall, ShieldAlert, ChevronDown, Check } from 'lucide-react';
 import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus';
-import { orderService } from '../services/orderService';
+import { customerOrderAction } from '../services/customerOrderApi';
+import { supabase } from '../../../infrastructure/supabase/supabaseClient';
 import { getRemainingCancelMs, formatCountdownTimer } from '../../../shared/utils/dateUtils';
 
 const CANCEL_REASONS = [
@@ -16,6 +17,7 @@ const CANCEL_REASONS = [
 export default function SelfCancelButton({
   order,
   onCancelSuccess,
+  verifiedPhone,
   hotline = '0848.957.345',
 }) {
   const [remainingMs, setRemainingMs] = useState(0);
@@ -71,7 +73,7 @@ export default function SelfCancelButton({
     };
   }, [isDropdownOpen]);
 
-  if (!isPending) return null;
+  if (!isPending || order?.can_cancel !== true || !/^0[0-9]{9}$/.test(verifiedPhone || '')) return null;
 
   const orderCode = order?.code || order?.orderId || 'XNG-ORDER';
   const cleanPhone = String(hotline).replace(/\D/g, '');
@@ -85,11 +87,7 @@ export default function SelfCancelButton({
       : cancelReason;
 
     try {
-      if (orderService?.cancelOrder) {
-        await orderService.cancelOrder(orderCode, finalReason);
-      } else if (orderService?.updateOrderStatus) {
-        await orderService.updateOrderStatus(orderCode, ORDER_STATUS.CANCELLED, finalReason);
-      }
+      await customerOrderAction(supabase, 'cancel', orderCode, verifiedPhone, {reason:finalReason});
 
       setIsModalOpen(false);
       if (onCancelSuccess) {

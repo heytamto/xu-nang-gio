@@ -1,3 +1,5 @@
+import { fetchOrderItemsByCodes } from './orderItemsQuery';
+import { mapOrderItem, mapOrderWithItems } from "../mappers/orderMapper";
 // src/repositories/orderRepository.js
 import { createRepository } from './baseRepository';
 import { supabase } from '../supabaseClient';
@@ -25,48 +27,16 @@ export const orderRepo = {
     let itemsByOrder = {};
 
     if (orderCodes.length > 0) {
-      const { data: itemsData, error: itemsErr } = await supabase
-        .from('order_items')
-        .select('*')
-        .in('order_code', orderCodes);
-
-      if (!itemsErr && Array.isArray(itemsData)) {
-        itemsData.forEach((it) => {
-          const code = it.order_code;
-          if (!itemsByOrder[code]) itemsByOrder[code] = [];
-          itemsByOrder[code].push({
-            id: it.id,
-            productId: it.product_id,
-            name: it.name || it.product_name,
-            weightLabel: it.weight_label,
-            flavor: it.flavor,
-            price: Number(it.price) || 0,
-            quantity: Number(it.quantity) || 1,
-            lineTotal: Number(it.line_total) || 0,
-            campaignGiftTitle: it.campaign_gift_title
-          });
-        });
-      }
+      const itemsData = await fetchOrderItemsByCodes(supabase, orderCodes);
+      itemsData.forEach(it => {
+        const code = it.order_code;
+        if (!itemsByOrder[code]) itemsByOrder[code] = [];
+        itemsByOrder[code].push(mapOrderItem(it));
+      });
     }
 
     // Bước 3: Chuẩn hóa dữ liệu tương thích với DashboardTab & Kho
-    return ordersData.map((ord) => {
-      const activeItems = itemsByOrder[ord.code] || ord.cart || [];
-      return {
-        ...ord,
-        total: ord.final_total ?? ord.total,
-        totalAmount: ord.final_total ?? ord.total,
-        customerName: ord.customer_name || ord.name,
-        paymentGift: ord.payment_gift,
-        campaignGifts: ord.campaign_gifts,
-        order_items: activeItems,
-        itemsSummary: activeItems.length > 0
-          ? activeItems
-              .map((it) => `${it.name} (${it.weightLabel || 'Tiêu chuẩn'}) x${it.quantity}`)
-              .join(', ')
-          : (ord.items_summary || '')
-      };
-    });
+    return ordersData.map((ord) => mapOrderWithItems(ord, itemsByOrder));
   },
 
   /**

@@ -1,3 +1,4 @@
+import InventoryPanel from './InventoryPanel';
 // src/components/admin/product/ProductsTab.jsx
 import React, { useState, useEffect } from 'react';
 import { 
@@ -18,14 +19,11 @@ import {
   X
 } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
+import { useListPagination } from '../../../../shared/hooks/useListPagination';
+import { ListPagination, PageSizeControl } from '../../../../shared/components/ListPagination';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
 import CategoryConfigSection from './CategoryConfigSection';
-import { productRepo, productWeightRepo, categoryRepo } from '../../../../infrastructure/supabase/repositories/index';
-
-const CALC_TYPE_OPTIONS = [
-  { value: 'multiplier', label: 'Nhân hệ số (x)' },
-  { value: 'fixed', label: 'Giá cố định (VNĐ)' }
-];
+import { productRepo, productWeightRepo } from '../../../../infrastructure/supabase/repositories/index';
 
 const STOCK_STATUS_OPTIONS = [
   {
@@ -42,13 +40,9 @@ const STOCK_STATUS_OPTIONS = [
   }
 ];
 
-// Trích xuất videoId YouTube Shorts hoặc URL thông thường
-function getYouTubeEmbedId(url) {
-  if (!url) return null;
-  const regExp = /(?:shorts\/|youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=)([^#&?]*).*/;
-  const match = url.match(regExp);
-  return match && match[1].length === 11 ? match[1] : null;
-}
+import { CALC_TYPE_OPTIONS } from '../../constants/productFormOptions';
+import { getYouTubeEmbedId } from '../../../../shared/utils/youtube';
+import { useProductCategories } from '../../hooks/useProductCategories';
 
 export default function ProductsTab({
   products = [],
@@ -62,39 +56,11 @@ export default function ProductsTab({
   setConfirmModalConfig
 }) {
   const [activeSubTab, setActiveSubTab] = useState('products');
-  const [categories, setCategories] = useState([]);
+  const pagination = useListPagination(products, activeSubTab);
+  const categories = useProductCategories(propCategories);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState(null);
-
-  // 1. Tải danh mục động qua categoryRepo hoặc props
-  useEffect(() => {
-    if (Array.isArray(propCategories) && propCategories.length > 0) {
-      setCategories(
-        propCategories
-          .filter((c) => c.id !== 'all')
-          .map((c) => ({ id: c.id, label: c.name || c.label, name: c.name || c.label }))
-      );
-      return;
-    }
-
-    async function loadDbCategories() {
-      try {
-        const data = await categoryRepo.getAll();
-        if (Array.isArray(data) && data.length > 0) {
-          const sorted = data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-          setCategories(
-            sorted
-              .filter((c) => c.id !== 'all')
-              .map((c) => ({ id: c.id, label: c.name, name: c.name }))
-          );
-        }
-      } catch (err) {
-        console.error('Lỗi tải categories qua repo:', err);
-      }
-    }
-    loadDbCategories();
-  }, [propCategories]);
 
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -313,6 +279,7 @@ export default function ProductsTab({
 
   return (
     <div className="space-y-6 sm:space-y-7 font-sans animate-fadeIn text-stone-800">
+      <InventoryPanel />
       {/* 1. THANH CHUYỂN SUB-TAB */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-3xl border border-stone-200/90 shadow-xs">
         <div className="inline-flex p-1 bg-stone-100 rounded-2xl border border-stone-200/60">
@@ -751,13 +718,14 @@ export default function ProductsTab({
               </p>
             </div>
 
+            {products.length > 0 && <PageSizeControl value={pagination.pageSize} onChange={pagination.setPageSize} unit="sản phẩm" />}
             {products.length === 0 ? (
               <div className="py-12 text-center text-stone-400 text-xs sm:text-sm italic font-medium">
                 Chưa có sản phẩm nào trên kệ.
               </div>
             ) : (
               <div className="divide-y divide-stone-100">
-                {products.map((p) => {
+                {pagination.result.items.map((p) => {
                   const catKey = p.category || p.category_id;
                   const currentCat = categories.find((c) => c.id === catKey);
                   const isAvailable = p.inStock ?? p.in_stock ?? true;
@@ -865,6 +833,7 @@ export default function ProductsTab({
                 })}
               </div>
             )}
+            <ListPagination result={pagination.result} onPageChange={pagination.setPage} unit="sản phẩm" />
           </div>
         </>
       )}

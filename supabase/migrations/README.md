@@ -1,0 +1,2 @@
+# Future migrations
+This directory intentionally contains no executable migration. The existing cloud database was changed manually in phases 6B–6L. Do not replay those SQL files. Establish a verified schema baseline and reconcile remote migration history before enabling CLI migration deployment. Historical SQL is in ../archive/phase6*/; some files are previews, rollback tests, or superseded definitions.

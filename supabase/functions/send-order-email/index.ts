@@ -20,7 +20,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_KEY =
   Deno.env.get("SERVICE_ROLE_KEY") ||
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-  Deno.env.get("SUPABASE_ANON_KEY") ||
   "";
 
 const SENDER_EMAIL =
@@ -91,16 +90,51 @@ function parseShopConfig(
   };
 }
 
+function reply(status: number, data: unknown) {
+  return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+}
+async function equalSecret(a: string, b: string) {
+  const hash = async (v: string) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)));
+  const [x, y] = await Promise.all([hash(a), hash(b)]);
+  return x.reduce((diff, v, i) => diff | (v ^ y[i]), 0) === 0;
+}
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const body = await req.json();
+    if (req.method !== "POST") return reply(405, { error: "Method not allowed" });
+    const secret = Deno.env.get("XNG_EMAIL_WORKER_SECRET");
+    const supplied = req.headers.get("x-xng-worker-secret");
+    const worker = Boolean(secret && supplied && await equalSecret(secret, supplied));
+    const token = req.headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
+    let staff = false;
+    let staffEmail = "";
+    if (!worker && token) {
+      const { data, error } = await supabase.auth.getUser(token);
+      staff = !error && Boolean(data.user?.email_confirmed_at) && ["owner", "admin"].includes(data.user?.app_metadata?.staff_role);
+      staffEmail = data.user?.email ?? "";
+    }
+    if (!worker && !staff) return reply(403, { error: "Forbidden" });
+    if (!RESEND_API_KEY) return reply(503, { error: "Email service unavailable" });
+    let body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { error: "Invalid request" });
+    // Only staff may send test HTML, and only to their own verified identity.
+    if (body.is_test === true) {
+      if (!staff || !staffEmail || body.to !== staffEmail || typeof body.html !== "string" || body.html.length > 50000) return reply(403, { error: "Test recipient must be your staff email" });
+    } else {
+      // All real notifications are dispatched by the outbox worker, never the browser.
+      if (!worker || typeof body.order_code !== "string" || !/^[A-Za-z0-9_-]{1,50}$/.test(body.order_code) || !["ORDER_CREATED", "PAYMENT_CONFIRMED"].includes(body.event_type) || typeof body.event_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.event_id)) return reply(403, { error: "Worker event required" });
+      body = { order_code: body.order_code, event_type: body.event_type, event_id: body.event_id, template_id: body.event_type === "PAYMENT_CONFIRMED" ? "tpl0002" : "tpl0001" };
+    }
 
     // 1. Nhánh gửi trực tiếp HTML (Test hoặc thông báo đơn giản)
-    if ((body.is_test || body.html) && (body.to || body.email)) {
+    if (body.is_test === true) {
       const recipientEmail = body.to || body.email;
       let finalHtml = body.html || "<p>Nội dung thông báo</p>";
       let finalSubject = body.subject || "[Xứ Nắng Gió] Thông báo từ nhà vườn";
@@ -141,7 +175,7 @@ Deno.serve(async (req: Request) => {
 
       const resData = await res.json();
       if (!res.ok) {
-        return new Response(JSON.stringify({ error: resData }), {
+        return new Response(JSON.stringify({ error: "Email provider rejected request" }), {
           status: res.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -172,17 +206,16 @@ Deno.serve(async (req: Request) => {
     const eventType = body.event_type || (body.template === "payment_success" ? "PAYMENT_CONFIRMED" : null);
 
     const [orderRes, itemsRes, templateRes, configRes] = await Promise.all([
-      targetCode
-        ? supabase.from("orders").select("*").eq("code", targetCode).maybeSingle()
-        : Promise.resolve({ data: null }),
-      targetCode
-        ? supabase.from("order_items").select("name, weight_label, quantity, price, line_total").eq("order_code", targetCode)
-        : Promise.resolve({ data: null }),
+      supabase.from("orders").select("*").eq("code", targetCode).maybeSingle(),
+      supabase.from("order_items").select("name, weight_label, quantity, price, line_total").eq("order_code", targetCode),
       supabase.from("email_templates").select("id, name, subject, body").eq("id", requestedTemplateId).eq("is_active", true).maybeSingle(),
       supabase.from("shop_configs").select("*"),
     ]);
 
+    if (orderRes.error || itemsRes.error || templateRes.error || configRes.error) return reply(503, { error: "Email data unavailable" });
     const dbOrder = orderRes.data;
+    if (!dbOrder) return reply(404, { error: "Order not found" });
+    if (eventType === "PAYMENT_CONFIRMED" && !dbOrder.payment_verified) return reply(409, { error: "Payment not verified" });
     const order = {
       code: targetCode || body.voucher_code || "XNG-DONHANG",
       customer_name: dbOrder?.customer_name || body.customer_name || body.data?.CUSTOMER_NAME || "Quý khách",
@@ -199,52 +232,21 @@ Deno.serve(async (req: Request) => {
 
     if (!order.email || typeof order.email !== "string" || !order.email.includes("@")) {
       return new Response(
-        JSON.stringify({ message: "Bỏ qua: Không có email người nhận hợp lệ", emailReceived: order.email }),
+        JSON.stringify({ success: true, skipped: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const shop = parseShopConfig(configRes.data);
     const trackingUrl = `${shop.shopWebsite}?lookup=${encodeURIComponent(order.code)}`;
-    const totalAmount = Number(String(order.final_total).replace(/\D/g, "")) || 0;
+    const totalAmount = Number(order.final_total) || 0;
 
     // Tính toán số tiền đã nhận và tiền thu hộ COD
     let depositPaid = 0;
     let remainingCod = totalAmount;
 
-    if (body.data?.DEPOSIT_PAID && body.data?.REMAINING_COD) {
-      depositPaid = Number(String(body.data.DEPOSIT_PAID).replace(/\D/g, "")) || 0;
-      remainingCod = Number(String(body.data.REMAINING_COD).replace(/\D/g, "")) || 0;
-    } else if (body.deposit_paid !== undefined) {
-      depositPaid = Number(body.deposit_paid) || 0;
-      remainingCod = body.remaining_cod !== undefined ? Number(body.remaining_cod) : Math.max(0, totalAmount - depositPaid);
-    } else {
-      const rawMethod = String(
-        body.payment_method ||
-        body.paymentMethod ||
-        dbOrder?.payment_method ||
-        order.payment_method ||
-        ""
-      ).toLowerCase();
-
-      const isDeposit = rawMethod === "deposit" || rawMethod.includes("cọc");
-      const isFullPrepaid = rawMethod === "full_qr" || rawMethod.includes("100%");
-      const isCod = rawMethod === "cod";
-
-      if (isDeposit) {
-        depositPaid = Math.min(shop.depositAmount, totalAmount);
-        remainingCod = Math.max(0, totalAmount - depositPaid);
-      } else if (isFullPrepaid) {
-        depositPaid = totalAmount;
-        remainingCod = 0;
-      } else if (isCod) {
-        depositPaid = 0;
-        remainingCod = totalAmount;
-      } else {
-        depositPaid = Math.min(shop.depositAmount, totalAmount);
-        remainingCod = Math.max(0, totalAmount - depositPaid);
-      }
-    }
+    depositPaid = Math.max(0, Math.min(totalAmount, Number(dbOrder.deposit_paid) || 0));
+    remainingCod = Math.max(0, totalAmount - depositPaid);
 
     const paymentLabel = body.data?.PAYMENT_METHOD || formatPaymentMethodLabel(order.payment_method);
 
@@ -261,7 +263,7 @@ Deno.serve(async (req: Request) => {
               <table width="100%" border="0" cellpadding="0" cellspacing="0" style="margin-bottom: 8px; border-bottom: 1px dashed #fde68a; padding-bottom: 6px;">
                 <tr>
                   <td align="left" style="font-size: 13.5px; color: #292524; font-family: ${VIETNAMESE_SAFE_FONTS}; line-height: 1.4;">
-                    • <strong>${it.name}</strong>${weight} <span style="color: #b45309; font-weight: 700;">x${qty}</span>
+                    • <strong>${escapeHtml(it.name)}</strong>${escapeHtml(weight)} <span style="color: #b45309; font-weight: 700;">x${qty}</span>
                   </td>
                   <td align="right" style="font-size: 13.5px; font-weight: 700; color: #78350f; font-family: ${VIETNAMESE_SAFE_FONTS}; white-space: nowrap; padding-left: 12px;">
                     ${total.toLocaleString("vi-VN")}đ
@@ -275,10 +277,10 @@ Deno.serve(async (req: Request) => {
 
     let giftsHtml = "";
     if (order.payment_gift && order.payment_gift !== "Không áp dụng (COD)") {
-      giftsHtml += `<div style="color: #047857; margin-top: 6px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🎁 <strong>Quà tặng kèm:</strong> ${order.payment_gift}</div>`;
+      giftsHtml += `<div style="color: #047857; margin-top: 6px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🎁 <strong>Quà tặng kèm:</strong> ${escapeHtml(order.payment_gift)}</div>`;
     }
     if (order.campaign_gifts) {
-      giftsHtml += `<div style="color: #047857; margin-top: 4px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🍇 <strong>Ưu đãi vườn:</strong> ${order.campaign_gifts}</div>`;
+      giftsHtml += `<div style="color: #047857; margin-top: 4px; font-size: 13.5px; font-family: ${VIETNAMESE_SAFE_FONTS};">🍇 <strong>Ưu đãi vườn:</strong> ${escapeHtml(order.campaign_gifts)}</div>`;
     }
 
     // Xây dựng template phù hợp cho từng luồng
@@ -449,14 +451,17 @@ Deno.serve(async (req: Request) => {
       shop_website: shop.shopWebsite,
     };
 
-    const finalSubject = renderTemplate(template.subject, templateVariables);
-    const finalBody = renderTemplate(template.body, templateVariables);
+    const finalSubject = renderTemplate(template.subject, templateVariables).replace(/[\r\n]+/g, " ");
+    const htmlVars = Object.fromEntries(Object.entries(templateVariables).map(([key, value]) => [key, ["ITEMS_SUMMARY", "GIFTS_BLOCK", "gifts_block"].includes(key) ? value : escapeHtml(value)]));
+    const finalBody = renderTemplate(template.body, htmlVars);
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
+      signal: AbortSignal.timeout(10000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Idempotency-Key": `xng-email-${body.event_id}`,
       },
       body: JSON.stringify({
         from: SENDER_EMAIL,
@@ -469,7 +474,7 @@ Deno.serve(async (req: Request) => {
 
     const resData = await res.json();
     if (!res.ok) {
-      return new Response(JSON.stringify({ error: resData }), {
+      return new Response(JSON.stringify({ error: "Email provider rejected request" }), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -480,8 +485,8 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: errorMsg }), {
+    console.error("Email processing failed", err instanceof Error ? err.name : "unknown");
+    return new Response(JSON.stringify({ error: "Email processing failed" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

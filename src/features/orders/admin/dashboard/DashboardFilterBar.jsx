@@ -211,7 +211,7 @@ export default function DashboardFilterBar({
               <Square className="w-5 h-5 text-stone-300" />
             )}
           </button>
-          <span>Chọn tất cả {filteredOrdersLength} đơn</span>
+          <span>Chọn {filteredOrdersLength} đơn trên trang</span>
         </label>
 
         <span className="text-xs sm:text-sm font-medium">

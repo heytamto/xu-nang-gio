@@ -1,6 +1,7 @@
 // src/components/checkout/OrderSuccessModal.jsx
+import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState, useEffect } from 'react';
-import { Printer, Phone, Truck, Gift } from 'lucide-react';
+import { Printer, Phone, Truck, Gift, Copy, Check } from 'lucide-react';
 import { resolveDepositAmount } from '../../shop-config/config/shopConfig';
 
 // Răng cưa siêu nhuyễn 1.8px sắc nét, dùng chung cho cả 2 đầu
@@ -35,10 +36,12 @@ export default function OrderSuccessModal({
   onClose 
 }) {
   const [printStep, setPrintStep] = useState('waiting');
+  const [copyStatus, setCopyStatus] = useState('idle');
 
   useEffect(() => {
     if (isOpen) {
       setPrintStep('waiting');
+      setCopyStatus('idle');
 
       const t1 = setTimeout(() => setPrintStep('shaking'), 600);
       const t2 = setTimeout(() => setPrintStep('feeding'), 1000);
@@ -58,6 +61,31 @@ export default function OrderSuccessModal({
 
   const orderCode = orderInfo.code || orderInfo.orderCode || orderInfo.orderId || 'XNG-ORDER';
   
+  const copyOrderCode = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(orderCode);
+      setCopyStatus('success');
+    } catch {
+      const field = document.createElement('textarea');
+      field.value = orderCode;
+      field.setAttribute('readonly', '');
+      Object.assign(field.style, { position: 'fixed', left: '-9999px', top: '0' });
+      const previousFocus = document.activeElement;
+      document.body.appendChild(field);
+      try {
+        field.select();
+        field.setSelectionRange(0, field.value.length);
+        setCopyStatus(document.execCommand('copy') ? 'success' : 'error');
+      } catch {
+        setCopyStatus('error');
+      } finally {
+        field.remove();
+        previousFocus?.focus?.({ preventScroll: true });
+      }
+    }
+  };
+
   const customerName = orderInfo.customer_name 
     || orderInfo.name 
     || orderInfo.customer?.name 
@@ -108,7 +136,8 @@ export default function OrderSuccessModal({
     : (orderInfo.payment_gift || null);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-stone-950/85 backdrop-blur-md p-4 font-mono select-none overflow-y-auto">
+    <ModalPortal onClose={onClose} closeOnEscape={false}>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-stone-950/85 backdrop-blur-md p-4 font-mono overflow-y-auto">
       <style>{`
         @keyframes bottomPrinterVibrate {
           0%, 100% { transform: translateY(0); }
@@ -162,7 +191,7 @@ export default function OrderSuccessModal({
         }
       `}</style>
 
-      <div className="w-[360px] sm:w-[420px] flex flex-col items-center relative my-auto">
+      <div className="w-full max-w-[360px] sm:max-w-[420px] flex flex-col items-center relative my-auto">
 
         {/* ================= 1. TỜ GIẤY HÓA ĐƠN ================= */}
         <div className={`w-full overflow-hidden transition-all duration-700 ${printStep === 'torn' || printStep === 'tearing' ? 'overflow-visible' : ''}`}>
@@ -196,10 +225,17 @@ export default function OrderSuccessModal({
               <div className="space-y-2 text-xs sm:text-sm text-stone-800 border-b border-dashed border-stone-300 pb-3">
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Mã đơn hàng:</span>
-                  <span className="font-mono font-black text-amber-950 bg-amber-100/90 px-2.5 py-1 rounded-md text-xs sm:text-sm border border-amber-300/60">
+                  <button type="button" onClick={copyOrderCode}
+                    aria-label={`Sao chép mã đơn ${orderCode}`}
+                    title="Sao chép mã đơn hàng"
+                    className="inline-flex items-center gap-1.5 font-mono font-black text-amber-950 bg-amber-100/90 hover:bg-amber-200 px-2.5 py-1.5 rounded-md text-xs sm:text-sm border border-amber-300/60 cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500 select-text">
                     {orderCode}
-                  </span>
+                    {copyStatus === 'success' ? <Check className="w-4 h-4 shrink-0 text-emerald-700" /> : <Copy className="w-4 h-4 shrink-0" />}
+                  </button>
                 </div>
+                <p role="status" aria-live="polite" className="text-right text-[11px] font-sans text-stone-500">
+                  {copyStatus === 'success' ? 'Đã sao chép mã đơn' : copyStatus === 'error' ? 'Không thể sao chép. Hãy chọn mã đơn và sao chép thủ công.' : 'Bấm vào mã để sao chép'}
+                </p>
                 <div className="flex justify-between items-center">
                   <span className="text-stone-500">Khách hàng:</span>
                   <strong className="text-stone-900 font-sans text-right truncate max-w-[200px]">
@@ -382,5 +418,6 @@ export default function OrderSuccessModal({
 
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -1,38 +1,8 @@
 // src/components/home/CustomerReviewsSection.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Heart, MoveHorizontal, Star, Quote, Clock, Loader2, X } from "lucide-react";
-import { fetchPaginatedApprovedReviews } from "../../orders/services/orderService";
+import { fetchPaginatedApprovedReviews } from '../services/reviewService';
 import { formatDate } from "../../../shared/utils/dateUtils";
-
-const FALLBACK_CUSTOMER_REVIEWS = [
-  {
-    id: "fb-1",
-    customer_name: "Chị Ánh Tuyết",
-    role: "Quận 7, TP.HCM",
-    content: "Chùm nho xanh với táo gió mở thùng xốp ra cuống còn tươi rói chảy mủ luôn. Vị ngọt thanh mát tự nhiên chứ không gắt đường. Cả nhà ai cũng khen!",
-    rating: 5,
-    order_code: "XNG2609-8812",
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: "fb-2",
-    customer_name: "Anh Hoàng Nam",
-    role: "Ba Đình, Hà Nội",
-    content: "Đóng gói chèn rơm với đá gel cực kỳ chu đáo. Gửi xe ra tới Hà Nội 2 ngày mà quả táo không hề bị cấn dập. Mật nho sền sệt pha đá uống giải nhiệt bao đã.",
-    rating: 5,
-    order_code: "XNG2610-4109",
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-  },
-  {
-    id: "fb-3",
-    customer_name: "Cô Mỹ Hạnh",
-    role: "Hải Châu, Đà Nẵng",
-    content: "Chả cá quết dẻo dai thơm tiêu sọ, nướng sơ qua chấm muối ớt chanh ăn nghiện luôn. Thích nhất cách nhà vườn thật thà, bao ăn từng quả.",
-    rating: 5,
-    order_code: "XNG2608-1123",
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-  },
-];
 
 export default function CustomerReviewsSection() {
   const reviewsScrollRef = useRef(null);
@@ -85,11 +55,11 @@ export default function CustomerReviewsSection() {
           });
           setReviewPage(pageToLoad);
         } else if (isInitial) {
-          setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
+          setReviewsList([]);
         }
       } catch (err) {
         console.warn("Lỗi tải đánh giá:", err);
-        if (isInitial) setReviewsList(FALLBACK_CUSTOMER_REVIEWS);
+        if (isInitial) setReviewsList([]);
       } finally {
         setIsLoadingMoreReviews(false);
         isFetchingRef.current = false;

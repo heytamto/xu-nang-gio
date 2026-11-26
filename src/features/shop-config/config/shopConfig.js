@@ -50,7 +50,6 @@ export const DEFAULT_SHOP_CONFIG = {
   email: import.meta.env.VITE_EMAIL || 'cskh@xunanggio.com',
   address: import.meta.env.VITE_STORE_ADDRESS || 'Thôn Trường Sanh, Xã Phước Hậu, Tỉnh Ninh Thuận',
   originProvince: import.meta.env.VITE_ORIGIN_PROVINCE || 'Ninh Thuận',
-  warehousePin: '1234',
   autoSendEmail: true,
   announcement: 'Nông sản cắt giàn hái sớm - Gửi xe khách trong đêm tới TP.HCM',
   zaloUrl: rawZalo ? `https://zalo.me/${rawZalo}` : '',
@@ -206,7 +205,6 @@ export function getShopConfig() {
         depositAmount: Number(parsed.depositAmount) || DEFAULT_SHOP_CONFIG.depositAmount,
         loyaltyDiscountPercent: Number(parsed.loyaltyDiscountPercent) || DEFAULT_SHOP_CONFIG.loyaltyDiscountPercent,
         loyaltyMaxDiscount: Number(parsed.loyaltyMaxDiscount) || DEFAULT_SHOP_CONFIG.loyaltyMaxDiscount,
-        warehousePin: String(parsed.warehousePin || DEFAULT_SHOP_CONFIG.warehousePin),
         address: parsed.address || DEFAULT_SHOP_CONFIG.address,
         originProvince: parsed.originProvince || DEFAULT_SHOP_CONFIG.originProvince,
         hotline: parsed.hotline || DEFAULT_SHOP_CONFIG.hotline,
@@ -223,6 +221,8 @@ export function getShopConfig() {
           : DEFAULT_SHOP_CONFIG.giftsCatalog
       };
 
+      delete updatedConfig.warehousePin;
+      delete updatedConfig.warehouse_pin;
       localStorage.setItem('shop_config', JSON.stringify(updatedConfig));
       return updatedConfig;
     }

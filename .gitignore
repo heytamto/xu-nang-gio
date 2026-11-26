@@ -1,8 +1,20 @@
-node_modules
+node_modules/
+dist/
+coverage/
 .env
-.env.local
-dist
-.DS_Store
-# Supabase CLI temporary and cache files
+.env.*
+!.env.example
 supabase/.temp/
-.supabase/
+supabase/archive/
+*.log
+*.dump
+*.backup
+
+.vercel/
+*.tsbuildinfo
+.DS_Store
+
+*.sql
+*.mjs
+
+tests/
