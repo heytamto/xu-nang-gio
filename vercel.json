@@ -1,5 +1,11 @@
 {
+  "headers": [
+    {
+      "source": "/((?!assets(?:/|$)|api(?:/|$)).*)",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, must-revalidate" }]
+    }
+  ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets(?:/|$)|api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }

@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import App from './app/App.jsx';
 import { AppProviders } from './app/providers.jsx';
 import './app/styles/index.css';
+import { registerChunkRecovery } from './shared/utils/chunkRecovery';
+
+registerChunkRecovery();
 
 // Remove retired client authentication flags and legacy order cache (may contain PII).
 for (const storageName of ['localStorage', 'sessionStorage']) {
