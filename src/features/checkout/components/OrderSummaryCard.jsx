@@ -117,10 +117,11 @@ export default function OrderSummaryCard({
       </div>
 
       {/* Nút gửi đơn hàng */}
+      <div className="checkout-action-bar"><div className="checkout-action-total lg:hidden"><span className="text-xs text-stone-500">Tổng thanh toán</span><strong className="text-base text-amber-950 tabular-nums">{safeFinalTotal.toLocaleString('vi-VN')}đ</strong></div>
       <button
         type="submit"
         disabled={isSubmitting || safeTotal === 0}
-        className={`w-full py-4 text-white font-black rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60 ${
+        className={`w-full min-h-11 py-3 lg:py-4 text-white font-black rounded-2xl text-xs sm:text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60 ${
           isPaymentVerified && paymentMethod !== 'cod'
             ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
             : 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20'
@@ -142,7 +143,7 @@ export default function OrderSummaryCard({
             <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </>
         )}
-      </button>
+      </button></div>
     </div>
   );
 }

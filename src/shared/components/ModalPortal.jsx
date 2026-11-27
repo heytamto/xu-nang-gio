@@ -13,7 +13,7 @@ function updateLayers() {
 }
 
 export default function ModalPortal({
-  children, open = true, onClose, closeOnEscape = true, lockScroll = true
+  children, open = true, onClose, closeOnEscape = true, lockScroll = true, mobileLayout = "center"
 }) {
   const layerRef = useRef(null);
   const optionsRef = useRef({ onClose, closeOnEscape });
@@ -55,7 +55,7 @@ export default function ModalPortal({
 
   if (!open || typeof document === 'undefined') return null;
   return createPortal(
-    <div ref={layerRef} data-modal-layer="" style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+    <div ref={layerRef} data-modal-layer="" data-mobile-layout={mobileLayout} style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
       onClick={(event) => event.stopPropagation()}>
       {children}
     </div>,

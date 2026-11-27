@@ -32,7 +32,7 @@ export default function ShippingPolicyCard({budget=null, hotline, shopConfig={},
   },[active,budget==null,policy]);
   if(!active)return null;
   const phone=hotline||shopConfig?.hotline||shopConfig?.general?.hotline;
-  const mode=MODES.includes(previewMode)?previewMode:choosePolicyLayout(budget,heights);
+  const mode=MODES.includes(previewMode)?previewMode:budget==null && !previewPolicy ? "compact" : choosePolicyLayout(budget,heights);
   const Layout=layouts[mode];
-  return <div className="relative min-w-0"><section className={shell} data-policy-layout={mode}><Layout policy={policy} hotline={phone}/></section>{budget!=null&&<div ref={probe} aria-hidden="true" inert className="absolute inset-x-0 top-0 h-0 overflow-hidden invisible pointer-events-none">{MODES.map(m=>{const Variant=layouts[m];return <div key={m} data-mode={m} className={shell}><Variant policy={policy} hotline={phone}/></div>;})}</div>}</div>;
+  return <div className="relative min-w-0 order-7 lg:order-none"><section className={shell} data-policy-layout={mode}><Layout policy={policy} hotline={phone}/>{budget==null && !previewPolicy && <details className="text-sm text-stone-700"><summary className="cursor-pointer font-semibold text-amber-800 py-2">Xem chi tiết chính sách</summary><div className="space-y-3 pt-2">{policy.items.map((item,i)=><div key={i}><h4 className="font-bold">{item.title}</h4><p className="break-words">{item.description}</p></div>)}{policy.showTimeline&&<DeliveryTimeline steps={policy.steps}/>}{policy.showSupport&&<PolicySupport hotline={phone} text={policy.supportText}/>}</div></details>}</section>{budget!=null&&<div ref={probe} aria-hidden="true" inert className="absolute inset-x-0 top-0 h-0 overflow-hidden invisible pointer-events-none">{MODES.map(m=>{const Variant=layouts[m];return <div key={m} data-mode={m} className={shell}><Variant policy={policy} hotline={phone}/></div>;})}</div>}</div>;
 }

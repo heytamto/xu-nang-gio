@@ -96,12 +96,12 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
   };
 
   return (
-    <ModalPortal onClose={onClose} closeOnEscape={!isSubmitting}>
+    <ModalPortal mobileLayout="fullscreen" onClose={onClose} closeOnEscape={!isSubmitting}>
     <div role="dialog" aria-modal="true" aria-label="Cập nhật chuyện vườn" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* HEADER MODAL */}
-        <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+        <div className="mobile-editor-header flex items-center justify-between border-b border-stone-100 pb-4">
           <div className="flex items-center gap-2.5">
             <h3 className="text-base sm:text-xl font-black text-stone-900 tracking-tight">
               Cập Nhật Chuyện Vườn & Ảnh
@@ -229,7 +229,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
+          <div className="mobile-editor-footer flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
             <button
               type="button"
               onClick={onClose}

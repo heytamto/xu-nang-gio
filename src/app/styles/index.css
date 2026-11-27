@@ -242,3 +242,28 @@ body {
 .animate-spin-slow {
   animation: spinSlow 12s linear infinite;
 }
+
+/* Mobile checkout and opt-in full-screen editors. Desktop remains unchanged. */
+@media (max-width: 1023px) {
+  .checkout-mobile { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+  .checkout-action-bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 45;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); align-items: center; gap: 12px;
+    background: white; border-top: 1px solid #e7e5e4; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 16px #29252412; }
+  .checkout-action-total { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+  /* Keep the action inline while entering text, avoiding the virtual keyboard. */
+  .checkout-mobile:has(input:not([type=checkbox]):not([type=radio]):not([type=file]):focus, textarea:focus) .checkout-action-bar { position: static; padding: 0; box-shadow: none; border: 0; grid-template-columns: 1fr; background: transparent; }
+  .checkout-mobile:has(input:not([type=checkbox]):not([type=radio]):not([type=file]):focus, textarea:focus) .checkout-action-total { display: none; }
+  .checkout-mobile input:not([type=checkbox]):not([type=radio]):not([type=file]), .checkout-mobile textarea { font-size: 16px; }
+}
+@media (max-width: 639px) {
+  [data-mobile-layout="fullscreen"] > div { padding: 0; align-items: stretch; }
+  [data-mobile-layout="fullscreen"] > div > div { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  [data-mobile-layout="fullscreen"] input:not([type=checkbox]):not([type=radio]):not([type=file]), [data-mobile-layout="fullscreen"] textarea { font-size: 16px; }
+}
+
+@media (max-width: 639px) {
+  [data-mobile-layout="fullscreen"] .mobile-editor-header { position: sticky; top: 0; z-index: 2; background: white; padding-block: 8px; }
+  [data-mobile-layout="fullscreen"] .mobile-editor-footer { position: sticky; bottom: 0; z-index: 2; background: white; padding-bottom: 8px; }
+  [data-mobile-layout="fullscreen"] .mobile-editor-header button { min-width: 44px; min-height: 44px; }
+}

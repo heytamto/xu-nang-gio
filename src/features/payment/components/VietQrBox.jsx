@@ -73,7 +73,7 @@ export default function VietQrBox({
   return (
     <div className="p-3 sm:p-4 bg-white rounded-3xl border border-amber-200/90 shadow-2xs space-y-3 text-center font-sans animate-fadeIn text-stone-800">
       {/* Tiêu đề & Số tiền */}
-      <div className="flex items-center justify-between px-1 flex-wrap gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 flex-wrap gap-2">
         <span className="text-sm sm:text-base font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
           <QrCode className="w-5 h-5 text-amber-700" />
           <span>{paymentMethod === 'deposit' ? 'Quét VietQR Đặt Cọc' : 'Quét VietQR Thanh Toán'}</span>
@@ -109,24 +109,24 @@ export default function VietQrBox({
             src={qrImageUrl}
             alt="Mã VietQR Chuyển Khoản"
             loading="lazy"
-            className="w-52 h-52 sm:w-60 sm:h-60 object-contain mx-auto rounded-2xl"
+            className="w-52 max-w-full h-auto aspect-square sm:w-60 object-contain mx-auto rounded-2xl"
           />
         </div>
       )}
 
       {/* Thông tin tài khoản kèm nút sao chép */}
       <div className="bg-stone-50/90 p-3 rounded-2xl border border-stone-200/80 space-y-2.5 text-xs sm:text-sm text-left">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-stone-500 font-medium">Ngân hàng:</span>
           <strong className="text-stone-800 font-bold">{currentBankName}</strong>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-stone-500 font-medium">Chủ tài khoản:</span>
-          <strong className="text-stone-900 font-mono font-bold uppercase">{accountName}</strong>
+          <strong className="text-stone-900 font-mono font-bold uppercase break-all">{accountName}</strong>
         </div>
 
-        <div className="flex items-center justify-between pt-0.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
           <span className="text-stone-500 font-medium">Số tài khoản:</span>
           <button
             type="button"
@@ -143,7 +143,7 @@ export default function VietQrBox({
           </button>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-stone-200/70">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/70">
           <span className="text-stone-500 font-medium">Nội dung CK:</span>
           <button
             type="button"

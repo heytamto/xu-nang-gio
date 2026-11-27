@@ -55,7 +55,7 @@ export default function CheckoutPage({
   if (!cart.length) return <EmptyCheckout onNavigate={onNavigate} />;
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5 font-sans">
+    <div className="checkout-mobile w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5 font-sans">
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl overflow-hidden relative">
         <div className="bg-stone-900 text-white p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -98,23 +98,23 @@ export default function CheckoutPage({
           onSubmit={e=>{if(accepting===false){e.preventDefault();showNotice("Vườn đang tạm ngừng nhận đơn. Giỏ hàng vẫn được giữ nguyên. Vui lòng quay lại sau.", "Tạm ngừng nhận đơn");return;}handleSubmit(e);}}
           className="p-3 sm:p-4 lg:p-5 grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 items-start"
         >
-          <div className="lg:col-span-7 min-w-0 flex flex-col gap-3">
-            <div ref={leftContent} className="space-y-3">
-              <OrderItemsList
+          <div className="contents lg:col-span-7 lg:flex min-w-0 flex-col gap-3">
+            <div ref={leftContent} className="contents lg:block lg:space-y-3">
+              <div className="order-1 min-w-0 lg:order-none"><OrderItemsList
                 cart={activeCart}
                 totalAmount={activeSubtotal}
                 onUpdateQuantity={onUpdateQuantity}
                 onRemoveItem={onRemoveItem}
-              />
+              /></div>
               {paymentMethod !== "cod" && isPaymentGiftsEnabled && (
-                <PaymentGiftSelector
+                <div className="order-5 min-w-0 lg:order-none"><PaymentGiftSelector
                   paymentGifts={paymentGifts}
                   selectedGiftId={selectedGiftId}
                   onSelectGift={setSelectedGiftId}
                   isEnabled={isPaymentGiftsEnabled}
-                />
+                /></div>
               )}
-              <CustomerInfoForm
+              <div className="order-2 min-w-0 lg:order-none"><CustomerInfoForm
                 customer={customer}
                 setCustomer={setCustomer}
                 shippingAddress={shippingAddress}
@@ -129,18 +129,18 @@ export default function CheckoutPage({
                 isPromoDismissed={isPromoDismissed}
                 setIsPromoDismissed={setIsPromoDismissed}
                 onApplySpecificCode={applySpecificCode}
-              />
+              /></div>
             </div>
-            <ShippingPolicyCard
+            <div className="contents"><ShippingPolicyCard
               budget={policyBudget}
               hotline={liveConfig?.hotline}
               shopConfig={liveConfig}
-            />
+            /></div>
           </div>
 
-          <div ref={rightColumn} className="lg:col-span-5 min-w-0 bg-stone-50/90 rounded-3xl p-3 sm:p-4 border border-stone-200/90 shadow-xs flex flex-col gap-3">
-            <div className="space-y-3">
-              <VoucherSection
+          <div ref={rightColumn} className="contents lg:col-span-5 min-w-0 lg:bg-stone-50/90 lg:rounded-3xl lg:p-4 lg:border lg:border-stone-200/90 lg:shadow-xs lg:flex flex-col gap-3">
+            <div className="contents lg:block lg:space-y-3">
+              <div className="order-3 min-w-0 lg:order-none"><VoucherSection
                 voucherInput={voucherInput}
                 setVoucherInput={setVoucherInput}
                 appliedVouchers={appliedVouchers}
@@ -149,16 +149,16 @@ export default function CheckoutPage({
                 isValidating={isValidatingVoucher}
                 onApplyVoucher={() => applySpecificCode(voucherInput)}
                 onRemoveVoucher={handleRemoveVoucher}
-              />
-              <PaymentMethodSelector
+              /></div>
+              <div className="order-4 min-w-0 lg:order-none"><PaymentMethodSelector
                 paymentMethod={paymentMethod}
                 setPaymentMethod={setPaymentMethod}
                 customerHistory={customerHistory}
                 depositAmount={depositAmount}
                 finalTotalAmount={activeFinalTotal}
                 isPaymentGiftsEnabled={isPaymentGiftsEnabled}
-              />
-              {paymentMethod === "cod" ? (
+              /></div>
+              <div className="order-6 min-w-0 lg:order-none">{paymentMethod === "cod" ? (
                 <CodTimeline finalTotalAmount={activeFinalTotal} />
               ) : (
                 <VietQrBox
@@ -172,9 +172,9 @@ export default function CheckoutPage({
                   accountName={bankConfig.accountName}
                   cleanPhone={cleanPhone}
                 />
-              )}
+              )}</div>
             </div>
-            <OrderSummaryCard
+            <div className="order-8 min-w-0 lg:order-none"><OrderSummaryCard
               totalAmount={activeSubtotal}
               shippingFee={shippingFee}
               freeShippingThreshold={freeShippingThreshold}
@@ -183,7 +183,7 @@ export default function CheckoutPage({
               paymentMethod={paymentMethod}
               depositAmount={depositAmount}
               isSubmitting={isSubmittingOrder}
-            />
+            /></div>
           </div>
         </form>
       </div>

@@ -117,7 +117,7 @@ export default function CustomerInfoForm({
     <div className="bg-stone-50/90 rounded-3xl p-3 sm:p-4 border border-stone-200/90 space-y-3 font-sans text-stone-800">
       
       {/* Tiêu đề nhóm */}
-      <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/70 pb-2.5">
         <div className="flex items-center gap-2.5">
           <span className="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center text-xs font-black shadow-2xs">
             2
@@ -152,7 +152,7 @@ export default function CustomerInfoForm({
               onBlur={() => {
                 setFormErrors((prev) => ({ ...prev, name: validateName(customer.name) }));
               }}
-              className={`w-full text-sm sm:text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none font-medium text-stone-900 shadow-2xs transition-colors ${
+              className={`w-full text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none font-medium text-stone-900 shadow-2xs transition-colors ${
                 formErrors.name ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-stone-200 focus:border-amber-600 ring-2 ring-transparent focus:ring-amber-500/10'
               }`}
             />
@@ -181,7 +181,7 @@ export default function CustomerInfoForm({
               onBlur={() => {
                 setFormErrors((prev) => ({ ...prev, phone: validatePhone(customer.phone) }));
               }}
-              className={`w-full text-sm sm:text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none font-mono font-bold text-stone-900 shadow-2xs transition-colors ${
+              className={`w-full text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none font-mono font-bold text-stone-900 shadow-2xs transition-colors ${
                 formErrors.phone ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-stone-200 focus:border-amber-600 ring-2 ring-transparent focus:ring-amber-500/10'
               }`}
             />
@@ -210,7 +210,7 @@ export default function CustomerInfoForm({
             onBlur={() => {
               setFormErrors((prev) => ({ ...prev, email: validateEmail(customer.email) }));
             }}
-            className={`w-full text-sm sm:text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none text-stone-800 shadow-2xs transition-colors ${
+            className={`w-full text-base pl-11 pr-4 py-3 rounded-2xl border bg-white focus:outline-none text-stone-800 shadow-2xs transition-colors ${
               formErrors.email ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-stone-200 focus:border-amber-600 ring-2 ring-transparent focus:ring-amber-500/10'
             }`}
           />
@@ -382,7 +382,7 @@ export default function CustomerInfoForm({
           placeholder="Ghi chú đóng gói (VD: Giao giờ hành chính, bọc kỹ chống dập...)"
           value={customer.note || ''}
           onChange={(e) => setCustomer((prev) => ({ ...prev, note: e.target.value }))}
-          className="w-full text-xs sm:text-sm pl-11 pr-4 py-3 rounded-2xl border border-stone-200 bg-white focus:outline-none focus:border-amber-600 text-stone-800 shadow-2xs font-normal transition-colors"
+          className="w-full text-base sm:text-sm pl-11 pr-4 py-3 rounded-2xl border border-stone-200 bg-white focus:outline-none focus:border-amber-600 text-stone-800 shadow-2xs font-normal transition-colors"
         />
       </div>
     </div>
