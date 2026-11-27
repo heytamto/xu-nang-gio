@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { QrCode, Building2, Loader2 } from "lucide-react";
 import { VIETQR_BANKS } from "../../config/shopConfig";
 import { shopConfigRepo } from "../../../../infrastructure/supabase/repositories/index";
+import ImageUploadField from "../../../../shared/components/ImageUploadField";
+import { supabase } from "../../../../infrastructure/supabase/supabaseClient";
 import CustomDropdown from "../../../../shared/components/CustomDropdown";
 
 // Helper trích xuất chuỗi thông báo an toàn, phòng ngừa trường hợp database trả về object { text: "..." }
@@ -14,6 +16,9 @@ const resolveAnnouncementText = (raw) => {
 
 export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveConfig, onShowAlert }) {
   const [cfg, setCfg] = useState({
+    brandName: initialConfig.brandName ?? "",
+    tagline: initialConfig.tagline ?? "",
+    logoUrl: initialConfig.logoUrl ?? "",
     bankBin: initialConfig.bankBin || "970422",
     bankName: initialConfig.bankName || "MBBank",
     accountNo: initialConfig.accountNo || "0848957345",
@@ -27,12 +32,16 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
     loyaltyDiscountPercent: initialConfig.loyaltyDiscountPercent ?? 10,
     loyaltyMaxDiscount: initialConfig.loyaltyMaxDiscount ?? 50000,
   });
+  const [uploading, setUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (initialConfig && Object.keys(initialConfig).length > 0) {
       setCfg((prev) => ({
         ...prev,
+        brandName: initialConfig.brandName ?? prev.brandName,
+        tagline: initialConfig.tagline ?? prev.tagline,
+        logoUrl: initialConfig.logoUrl ?? prev.logoUrl,
         bankBin: initialConfig.bankBin || prev.bankBin,
         bankName: initialConfig.bankName || prev.bankName,
         accountNo: initialConfig.accountNo || prev.accountNo,
@@ -59,10 +68,14 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
   }));
 
   const handleSave = async () => {
+    if (uploading || isSaving) return;
+    if (!cfg.brandName.trim()) { onShowAlert?.("Vui lòng nhập tên thương hiệu."); return; }
     setIsSaving(true);
     try {
       const nowIso = new Date().toISOString();
 
+      const { error: generalError } = await supabase.rpc("xng_patch_shop_identity", { p_value: { brandName: cfg.brandName.trim(), tagline: cfg.tagline.trim(), logoUrl: cfg.logoUrl.trim(), address: cfg.address, hotline: cfg.hotline } });
+      if (generalError) throw generalError;
       await Promise.all([
         shopConfigRepo.update("payment", {
           value: {
@@ -73,13 +86,6 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
             depositAmount: Number(cfg.depositAmount) || 0,
             shippingFee: Number(cfg.shippingFee) || 0,
             freeShippingThreshold: Number(cfg.freeShippingThreshold) || 0,
-          },
-          updated_at: nowIso,
-        }, "key"),
-        shopConfigRepo.update("general", {
-          value: {
-            address: cfg.address,
-            hotline: cfg.hotline,
           },
           updated_at: nowIso,
         }, "key"),
@@ -96,7 +102,7 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
         }, "key"),
       ]);
 
-      if (onSaveConfig) onSaveConfig(cfg);
+      if (onSaveConfig) onSaveConfig({ ...initialConfig, ...cfg, brandName: cfg.brandName.trim(), tagline: cfg.tagline.trim(), logoUrl: cfg.logoUrl.trim() });
       onShowAlert?.("Đã lưu toàn bộ cấu hình vận hành thành công!");
     } catch (err) {
       console.error("Lỗi lưu cấu hình:", err);
@@ -115,7 +121,7 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
         </div>
         <button
           type="button"
-          disabled={isSaving}
+          disabled={isSaving || uploading}
           onClick={handleSave}
           className="h-10 px-5 bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs rounded-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
         >
@@ -124,6 +130,14 @@ export default function ShopGeneralConfigSection({ initialConfig = {}, onSaveCon
         </button>
       </div>
 
+      <section className="space-y-3 border-b border-stone-100 pb-4">
+        <h3 className="font-bold text-stone-900">Nhận diện thương hiệu</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-sm font-bold">Tên thương hiệu *<input maxLength={120} value={cfg.brandName} onChange={e=>setCfg(prev=>({...prev,brandName:e.target.value}))} className="mt-1.5 w-full h-11 px-3 rounded-xl border border-stone-200 bg-stone-50" /></label>
+          <label className="block text-sm font-bold">Tagline / Slogan<input maxLength={240} value={cfg.tagline} onChange={e=>setCfg(prev=>({...prev,tagline:e.target.value}))} className="mt-1.5 w-full h-11 px-3 rounded-xl border border-stone-200 bg-stone-50" /></label>
+        </div>
+        <ImageUploadField label="Logo thương hiệu" bucket="images" value={cfg.logoUrl} onChange={url=>setCfg(prev=>({...prev,logoUrl:url}))} onUploadStateChange={setUploading}/>
+      </section>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs sm:text-sm">
         <div>
           <CustomDropdown

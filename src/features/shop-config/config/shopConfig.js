@@ -42,8 +42,9 @@ export const DEFAULT_SHOP_CONFIG = {
   },
 
   // 4. Thông tin liên hệ, Địa chỉ & Mạng xã hội từ .env
-  brandName: 'Xứ Nắng Gió',
-  tagline: 'Đặc sản hái giàn chuẩn đất Ninh Thuận',
+  brandName: 'Cửa hàng',
+  tagline: '',
+  logoUrl: '',
   hotline: rawHotline,
   phoneNumber: cleanPhone || rawZalo,
   zaloPhone: rawZalo,
@@ -176,6 +177,8 @@ export function parseShopConfigFromDb(rawRows = []) {
 
     // Nhóm thông tin chung
     brandName: general.brandName || general.shop_name || DEFAULT_SHOP_CONFIG.brandName,
+    tagline: general.tagline ?? DEFAULT_SHOP_CONFIG.tagline,
+    logoUrl: general.logoUrl ?? "",
     address: general.address || DEFAULT_SHOP_CONFIG.address,
     hotline: general.hotline || general.zaloPhone || DEFAULT_SHOP_CONFIG.hotline,
     announcement: typeof announcement === 'string' ? announcement : (announcement.text || DEFAULT_SHOP_CONFIG.announcement),

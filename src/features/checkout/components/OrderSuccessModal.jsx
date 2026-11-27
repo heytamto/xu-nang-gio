@@ -1,8 +1,9 @@
 // src/components/checkout/OrderSuccessModal.jsx
+import BrandLogo from '../../../shared/components/BrandLogo';
 import ModalPortal from '../../../shared/components/ModalPortal';
 import React, { useState, useEffect } from 'react';
 import { Printer, Phone, Truck, Gift, Copy, Check } from 'lucide-react';
-import { resolveDepositAmount } from '../../shop-config/config/shopConfig';
+import { resolveDepositAmount, DEFAULT_SHOP_CONFIG } from '../../shop-config/config/shopConfig';
 
 // Răng cưa siêu nhuyễn 1.8px sắc nét, dùng chung cho cả 2 đầu
 function MicroSawtoothEdge({ position = 'bottom' }) {
@@ -98,8 +99,8 @@ export default function OrderSuccessModal({
     || 'Chưa cung cấp';
 
   const hotline = shopConfig?.hotline || '0848.957.345';
-  const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
-  const tagline = shopConfig?.tagline || 'Đặc sản hái giàn chuẩn đất Ninh Thuận';
+  const brandName = shopConfig?.brandName || DEFAULT_SHOP_CONFIG.brandName;
+  const tagline = shopConfig?.tagline ?? DEFAULT_SHOP_CONFIG.tagline;
 
   const items = (Array.isArray(orderInfo.cart) && orderInfo.cart.length > 0)
     ? orderInfo.cart
@@ -214,6 +215,7 @@ export default function OrderSuccessModal({
               
               {/* Header */}
               <div className="text-center border-b border-dashed border-stone-300 pb-3 space-y-1">
+                <BrandLogo url={shopConfig?.logoUrl} fallback={false} className="w-14 h-14 mx-auto" />
                 <h3 className="font-black text-lg sm:text-xl uppercase tracking-wider text-amber-950 font-sans">
                   {brandName}
                 </h3>

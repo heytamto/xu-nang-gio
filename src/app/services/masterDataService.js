@@ -97,6 +97,7 @@ export async function fetchAllMasterDataFromSupabase(groups = ['catalog', 'conte
           address: gen.address,
           brandName: gen.brandName,
           tagline: gen.tagline,
+          logoUrl: gen.logoUrl ?? "",
           autoSendEmail: gen.autoSendEmail,
           enablePaymentGifts: isGiftsActive,
           bankBin: pay.bankBin || parsedConfig.bankBin,

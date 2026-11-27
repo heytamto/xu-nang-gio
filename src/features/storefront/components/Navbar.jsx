@@ -1,6 +1,8 @@
 // src/components/Navbar.jsx
+import BrandLogo from '../../../shared/components/BrandLogo';
+import { DEFAULT_SHOP_CONFIG } from '../../shop-config/config/shopConfig';
 import React, { useState } from 'react';
-import { ShoppingBag, Sprout, Menu, X, Search } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search } from 'lucide-react';
 
 export default function Navbar({ 
   currentPage, 
@@ -13,8 +15,8 @@ export default function Navbar({
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const brandName = shopConfig?.brandName || 'XỨ NẮNG GIÓ';
-  const tagline = shopConfig?.tagline || 'Đặc Sản Ninh Thuận Hái Sớm';
+  const brandName = shopConfig?.brandName || DEFAULT_SHOP_CONFIG.brandName;
+  const tagline = shopConfig?.tagline ?? DEFAULT_SHOP_CONFIG.tagline;
 
   const navItems = [
     { id: 'home', label: 'Trang Chủ' },
@@ -48,7 +50,7 @@ export default function Navbar({
           className="flex items-center gap-2 sm:gap-3 text-left group cursor-pointer min-w-0"
         >
           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-amber-600 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform shrink-0">
-            <Sprout className="w-5 h-5 sm:w-6 sm:h-6" />
+            <BrandLogo url={shopConfig?.logoUrl} className="w-full h-full" />
           </div>
           <div className="min-w-0 max-w-[180px] sm:max-w-md lg:max-w-lg">
             <span className="font-black text-sm sm:text-lg tracking-wide text-white block uppercase truncate">

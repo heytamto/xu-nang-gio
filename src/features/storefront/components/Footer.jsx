@@ -1,5 +1,6 @@
 // src/components/Footer.jsx
 import React from 'react';
+import BrandLogo from '../../../shared/components/BrandLogo';
 import { 
   Phone, 
   Mail, 
@@ -60,7 +61,7 @@ export default function Footer({
   config = DEFAULT_SHOP_CONFIG 
 }) {
   const mapEmbedSrc = config?.mapEmbedUrl || DEFAULT_MAP_EMBED_URL;
-  const brandName = config?.brandName || 'Xứ Nắng Gió';
+  const brandName = config?.brandName || DEFAULT_SHOP_CONFIG.brandName;
   const hotline = config?.hotline || '0848.957.345';
   const cleanPhone = String(config?.phoneNumber || hotline).replace(/\D/g, '');
   const storeAddress = config?.address || 'Thôn Trường Sanh, Xã Phước Hậu, Huyện Ninh Phước, Tỉnh Ninh Thuận';
@@ -76,10 +77,10 @@ export default function Footer({
           <div className="space-y-4">
             <div className="space-y-2.5">
               <h3 className="text-xl font-black text-white tracking-wide flex items-center gap-2">
-                <span className="text-amber-500 font-serif text-2xl">☀</span> {brandName}
+                <BrandLogo url={config?.logoUrl} className="w-10 h-10 text-amber-500" /> {brandName}
               </h3>
               <p className="text-sm text-stone-300 leading-relaxed font-normal">
-                {config?.tagline || 'Nông sản & Đặc sản nắng gió Ninh Thuận - Thu hoạch tận vườn, phơi ráo tự nhiên.'}
+                {config?.tagline ?? DEFAULT_SHOP_CONFIG.tagline}
               </p>
               <div className="flex items-center gap-2 text-sm text-emerald-400 font-semibold pt-1">
                 <ShieldCheck className="w-5 h-5 shrink-0" />
