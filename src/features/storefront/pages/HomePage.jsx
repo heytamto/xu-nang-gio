@@ -1,6 +1,6 @@
-import { useStorefrontSections } from "../../shop-config/services/storefrontSections";
+import { useStorefrontSections } from '../../shop-config/services/storefrontSections';
 // src/pages/HomePage.jsx
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo } from 'react';
 import {
   ArrowRight,
   ShieldCheck,
@@ -26,11 +26,11 @@ import {
   Award,
   PackageCheck,
   TrendingUp,
-} from "lucide-react";
-import ProductCard from "../../catalog/components/ProductCard";
-import HarvestCalendarSection from "../components/HarvestCalendarSection";
-import ExperienceGuideSection from "../components/ExperienceGuideSection";
-import CustomerReviewsSection from "../../reviews/components/CustomerReviewsSection";
+} from 'lucide-react';
+import ProductCard from '../../catalog/components/ProductCard';
+import HarvestCalendarSection from '../components/HarvestCalendarSection';
+import ExperienceGuideSection from '../components/ExperienceGuideSection';
+import CustomerReviewsSection from '../../reviews/components/CustomerReviewsSection';
 
 const CATEGORY_ID_ICON_MAP = {
   cat01: Sparkles,
@@ -56,40 +56,39 @@ export default function HomePage({
 
   const isReviewsEnabled =
     shopConfig?.showCustomerReviews !== false &&
-    String(shopConfig?.showCustomerReviews).toUpperCase() !== "FALSE";
+    String(shopConfig?.showCustomerReviews).toUpperCase() !== 'FALSE';
 
   const scrollCategories = (direction) => {
     if (scrollRef.current) {
-      const scrollAmount = direction === "left" ? -280 : 280;
-      scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      const scrollAmount = direction === 'left' ? -280 : 280;
+      scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
 
-  const goToShop = (catId = "all") => {
+  const goToShop = (catId = 'all') => {
     if (onNavigateShop) onNavigateShop(catId);
-    else if (onNavigate) onNavigate("shop");
+    else if (onNavigate) onNavigate('shop');
   };
 
   const goToStory = () => {
     if (onNavigateStory) onNavigateStory();
-    else if (onNavigate) onNavigate("story");
+    else if (onNavigate) onNavigate('story');
   };
 
   // Tính sản phẩm bán chạy từ mảng products
   const featuredProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
     return [...products]
-      .sort((a, b) => (Number(b.soldCount || b.sold || 0) - Number(a.soldCount || a.sold || 0)))
+      .sort((a, b) => Number(b.soldCount || b.sold || 0) - Number(a.soldCount || a.sold || 0))
       .slice(0, 8);
   }, [products]);
 
   const displayCategories = useMemo(() => {
-    return categories.filter((c) => c.id !== "all");
+    return categories.filter((c) => c.id !== 'all');
   }, [categories]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
-      
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
       {/* 1. HERO BANNER MẶT TIỀN */}
       <section className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -110,13 +109,15 @@ export default function HomePage({
             </h1>
 
             <p className="text-sm sm:text-base text-stone-200 leading-relaxed font-normal max-w-xl">
-              Nông sản thuần tự nhiên dưới chân dãy Núi Chúa: từ vườn táo giòn rụm Phước Hậu, giàn nho chín mọng Thái An đến mẻ chả cá quết tươi làng biển Cà Ná. Hái sớm tinh mơ và gửi đến bạn nguyên vẹn vị đất trời.
+              Nông sản thuần tự nhiên dưới chân dãy Núi Chúa: từ vườn táo giòn rụm Phước Hậu, giàn
+              nho chín mọng Thái An đến mẻ chả cá quết tươi làng biển Cà Ná. Hái sớm tinh mơ và gửi
+              đến bạn nguyên vẹn vị đất trời.
             </p>
 
             <div className="flex flex-wrap items-center gap-3.5 pt-2">
               <button
                 type="button"
-                onClick={() => goToShop("all")}
+                onClick={() => goToShop('all')}
                 className="group px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black text-sm flex items-center gap-2.5 shadow-lg shadow-amber-950/50 transition-all active:scale-95 cursor-pointer"
               >
                 <span>Ghé Chợ Quê Xứ Nắng</span>
@@ -147,11 +148,14 @@ export default function HomePage({
           </div>
 
           <div className="lg:col-span-5 relative">
-            <div className="relative rounded-3xl overflow-hidden border-2 border-stone-700/80 shadow-2xl bg-stone-900 group">
+            <div className="relative h-72 sm:h-80 rounded-3xl overflow-hidden border-2 border-stone-700/80 shadow-2xl bg-stone-900 group">
               <img
                 src="https://images.unsplash.com/photo-1596363505729-4190a9506133?auto=format&fit=crop&w=1000&q=80"
                 alt="Nho Ninh Thuận chín giàn"
-                className="w-full h-72 sm:h-80 object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="block w-full h-72 sm:h-80 object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
 
@@ -207,7 +211,7 @@ export default function HomePage({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => scrollCategories("left")}
+              onClick={() => scrollCategories('left')}
               className="w-9 h-9 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
               title="Cuộn sang trái"
             >
@@ -215,7 +219,7 @@ export default function HomePage({
             </button>
             <button
               type="button"
-              onClick={() => scrollCategories("right")}
+              onClick={() => scrollCategories('right')}
               className="w-9 h-9 rounded-full bg-white border border-stone-200 hover:border-amber-500 text-stone-600 hover:text-amber-800 flex items-center justify-center shadow-xs transition-all cursor-pointer active:scale-95"
               title="Cuộn sang phải"
             >
@@ -224,7 +228,7 @@ export default function HomePage({
 
             <button
               type="button"
-              onClick={() => goToShop("all")}
+              onClick={() => goToShop('all')}
               className="text-sm font-bold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 ml-2 cursor-pointer"
             >
               <span>Xem tất cả ({products.length})</span>
@@ -237,11 +241,11 @@ export default function HomePage({
           <div
             ref={scrollRef}
             className="flex items-center gap-3 overflow-x-auto pb-1 pt-1 px-1 scroll-smooth select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            style={{ whiteSpace: "nowrap" }}
+            style={{ whiteSpace: 'nowrap' }}
           >
             <button
               type="button"
-              onClick={() => goToShop("all")}
+              onClick={() => goToShop('all')}
               className="shrink-0 px-4 py-3 rounded-2xl bg-amber-800 text-white text-sm font-black shadow-xs transition-all flex items-center gap-2 active:scale-95 cursor-pointer hover:bg-amber-900"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
@@ -250,7 +254,7 @@ export default function HomePage({
 
             {displayCategories.map((cat) => {
               const IconComponent = CATEGORY_ID_ICON_MAP[cat.id] || Sparkles;
-              const catTitle = cat.name || cat.label || "Danh mục";
+              const catTitle = cat.name || cat.label || 'Danh mục';
 
               return (
                 <button
@@ -286,7 +290,7 @@ export default function HomePage({
 
           <button
             type="button"
-            onClick={() => goToShop("all")}
+            onClick={() => goToShop('all')}
             className="group text-sm font-bold text-amber-800 hover:text-amber-950 flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
           >
             <span>Xem tất cả gian hàng ({products.length} món)</span>
@@ -324,31 +328,32 @@ export default function HomePage({
             Làm Sao Để Nho & Táo Đi Hàng Trăm Cây Số Vẫn Tươi Rót?
           </h3>
           <p className="text-sm sm:text-base text-stone-300 font-normal leading-relaxed">
-            Chúng tôi hiểu nỗi lo dập nát khi đặt hoa quả tươi từ xa. Đây là cách nhà vườn bảo vệ từng thùng hàng:
+            Chúng tôi hiểu nỗi lo dập nát khi đặt hoa quả tươi từ xa. Đây là cách nhà vườn bảo vệ
+            từng thùng hàng:
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
           {[
             {
-              step: "01",
-              title: "Cắt Hái Đúng Độ Chín",
-              desc: "Chỉ chọn chùm nho cuống xanh, táo đủ độ giòn hái lúc sáng sớm.",
+              step: '01',
+              title: 'Cắt Hái Đúng Độ Chín',
+              desc: 'Chỉ chọn chùm nho cuống xanh, táo đủ độ giòn hái lúc sáng sớm.',
             },
             {
-              step: "02",
-              title: "Chèn Rơm & Lưới Xốp",
-              desc: "Từng chùm được bọc túi khí hoặc lưới xốp êm, chèn rơm khô chống xóc.",
+              step: '02',
+              title: 'Chèn Rơm & Lưới Xốp',
+              desc: 'Từng chùm được bọc túi khí hoặc lưới xốp êm, chèn rơm khô chống xóc.',
             },
             {
-              step: "03",
-              title: "Ướp Lạnh Đá Gel Kín",
-              desc: "Thùng xốp dán kín băng keo kèm túi đá gel giữ nhiệt độ mát mẻ suốt hành trình.",
+              step: '03',
+              title: 'Ướp Lạnh Đá Gel Kín',
+              desc: 'Thùng xốp dán kín băng keo kèm túi đá gel giữ nhiệt độ mát mẻ suốt hành trình.',
             },
             {
-              step: "04",
-              title: "Gửi Xe Khách Trong Đêm",
-              desc: "Xe chạy xuyên đêm tới Sài Gòn, giao tận tay vào sáng hôm sau.",
+              step: '04',
+              title: 'Gửi Xe Khách Trong Đêm',
+              desc: 'Xe chạy xuyên đêm tới Sài Gòn, giao tận tay vào sáng hôm sau.',
             },
           ].map((item, idx) => (
             <div
@@ -387,7 +392,8 @@ export default function HomePage({
             </div>
             <h4 className="text-base sm:text-lg font-bold text-stone-900">Quang Hợp Cực Đại</h4>
             <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-              Nắng chiếu từ sáng sớm đến tận chiều tà giúp cây nho và táo gió tích lũy lượng đường tự nhiên cao vượt trội.
+              Nắng chiếu từ sáng sớm đến tận chiều tà giúp cây nho và táo gió tích lũy lượng đường
+              tự nhiên cao vượt trội.
             </p>
           </div>
 
@@ -395,7 +401,9 @@ export default function HomePage({
             <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center font-bold">
               <Wind className="w-5 h-5" />
             </div>
-            <h4 className="text-base sm:text-lg font-bold text-stone-900">Gió Biển Chống Nấm Mốc</h4>
+            <h4 className="text-base sm:text-lg font-bold text-stone-900">
+              Gió Biển Chống Nấm Mốc
+            </h4>
             <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
               Gió biển thổi qua giàn liên tục làm khô ráo tán lá tự nhiên, hạn chế sâu bệnh.
             </p>
@@ -405,9 +413,12 @@ export default function HomePage({
             <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
               <Droplets className="w-5 h-5" />
             </div>
-            <h4 className="text-base sm:text-lg font-bold text-stone-900">Mạch Nước Phù Sa Pha Cát</h4>
+            <h4 className="text-base sm:text-lg font-bold text-stone-900">
+              Mạch Nước Phù Sa Pha Cát
+            </h4>
             <p className="text-sm sm:text-base text-stone-600 leading-relaxed font-normal">
-              Hệ thống mương dẫn thủy lợi cổ Champa đưa nguồn nước phù sa sông Dinh bồi đắp cho từng gốc nho.
+              Hệ thống mương dẫn thủy lợi cổ Champa đưa nguồn nước phù sa sông Dinh bồi đắp cho từng
+              gốc nho.
             </p>
           </div>
         </div>
@@ -422,10 +433,18 @@ export default function HomePage({
       {/* 9. BỐN CAM KẾT VƯỜN QUÊ */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: CheckCircle2, title: "Bao Ăn Tận Miệng", desc: "Chuẩn vị giòn ngọt, không ngon hoàn tiền" },
-          { icon: ShieldCheck, title: "100% Nguyên Bản", desc: "Nắng phơi mộc, không phẩm màu hóa chất" },
-          { icon: Truck, title: "Ship Thùng Xốp", desc: "Chèn rơm chống dập, ướp đá gel mát lạnh" },
-          { icon: RefreshCw, title: "Bảo Hành Tươi Ngon", desc: "Bù hàng ngay nếu dập nát gửi xe" },
+          {
+            icon: CheckCircle2,
+            title: 'Bao Ăn Tận Miệng',
+            desc: 'Chuẩn vị giòn ngọt, không ngon hoàn tiền',
+          },
+          {
+            icon: ShieldCheck,
+            title: '100% Nguyên Bản',
+            desc: 'Nắng phơi mộc, không phẩm màu hóa chất',
+          },
+          { icon: Truck, title: 'Ship Thùng Xốp', desc: 'Chèn rơm chống dập, ướp đá gel mát lạnh' },
+          { icon: RefreshCw, title: 'Bảo Hành Tươi Ngon', desc: 'Bù hàng ngay nếu dập nát gửi xe' },
         ].map((item, i) => {
           const Icon = item.icon;
           return (
@@ -438,7 +457,9 @@ export default function HomePage({
               </div>
               <div className="space-y-1">
                 <h4 className="text-sm sm:text-base font-bold text-stone-900">{item.title}</h4>
-                <p className="text-xs sm:text-sm text-stone-500 leading-snug font-normal">{item.desc}</p>
+                <p className="text-xs sm:text-sm text-stone-500 leading-snug font-normal">
+                  {item.desc}
+                </p>
               </div>
             </div>
           );
@@ -456,7 +477,8 @@ export default function HomePage({
             Muốn hiểu vì sao quả ngọt đậm sâu giữa đất nung rát nắng?
           </h3>
           <p className="text-sm sm:text-base text-stone-300 font-normal leading-relaxed">
-            Mời bạn ghé xem nhật ký mùa vụ, xem cách người làm vườn bọc từng túi táo sinh học và phơi ráo từng mẻ nho dưới gió biển Cà Ná.
+            Mời bạn ghé xem nhật ký mùa vụ, xem cách người làm vườn bọc từng túi táo sinh học và
+            phơi ráo từng mẻ nho dưới gió biển Cà Ná.
           </p>
         </div>
 

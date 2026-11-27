@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+:root {
+  --xng-css-ready: 1;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+img {
+  max-width: 100%;
+}
+
+html {
+  background-color: #faf8f5;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
