@@ -11,7 +11,7 @@ export function createWeatherHandler({fetcher=fetch,env=process.env,token=random
     const key=env.SUPABASE_SERVICE_ROLE_KEY;
     if(!env.SUPABASE_URL||!key) throw new Error('Missing backend config');
     const r=await fetcher(`${env.SUPABASE_URL.replace(/\/$/,'')}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(4000)});
-    if(!r.ok) throw new Error('Cache RPC failed'); return r.json();
+    if(!r.ok) { console.error('[weather] RPC failed', name, r.status); throw new Error('Cache RPC failed'); } return r.json();
   }
   function cached(r) {
     if(!r.payload||!(Date.parse(r.staleUntil)>now())) return {status:200,body:{enabled:true,pending:true,config:r.config},ttl:5};
@@ -26,10 +26,11 @@ export function createWeatherHandler({fetcher=fetch,env=process.env,token=random
     if(r.state!=='claimed') return cached(r);
     try {
       const c=r.config;
-      if(!env.WEATHERAPI_KEY||!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude)) throw new Error('Invalid config');
+      if(!env.WEATHERAPI_KEY) { console.error('[weather] WEATHERAPI_KEY missing'); throw new Error('Invalid config'); }
+      if(!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude)) throw new Error('Invalid config');
       const params=new URLSearchParams({key:env.WEATHERAPI_KEY,q:`${c.latitude},${c.longitude}`,days:'1',aqi:'no',alerts:'no'});
       const response=await fetcher(`https://api.weatherapi.com/v1/forecast.json?${params}`,{signal:AbortSignal.timeout(8000)});
-      if(!response.ok) throw new Error('Provider unavailable');
+      if(!response.ok) { console.error('[weather] provider HTTP', response.status); throw new Error('Provider unavailable'); }
       const payload=normalize(await response.json(),c);
       if(await rpc('xng_weather_cache_complete',{p_key:r.key,p_token:id,p_payload:payload})!==true) return cached(r);
       return {status:200,body:{...payload,config:c,stale:false,staleUntil:new Date(now()+7200000).toISOString()},ttl:60};
@@ -47,7 +48,7 @@ export function createWeatherHandler({fetcher=fetch,env=process.env,token=random
       const result=await pending;
       res.setHeader('Cache-Control',result.ttl?`public, max-age=0, s-maxage=${result.ttl}, must-revalidate`:'no-store');
       return res.status(result.status).json(result.body);
-    } catch {res.setHeader('Cache-Control','no-store');return res.status(503).json({error:'Weather unavailable'});}
+    } catch {console.error('[weather] backend unavailable; verify server environment and cache migration');res.setHeader('Cache-Control','no-store');return res.status(503).json({error:'Weather unavailable'});}
   };
 }
 export default createWeatherHandler();
