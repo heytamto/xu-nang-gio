@@ -1,3 +1,4 @@
+import WeatherSection from "../../weather/components/WeatherSection";
 import { useStorefrontSections } from '../../shop-config/services/storefrontSections';
 // src/pages/HomePage.jsx
 import React, { useRef, useMemo } from 'react';
@@ -88,7 +89,7 @@ export default function HomePage({
   }, [categories]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-16 font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
+    <div className="xng-page xng-page--editorial xng-page--home font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
       {/* 1. HERO BANNER MẶT TIỀN */}
       <section className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-stone-950 via-[#1c1917] to-amber-950 text-white shadow-2xl border border-stone-800/80 p-6 sm:p-10 lg:p-14">
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -101,7 +102,7 @@ export default function HomePage({
               <span>NÔNG SẢN CẮT GIÀN & KÝ SỰ BẢN ĐỊA PHAN RANG</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl lg:text-[3.25rem] font-black tracking-tight text-white leading-[1.15]">
+            <h1 className="xng-heading xng-heading--hero text-white">
               Nắng Gom Vị Ngọt, <br />
               <span className="bg-gradient-to-r from-amber-300 via-amber-200 to-orange-300 bg-clip-text text-transparent">
                 Gió Chắt Vị Đậm Đà.
@@ -199,6 +200,8 @@ export default function HomePage({
           </div>
         </div>
       </section>
+      <WeatherSection />
+
 
       {/* 2. KHÁM PHÁ GIAN HÀNG QUÊ */}
       <section className="space-y-3.5">

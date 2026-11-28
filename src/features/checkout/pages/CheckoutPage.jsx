@@ -55,7 +55,7 @@ export default function CheckoutPage({
   if (!cart.length) return <EmptyCheckout onNavigate={onNavigate} />;
 
   return (
-    <div className="checkout-mobile w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-5 font-sans">
+    <div className="xng-page xng-page--transaction checkout-mobile font-sans">
       <div className="bg-white rounded-3xl border border-stone-200/90 shadow-xl overflow-hidden relative">
         <div className="bg-stone-900 text-white p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

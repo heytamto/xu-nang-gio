@@ -191,7 +191,7 @@ export default function OrderLookupPage({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 font-sans text-stone-800 animate-fadeIn">
+    <div className="xng-page xng-page--transaction space-y-6 font-sans text-stone-800">
       {/* 1. HERO BANNER LỚN FULL-WIDTH */}
       <div className="relative w-full rounded-3xl overflow-hidden bg-stone-900 text-white p-7 sm:p-12 lg:p-14 border border-stone-800 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div className="absolute inset-0 pointer-events-none">
@@ -209,7 +209,7 @@ export default function OrderLookupPage({
             <span>Theo Dõi Hành Trình Kiện Hàng • Cập Nhật Trực Tiếp Từ Vườn</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15]">
+          <h1 className="xng-heading xng-heading--compact ">
             <span className="block text-white">Tra Cứu Đơn Hàng</span>
             <span className="block text-amber-400 mt-1">
               & Theo Dõi Trạng Thái

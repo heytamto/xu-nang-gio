@@ -29,7 +29,7 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-10 animate-fadeIn font-sans text-stone-800">
+    <div className="xng-page xng-page--editorial space-y-10 font-sans text-stone-800">
       
       {/* 1. THANH ĐIỀU HƯỚNG TINH GỌN */}
       <div className="flex items-center justify-between w-full">
@@ -63,7 +63,7 @@ export default function PolicyPage({ onNavigateHome, onNavigateShop, onNavigate 
             <span>MINH BẠCH • TẬN TÂM • UY TÍN NHÀ VƯỜN</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white">
+          <h1 className="xng-heading  text-white">
             Chính Sách Bán Hàng & Quyền Lợi Khách Thương
           </h1>
 

@@ -238,7 +238,7 @@ export default function ShopPage({
   }, [localProducts, selectedCategories, isFilterNewOnly, debouncedQuery, sortBy]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6 sm:space-y-10 animate-fadeIn font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
+    <div className="xng-page xng-page--editorial space-y-6 sm:space-y-10 font-sans selection:bg-amber-100 selection:text-amber-900 text-stone-800">
       {/* 1. BANNER TIÊU ĐỀ */}
       <section className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-stone-900 via-stone-900 to-amber-950 text-white p-6 sm:p-12 shadow-xl border border-stone-800">
         <div className="relative z-10 max-w-3xl space-y-3">
@@ -247,7 +247,7 @@ export default function ShopPage({
             <span>Nông Sản Tươi Hái Mỗi Sáng • Đóng Thùng Xốp Gửi Xe</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+          <h1 className="xng-heading  ">
             Gian Hàng Đặc Sản <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-amber-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
               Chính Gốc Xứ Nắng Gió

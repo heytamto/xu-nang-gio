@@ -1,3 +1,4 @@
+import WeatherConfigSection from "./WeatherConfigSection";
 // src/components/admin/ConfigVoucherTab.jsx
 import React, { useState } from "react";
 import PaymentGiftConfigSection from "./PaymentGiftConfigSection";
@@ -46,6 +47,8 @@ export default function ConfigVoucherTab({
       <StorefrontSectionsConfig onShowAlert={onShowAlert} setConfirmModalConfig={setConfirmModalConfig} />
 
       <ShippingPolicyConfig onShowAlert={onShowAlert} setConfirmModalConfig={setConfirmModalConfig} />
+      <WeatherConfigSection />
+
 
       {/* Modal Xác Nhận Chung */}
       <ConfirmModal

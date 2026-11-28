@@ -173,7 +173,7 @@ function AdminContent({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">
+    <div className="xng-page xng-page--management font-sans text-stone-800">
       <AdminHeaderBar
         adminUser={adminUser}
         activeTab={activeTab}

@@ -250,7 +250,7 @@ function PackingContent({
   }, [packableOrders, parseOrderItems]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 font-sans text-stone-800">
+    <div className="xng-page xng-page--management font-sans text-stone-800">
       <div className="sticky top-0 z-40 bg-[#faf8f5]/95 backdrop-blur-md pt-3 pb-3">
         <header className="bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/90 shadow-md space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -268,7 +268,7 @@ function PackingContent({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-lg sm:text-2xl font-black text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
+                  <h1 className="xng-heading xng-heading--compact text-stone-900">Khu Vực Soạn & Đóng Thùng Xốp</h1>
                   {isLoading && <Loader2 className="w-5 h-5 text-amber-600 animate-spin" />}
                 </div>
                 <p className="text-xs sm:text-sm text-stone-600 font-normal mt-0.5">
