@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Feather, Calendar, MapPin, Sparkles, Loader2, Sun } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
@@ -19,37 +19,15 @@ export default function StoriesTab({
   onDeleteStory,
   onResetStories,
   onShowAlert,
-  setConfirmModalConfig
+  setConfirmModalConfig,
+  mutationBusy = false
 }) {
-  const [localStories, setLocalStories] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  // 1. Tải dữ liệu qua storyRepo nếu danh sách từ props rỗng
-  const fetchStories = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await storyRepo.getAll();
-      if (Array.isArray(data)) {
-        const sorted = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setLocalStories(sorted);
-      }
-    } catch (err) {
-      console.error('Lỗi tải stories qua storyRepo:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (Array.isArray(parentStories) && parentStories.length > 0) {
-      setLocalStories(parentStories);
-    } else {
-      fetchStories();
-    }
-  }, [parentStories, fetchStories]);
+  const [isUploading,setIsUploading] = useState(false);
+  const submitting = useRef(false);
+  const [errorMessage,setErrorMessage] = useState('');
+  const isLoading = false;
+  const deletingId = null;
 
   const [newStory, setNewStory] = useState({
     title: '',
@@ -64,8 +42,10 @@ export default function StoriesTab({
   // 2. Thêm mẩu chuyện mới qua storyRepo
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting.current || mutationBusy || isUploading) return;
     if (!newStory.title.trim() || (!newStory.quote.trim() && !newStory.story.trim())) return;
 
+    submitting.current = true;
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -89,8 +69,8 @@ export default function StoriesTab({
       };
 
       const createdStory = await storyRepo.create(payload);
+      if (!createdStory?.id) throw new Error('Database chưa xác nhận tạo bài viết.');
 
-      setLocalStories((prev) => [createdStory, ...prev]);
 
       if (onAddStory) {
         onAddStory(createdStory);
@@ -112,59 +92,17 @@ export default function StoriesTab({
       setErrorMessage(err.message || 'Không thể lưu câu chuyện vào cơ sở dữ liệu.');
       onShowAlert?.('Lỗi thêm chuyện vườn: ' + err.message);
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
 
   // 3. Xóa câu chuyện: Gọi trực tiếp onDeleteStory từ component cha để chỉ xác nhận 1 lần
-  const handleDelete = async (id, title) => {
-    if (onDeleteStory) {
-      try {
-        setDeletingId(id);
-        await onDeleteStory(id, title);
-      } finally {
-        setDeletingId(null);
-      }
-      return;
-    }
-
-    if (setConfirmModalConfig) {
-      setConfirmModalConfig({
-        isAlert: false,
-        title: 'Xóa Chuyện Vườn',
-        message: `Bạn có chắc chắn muốn xóa mẩu chuyện "${title}" (#${id}) khỏi cơ sở dữ liệu?`,
-        confirmLabel: 'Xác nhận xóa',
-        onConfirm: async () => {
-          try {
-            setDeletingId(id);
-            await storyRepo.remove(id);
-            setLocalStories((prev) => prev.filter((item) => item.id !== id));
-            onShowAlert?.(`Đã xóa mẩu chuyện "${title}"!`);
-          } catch (err) {
-            console.error('Lỗi xóa story:', err);
-            onShowAlert?.('Không thể xóa: ' + (err.message || 'Lỗi hệ thống'));
-          } finally {
-            setDeletingId(null);
-          }
-        }
-      });
-      return;
-    }
-
-    if (!window.confirm(`Xóa câu chuyện "${title}"?`)) return;
-    try {
-      setDeletingId(id);
-      await storyRepo.remove(id);
-      setLocalStories((prev) => prev.filter((item) => item.id !== id));
-      onShowAlert?.(`Đã xóa mẩu chuyện "${title}"!`);
-    } catch (err) {
-      alert('Không thể xóa: ' + err.message);
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDelete = (id,title) => {
+    if (!mutationBusy && !submitting.current) onDeleteStory?.(id,title);
   };
 
-  const storiesList = localStories;
+  const storiesList = parentStories;
 
   return (
     <div className="space-y-6 sm:space-y-7 animate-fadeIn font-sans text-stone-800">
@@ -234,10 +172,11 @@ export default function StoriesTab({
           </div>
 
           <ImageUploadField
+            onUploadStateChange={setIsUploading}
             label="Ảnh mẩu chuyện (Supabase Storage)"
             value={newStory.image}
             bucket="stories"
-            onChange={(url) => setNewStory({ ...newStory, image: url })}
+            onChange={(url) => setNewStory(prev => ({ ...prev, image: url }))}
           />
 
           <div>
@@ -266,7 +205,7 @@ export default function StoriesTab({
           <div className="flex justify-end pt-2 border-t border-stone-100">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading || mutationBusy}
               className="px-7 py-3 bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               {isSubmitting ? (
@@ -303,7 +242,7 @@ export default function StoriesTab({
               className="px-4 py-2 rounded-2xl border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Khôi phục mặc định</span>
+              <span>Tải lại dữ liệu</span>
             </button>
           )}
         </div>
@@ -381,6 +320,7 @@ export default function StoriesTab({
                   <div className="shrink-0 flex items-center gap-2.5">
                     <button
                       type="button"
+                      disabled={mutationBusy || isSubmitting}
                       onClick={() => onEditStory && onEditStory(storyItem)}
                       className="p-2 text-stone-400 hover:text-amber-700 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Chỉnh sửa câu chuyện"
@@ -390,7 +330,7 @@ export default function StoriesTab({
 
                     <button
                       type="button"
-                      disabled={isItemDeleting}
+                      disabled={isItemDeleting || mutationBusy || isSubmitting}
                       onClick={() => handleDelete(storyItem.id, storyItem.title)}
                       className="p-2 text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer disabled:opacity-50"
                       title="Xóa câu chuyện"

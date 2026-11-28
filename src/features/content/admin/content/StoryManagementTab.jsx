@@ -1,9 +1,11 @@
 // src/components/admin/content/StoryManagementTab.jsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Feather, BookOpen, RotateCcw } from 'lucide-react';
 import StoriesTab from '../story/StoriesTab'; // Hoặc đường dẫn tương ứng trong project
 import PostsTab from '../post/PostsTab';     // Hoặc đường dẫn tương ứng trong project
 import EditStoryModal from '../story/EditStoryModal';
+import { supabase } from '../../../../infrastructure/supabase/supabaseClient';
+import { deleteArticle } from '../../services/confirmedDelete.js';
 import EditPostModal from '../post/EditPostModal';
 
 export default function StoryManagementTab({
@@ -20,16 +22,31 @@ export default function StoryManagementTab({
   const [editingStory, setEditingStory] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
 
+  const deleting = useRef(false);
+  const [busy,setBusy] = useState(false);
+  const latest = useRef({stories,posts});
+  latest.current = {stories,posts};
+  const requestDelete = (table,id,title) => {
+    if (deleting.current || !setConfirmModalConfig) return;
+    setConfirmModalConfig({title:'Xóa bài viết',message:`Bạn có chắc muốn xóa “${title}”?`,confirmLabel:'Xóa bài',onConfirm:async()=>{
+      if(deleting.current) return;
+      deleting.current=true; setBusy(true);
+      try { await deleteArticle(supabase,table,id); const next=latest.current[table].filter(row=>row.id!==id); if(table==='stories') onSaveStories?.(next); else onSavePosts?.(next); }
+      catch(error){setConfirmModalConfig({title:'Không thể xóa bài viết',message:error.message||'Vui lòng thử lại.',isAlert:true});}
+      finally{deleting.current=false;setBusy(false);}
+    }});
+  };
+
   // Xử lý cập nhật bài viết cẩm nang sau khi sửa trong Modal
   const handleSavePostFromModal = (updatedPost) => {
-    const nextList = posts.map((p) => (p.id === updatedPost.id ? updatedPost : p));
+    const nextList = latest.current.posts.map((p) => (p.id === updatedPost.id ? updatedPost : p));
     if (onSavePosts) onSavePosts(nextList);
     setEditingPost(null);
   };
 
   // Xử lý cập nhật chuyện vườn sau khi sửa trong Modal
   const handleSaveStoryFromModal = (updatedStory) => {
-    const nextList = stories.map((s) => (s.id === updatedStory.id ? updatedStory : s));
+    const nextList = latest.current.stories.map((s) => (s.id === updatedStory.id ? updatedStory : s));
     if (onSaveStories) onSaveStories(nextList);
     setEditingStory(null);
   };
@@ -74,7 +91,7 @@ export default function StoryManagementTab({
             className="px-4 py-2 rounded-2xl border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Khôi phục chuyện vườn</span>
+            <span>Tải lại chuyện vườn</span>
           </button>
         )}
 
@@ -85,7 +102,7 @@ export default function StoryManagementTab({
             className="px-4 py-2 rounded-2xl border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
           >
             <RotateCcw className="w-4 h-4" />
-            <span>Khôi phục cẩm nang</span>
+            <span>Tải lại cẩm nang</span>
           </button>
         )}
       </div>
@@ -94,20 +111,22 @@ export default function StoryManagementTab({
       {activeSubTab === 'stories' ? (
         <StoriesTab
           stories={stories}
-          onAddStory={(newStory) => onSaveStories?.([newStory, ...stories])}
+          onAddStory={(newStory) => onSaveStories?.([newStory, ...latest.current.stories.filter(s=>s.id!==newStory.id)])}
           onEditStory={(storyItem) => setEditingStory(storyItem)}
-          onDeleteStory={(id) => onSaveStories?.(stories.filter((s) => s.id !== id))}
-          onResetStories={onResetStories}
+          onDeleteStory={(id,title) => requestDelete('stories',id,title)}
+          mutationBusy={busy}
+          onResetStories={null}
           onShowAlert={onShowAlert}
           setConfirmModalConfig={setConfirmModalConfig}
         />
       ) : (
         <PostsTab
           posts={posts}
-          onAddPost={(newPost) => onSavePosts?.([newPost, ...posts])}
+          onAddPost={(newPost) => onSavePosts?.([newPost, ...latest.current.posts.filter(p=>p.id!==newPost.id)])}
           onEditPost={(postItem) => setEditingPost(postItem)}
-          onDeletePost={(id) => onSavePosts?.(posts.filter((p) => p.id !== id))}
-          onResetPosts={onResetPosts}
+          onDeletePost={(id,title) => requestDelete('posts',id,title)}
+          mutationBusy={busy}
+          onResetPosts={null}
           onShowAlert={onShowAlert}
           setConfirmModalConfig={setConfirmModalConfig}
         />

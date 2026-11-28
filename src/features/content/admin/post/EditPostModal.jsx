@@ -1,6 +1,6 @@
 // src/components/admin/post/EditPostModal.jsx
 import ModalPortal from '../../../../shared/components/ModalPortal';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, Loader2, BookOpen } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
@@ -36,6 +36,8 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading,setIsUploading] = useState(false);
+  const submitting = useRef(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -57,8 +59,10 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting.current || isUploading) return;
     if (!formData.title.trim() || !formData.excerpt.trim()) return;
 
+    submitting.current = true;
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -78,7 +82,8 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
       // 1. Cập nhật qua postRepo
       const updatedPost = await postRepo.update(post.id, updatePayload);
 
-      const savedResult = updatedPost || { ...post, ...updatePayload };
+      if (!updatedPost || updatedPost.id !== post.id) throw new Error('Database chưa xác nhận cập nhật.');
+      const savedResult = updatedPost;
 
       // 2. Báo toast thành công
       onShowAlert?.(`Đã cập nhật bài viết #${post.id} thành công!`);
@@ -93,12 +98,13 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
       console.error('Lỗi khi cập nhật bài viết qua postRepo:', err);
       setErrorMessage(err.message || 'Không thể cập nhật bài viết vào cơ sở dữ liệu.');
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
 
   return (
-    <ModalPortal mobileLayout="fullscreen" onClose={onClose} closeOnEscape={!isSubmitting}>
+    <ModalPortal mobileLayout="fullscreen" onClose={onClose} closeOnEscape={!isSubmitting && !isUploading}>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
@@ -116,6 +122,7 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
           </div>
           <button
             type="button"
+            disabled={isSubmitting || isUploading}
             onClick={onClose}
             className="text-stone-400 hover:text-stone-700 p-2 rounded-2xl hover:bg-stone-100 cursor-pointer transition-colors"
           >
@@ -183,10 +190,11 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
           </div>
 
           <ImageUploadField
+            onUploadStateChange={setIsUploading}
             label="Cập nhật ảnh bìa bài viết"
             value={formData.image}
             bucket="posts"
-            onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
+            onChange={(newUrl) => setFormData(prev => ({ ...prev, image: newUrl }))}
           />
 
           <div>
@@ -217,14 +225,15 @@ export default function EditPostModal({ post, onClose, onSave, onShowAlert }) {
           <div className="mobile-editor-footer flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
             <button
               type="button"
-              onClick={onClose}
+              disabled={isSubmitting || isUploading}
+            onClick={onClose}
               className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="px-7 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
               {isSubmitting ? (

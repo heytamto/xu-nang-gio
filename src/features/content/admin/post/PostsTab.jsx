@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus, RotateCcw, Pencil, Trash2, Calendar, Clock, Loader2, BookOpen } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
 import CustomDropdown from '../../../../shared/components/CustomDropdown';
@@ -19,37 +19,15 @@ export default function PostsTab({
   onDeletePost,
   onResetPosts,
   onShowAlert,
-  setConfirmModalConfig
+  setConfirmModalConfig,
+  mutationBusy = false
 }) {
-  const [localPosts, setLocalPosts] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  // 1. Tải danh sách bài viết thông qua postRepo
-  const fetchPosts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await postRepo.getAll();
-      if (Array.isArray(data)) {
-        const sorted = data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        setLocalPosts(sorted);
-      }
-    } catch (err) {
-      console.error('Lỗi tải posts qua postRepo:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (Array.isArray(parentPosts) && parentPosts.length > 0) {
-      setLocalPosts(parentPosts);
-    } else {
-      fetchPosts();
-    }
-  }, [parentPosts, fetchPosts]);
+  const [isUploading,setIsUploading] = useState(false);
+  const submitting = useRef(false);
+  const [errorMessage,setErrorMessage] = useState('');
+  const isLoading = false;
+  const deletingId = null;
 
   const [newPost, setNewPost] = useState({
     title: '',
@@ -64,8 +42,10 @@ export default function PostsTab({
   // 2. Thêm bài viết mới qua postRepo
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting.current || mutationBusy || isUploading) return;
     if (!newPost.title.trim() || !newPost.excerpt.trim()) return;
 
+    submitting.current = true;
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -82,8 +62,8 @@ export default function PostsTab({
       };
 
       const createdPost = await postRepo.create(payload);
+      if (!createdPost?.id) throw new Error('Database chưa xác nhận tạo bài viết.');
 
-      setLocalPosts((prev) => [createdPost, ...prev]);
 
       if (onAddPost) {
         onAddPost(createdPost);
@@ -105,57 +85,14 @@ export default function PostsTab({
       setErrorMessage(err.message || 'Không thể lưu bài viết vào cơ sở dữ liệu.');
       onShowAlert?.('Lỗi thêm bài viết: ' + err.message);
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
 
   // 3. Xóa bài viết: Ủy quyền trực tiếp cho onDeletePost của AdminPage để chỉ xác nhận 1 lần
-  const handleDelete = async (id, title) => {
-    if (onDeletePost) {
-      try {
-        setDeletingId(id);
-        await onDeletePost(id, title);
-      } finally {
-        setDeletingId(null);
-      }
-      return;
-    }
-
-    // Fallback nếu chạy độc lập không qua AdminPage
-    if (setConfirmModalConfig) {
-      setConfirmModalConfig({
-        isAlert: false,
-        title: 'Xóa Bài Viết',
-        message: `Bạn có chắc chắn muốn xóa bài "${title}" (#${id}) khỏi cẩm nang?`,
-        confirmLabel: 'Xác nhận xóa',
-        onConfirm: async () => {
-          try {
-            setDeletingId(id);
-            await postRepo.remove(id);
-            setLocalPosts((prev) => prev.filter((p) => p.id !== id));
-            onShowAlert?.(`Đã xóa bài viết "${title}"!`);
-          } catch (err) {
-            console.error('Lỗi xóa bài viết:', err);
-            onShowAlert?.('Không thể xóa bài viết: ' + (err.message || 'Lỗi hệ thống'));
-          } finally {
-            setDeletingId(null);
-          }
-        }
-      });
-      return;
-    }
-
-    if (!window.confirm(`Xóa bài viết "${title}"?`)) return;
-    try {
-      setDeletingId(id);
-      await postRepo.remove(id);
-      setLocalPosts((prev) => prev.filter((p) => p.id !== id));
-      onShowAlert?.(`Đã xóa bài viết "${title}"!`);
-    } catch (err) {
-      alert('Không thể xóa bài viết: ' + err.message);
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDelete = (id,title) => {
+    if (!mutationBusy && !submitting.current) onDeletePost?.(id,title);
   };
 
   const getCategoryLabel = (val) => {
@@ -163,7 +100,7 @@ export default function PostsTab({
     return found ? found.label : (val || 'Cẩm nang');
   };
 
-  const postsList = localPosts;
+  const postsList = parentPosts;
 
   return (
     <div className="space-y-6 sm:space-y-7 animate-fadeIn font-sans text-stone-800">
@@ -230,10 +167,11 @@ export default function PostsTab({
           </div>
 
           <ImageUploadField
+            onUploadStateChange={setIsUploading}
             label="Ảnh bìa bài viết (Supabase Storage)"
             value={newPost.image}
             bucket="posts"
-            onChange={(url) => setNewPost({ ...newPost, image: url })}
+            onChange={(url) => setNewPost(prev => ({ ...prev, image: url }))}
           />
 
           <div>
@@ -262,7 +200,7 @@ export default function PostsTab({
           <div className="flex justify-end pt-2 border-t border-stone-100">
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading || mutationBusy}
               className="px-7 py-3 bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               {isSubmitting ? (
@@ -299,7 +237,7 @@ export default function PostsTab({
               className="px-4 py-2 rounded-2xl border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer shadow-2xs"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Khôi phục mặc định</span>
+              <span>Tải lại dữ liệu</span>
             </button>
           )}
         </div>
@@ -373,6 +311,7 @@ export default function PostsTab({
 
                     <button
                       type="button"
+                      disabled={mutationBusy || isSubmitting}
                       onClick={() => onEditPost && onEditPost(post)}
                       className="p-2 text-stone-400 hover:text-amber-700 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
                       title="Chỉnh sửa bài viết"
@@ -382,7 +321,7 @@ export default function PostsTab({
 
                     <button
                       type="button"
-                      disabled={isItemDeleting}
+                      disabled={isItemDeleting || mutationBusy || isSubmitting}
                       onClick={() => handleDelete(post.id, post.title)}
                       className="p-2 text-stone-400 hover:text-rose-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer disabled:opacity-50"
                       title="Xóa bài viết"

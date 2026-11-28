@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ModalPortal from '../../../../shared/components/ModalPortal';
 import { X, Check, Calendar, MapPin, Loader2, Sun } from 'lucide-react';
 import ImageUploadField from '../../../../shared/components/ImageUploadField';
@@ -27,6 +27,8 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading,setIsUploading] = useState(false);
+  const submitting = useRef(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -50,8 +52,10 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting.current || isUploading) return;
     if (!formData.title?.trim()) return;
 
+    submitting.current = true;
     setIsSubmitting(true);
     setErrorMessage('');
 
@@ -76,7 +80,8 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
       // 1. Cập nhật thông qua storyRepo
       const updatedStory = await storyRepo.update(story.id, updatePayload);
 
-      const savedResult = updatedStory || { ...story, ...updatePayload };
+      if (!updatedStory || updatedStory.id !== story.id) throw new Error('Database chưa xác nhận cập nhật.');
+      const savedResult = updatedStory;
 
       // 2. Thông báo thành công
       onShowAlert?.(`Đã cập nhật câu chuyện #${story.id} thành công!`);
@@ -91,12 +96,13 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
       console.error('Lỗi khi cập nhật chuyện vườn qua storyRepo:', err);
       setErrorMessage(err.message || 'Không thể cập nhật câu chuyện vào cơ sở dữ liệu.');
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
 
   return (
-    <ModalPortal mobileLayout="fullscreen" onClose={onClose} closeOnEscape={!isSubmitting}>
+    <ModalPortal mobileLayout="fullscreen" onClose={onClose} closeOnEscape={!isSubmitting && !isUploading}>
     <div role="dialog" aria-modal="true" aria-label="Cập nhật chuyện vườn" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-stone-950/75 backdrop-blur-xs animate-fadeIn font-sans text-stone-800">
       <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl border border-stone-200 space-y-5 max-h-[92dvh] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
@@ -114,6 +120,7 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
           </div>
           <button
             type="button"
+            disabled={isSubmitting || isUploading}
             onClick={onClose}
             className="text-stone-400 hover:text-stone-700 p-2 rounded-2xl hover:bg-stone-100 cursor-pointer transition-colors"
           >
@@ -196,10 +203,11 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
           </div>
 
           <ImageUploadField
+            onUploadStateChange={setIsUploading}
             label="Ảnh đại diện mẩu chuyện (Supabase Storage)"
             value={formData.image}
             bucket="stories"
-            onChange={(newUrl) => setFormData({ ...formData, image: newUrl })}
+            onChange={(newUrl) => setFormData(prev => ({ ...prev, image: newUrl }))}
           />
 
           <div>
@@ -232,14 +240,15 @@ export default function EditStoryModal({ story = {}, onClose, onSave, onShowAler
           <div className="mobile-editor-footer flex items-center justify-end gap-3 pt-3 border-t border-stone-100">
             <button
               type="button"
-              onClick={onClose}
+              disabled={isSubmitting || isUploading}
+            onClick={onClose}
               className="px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="px-6 py-3 rounded-2xl text-xs sm:text-sm font-bold bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white shadow-sm transition-all active:scale-95 cursor-pointer flex items-center gap-2"
             >
               {isSubmitting ? (
